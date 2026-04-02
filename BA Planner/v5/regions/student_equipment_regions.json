@@ -41,19 +41,19 @@
       "x2": 0.3536,
       "y2": 0.3032
   	},
-	"equipment_2_level_digit_1": {
-	  "x1": 0.354,
-	  "y1": 0.45,
-	  "x2": 0.3616,
-	  "y2": 0.4714
-	},
-  	"equipment_2_level_digit_2": {
+	  "equipment_2_level_digit_1": {
+	    "x1": 0.354,
+	    "y1": 0.45,
+	    "x2": 0.3616,
+	    "y2": 0.4714
+	  },
+    "equipment_2_level_digit_2": {
       "x1": 0.3451,
       "y1": 0.45,
       "x2": 0.3536,
       "y2": 0.4714
   	},
-	"equipment_3_level_digit_1": {
+	  "equipment_3_level_digit_1": {
       "x1": 0.354,
       "y1": 0.6175,
       "x2": 0.3607,
