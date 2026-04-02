@@ -1,14 +1,37 @@
 """
-core/scanner.py — 스캔 자동화 엔진  V5
+core/scanner.py — 스캔 자동화 엔진  V5.1
 
-[수정]
-  - StudentEntry: weapon_level, equip1_level~equip3_level 필드 추가
-  - _read_equipment_into(): 장비 창(equipment_button) 진입 후 스캔으로 변경
-    - 장비 티어 (1~4) + 장비 레벨 (1~3) 읽기
-    - 스캔 완료 후 기본 정보 탭 복귀
-  - _maybe_read_weapon_star_into(): 무기 레벨(weapon_level) 읽기 추가
-  - _detect_weapon_state_for(): region 없을 때 기본값 NO_WEAPON_SYSTEM 으로 변경
-  - weapon_level 은 무기 장착 상태에서만 읽음
+[학생 1명 스캔 순서]
+  1. 학생 식별 (texture 매칭)
+  2. 스킬 스캔
+       skill_menu_button 클릭 → skillcheck 플래그 확인 후 false면 체크 클릭
+       → EX/S1/S2/S3 읽기 → skillmenu_quit_button 닫기
+  3. 무기 상태 판정
+       weapon_detect_flag_region 으로 3-상태 판별
+       - NO_WEAPON_SYSTEM        → 성작 스캔 단계로
+       - UNLOCKED_NOT_EQUIPPED   → weapon_star=None, weapon_level=None
+       - EQUIPPED                → weapon_info_menu_button 클릭
+                                   → 성작 + 레벨(digit2=null이면 1자리) 읽기
+                                   → weapon_menu_quit_button 닫기
+  4. 장비 스캔
+       equipment_all_view_check_region 텍스처가 impossible이면 스킵
+       아니면 equipment_button 클릭 → equipcheck false면 체크 클릭
+       슬롯별 flag 확인:
+         equip1: empty가 아니면 → 티어 + 레벨
+         equip2: empty / level_locked 가 아니면 → 티어 + 레벨
+         equip3: empty / level_locked 가 아니면 → 티어 + 레벨
+         equip4: empty / love_locked / null 가 아니면 → 티어만 (레벨 없음)
+       equipmentmenu_quit_button 닫기
+  5. 레벨 스캔
+       entry.level 이 이미 90이면 스킵
+       levelcheck_button 클릭 → digit 읽기 → basic_info_button 복귀
+  6. 성작 스캔
+       weapon_state != NO_WEAPON_SYSTEM → 5성 확정 스킵
+       아니면 star_menu_button 클릭 → student_star_region 읽기
+  7. 스탯 스캔
+       stat_menu_button 클릭 → hp/atk/heal 읽기 → statmenu_quit_button 닫기
+  8. 기본 정보 탭 복귀 (루프에서 처리)
+  9. 다음 학생 버튼
 """
 
 import time
@@ -25,12 +48,20 @@ from core.capture import (
 from core.matcher import (
     WeaponState,
     WeaponStatus,
+    CheckFlag,
+    EquipSlotFlag,
     match_student_texture,
     detect_weapon_state,
+    read_skill_check,
+    read_equip_check,
+    read_equip_slot_flag,
+    read_stat_value,
     read_student_star_v5,
     read_weapon_star_v5,
     read_skill,
     read_equip_tier,
+    read_equip_level,
+    read_weapon_level,
     read_student_level,
     read_student_level_v5,
 )
@@ -67,20 +98,28 @@ class StudentEntry:
     display_name: str | None = None
     level:        int | None = None
     student_star: int | None = None
+    # 무기
     weapon_state: WeaponState | None = None
     weapon_star:  int | None         = None
-    weapon_level: int | None         = None   # 무기 레벨 (장착 시)
+    weapon_level: int | None         = None
+    # 스킬
     ex_skill: int | None = None
     skill1:   int | None = None
     skill2:   int | None = None
     skill3:   int | None = None
-    equip1:       str | None = None
-    equip2:       str | None = None
-    equip3:       str | None = None
-    equip4:       str | None = None
-    equip1_level: int | None = None   # 장비1 레벨
-    equip2_level: int | None = None   # 장비2 레벨
-    equip3_level: int | None = None   # 장비3 레벨
+    # 장비 티어
+    equip1:   str | None = None
+    equip2:   str | None = None
+    equip3:   str | None = None
+    equip4:   str | None = None
+    # 장비 레벨 (1~3)
+    equip1_level: int | None = None
+    equip2_level: int | None = None
+    equip3_level: int | None = None
+    # 스탯
+    stat_hp:   int | None = None
+    stat_atk:  int | None = None
+    stat_heal: int | None = None
 
     def label(self) -> str:
         return self.display_name or self.student_id or "?"
@@ -143,7 +182,7 @@ class Scanner:
 
         ocr.load()
         try:
-            for key, rk in [("크레딧",  "credit_region"),
+            for key, rk in [("크레딧", "credit_region"),
                              ("청휘석", "pyroxene_region")]:
                 try:
                     crop = crop_ratio(img, lobby_r[rk])
@@ -154,15 +193,11 @@ class Scanner:
         finally:
             ocr.unload()
 
-        self.log(
-            f"💰 청휘석={result.get('청휘석','-')}  "
-            f"크레딧={result.get('크레딧','-')}"
-        )
+        self.log(f"💰 청휘석={result.get('청휘석','-')}  크레딧={result.get('크레딧','-')}")
         return result
 
     # ── 공통 그리드 스캔 ──────────────────────────────────
-    def _scan_grid(self, section: str, source: str,
-                   scroll_amount: int) -> list[ItemEntry]:
+    def _scan_grid(self, section: str, source: str, scroll_amount: int) -> list[ItemEntry]:
         r_sec   = self.r[section]
         slots   = r_sec["grid_slots"]
         name_r  = r_sec["name_region"]
@@ -203,11 +238,9 @@ class Scanner:
                 seen_hashes.pop(0)
 
             new_this = 0
-
             for slot in slots:
                 if self._stop:
                     break
-
                 click_ry = slot["y1"] + (slot["y2"] - slot["y1"]) * 0.4
                 safe_click(rect, slot["cx"], click_ry, f"{source}_slot")
                 time.sleep(0.22)
@@ -218,7 +251,6 @@ class Scanner:
 
                 name  = ocr.read_item_name(crop_ratio(img2, name_r))
                 count = ocr.read_item_count(crop_ratio(img2, count_r))
-
                 if not name:
                     continue
 
@@ -230,10 +262,7 @@ class Scanner:
                     new_this += 1
                     self.log(f"  {icon} [{len(items):>3}] {name}  ×{count}")
 
-            self.log(
-                f"  스크롤 {scroll_i+1}회차: "
-                f"신규 {new_this}개 / 누계 {len(items)}개"
-            )
+            self.log(f"  스크롤 {scroll_i+1}회차: 신규 {new_this}개 / 누계 {len(items)}개")
 
             before = crop_ratio(capture_window() or img, grid_r)
             scroll_at(rect, scroll_cx, scroll_cy, scroll_amount)
@@ -247,7 +276,6 @@ class Scanner:
             if _images_similar(before, after):
                 self.log(f"  ✅ 스크롤 끝 — 총 {len(items)}개")
                 break
-
             if new_this == 0 and scroll_i >= 2:
                 self.log(f"  ✅ 신규 없음 — 총 {len(items)}개")
                 break
@@ -281,6 +309,18 @@ class Scanner:
         self.log("🏠 로비 복귀...")
         press_esc()
         time.sleep(0.5)
+
+    def _restore_basic_info_tab(self) -> None:
+        rect = get_window_rect()
+        if not rect:
+            return
+        sr = self.r["student"]
+        if "basic_info_button" in sr:
+            click_center(rect, sr["basic_info_button"], "basic_info_tab")
+            time.sleep(0.3)
+        else:
+            press_esc()
+            time.sleep(0.4)
 
     # ── 아이템 스캔 ───────────────────────────────────────
     def scan_items(self) -> list[ItemEntry]:
@@ -331,59 +371,53 @@ class Scanner:
     def scan_students_v5(self) -> list[StudentEntry]:
         self._stop = False
         self.log("━━━ 👩 학생 스캔 시작 (V5) ━━━")
-
         results: list[StudentEntry] = []
 
         try:
             ocr.load()
-
             if not self._open_student_menu():
                 return []
             if not self._open_first_student():
                 return []
 
-            seen_student_ids:    set[str] = set()
-            consecutive_duplicates: int  = 0
+            seen_ids: set[str] = set()
+            consecutive_dup    = 0
 
             for idx in range(500):
                 if self._stop:
                     break
 
                 entry = self.scan_one_student_v5(idx)
-
                 if entry is None:
                     self.log(f"  ⚠️ [{idx+1}] 식별 실패 — 스캔 종료")
                     break
 
                 dedup_key = entry.student_id or entry.display_name or ""
-
-                if dedup_key and dedup_key in seen_student_ids:
-                    consecutive_duplicates += 1
-                    self.log(
-                        f"  🔁 중복: {entry.label()} "
-                        f"({consecutive_duplicates}/{MAX_CONSECUTIVE_DUP})"
-                    )
+                if dedup_key and dedup_key in seen_ids:
+                    consecutive_dup += 1
+                    self.log(f"  🔁 중복: {entry.label()} ({consecutive_dup}/{MAX_CONSECUTIVE_DUP})")
                 else:
-                    consecutive_duplicates = 0
+                    consecutive_dup = 0
                     if dedup_key:
-                        seen_student_ids.add(dedup_key)
+                        seen_ids.add(dedup_key)
 
                 results.append(entry)
                 self._log_student(entry, idx)
 
-                if consecutive_duplicates >= MAX_CONSECUTIVE_DUP:
+                if consecutive_dup >= MAX_CONSECUTIVE_DUP:
                     self.log("  ✅ 연속 중복 → 스캔 종료")
                     break
 
+                # 8. 기본 정보 탭 복귀
                 self._restore_basic_info_tab()
+                # 9. 다음 학생
                 if not self._move_to_next_student():
                     self.log("  ✅ 마지막 학생 — 스캔 종료")
                     break
 
         except Exception as e:
             self.log(f"❌ 학생 스캔 오류: {e}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
         finally:
             self._return_lobby()
             ocr.unload()
@@ -394,8 +428,9 @@ class Scanner:
     def scan_students(self) -> list[StudentEntry]:
         return self.scan_students_v5()
 
-    # ── B. 학생 1명 스캔 ──────────────────────────────────
+    # ── 학생 1명 전체 스캔 ───────────────────────────────
     def scan_one_student_v5(self, idx: int = 0) -> StudentEntry | None:
+        # 1. 식별
         sid = self._identify_student(idx)
         if sid is None:
             return None
@@ -405,16 +440,17 @@ class Scanner:
             display_name = student_names.display_name(sid),
         )
 
-        self._read_skills_into(entry)
-        self._read_equipment_into(entry)          # 장비 창 진입 방식
-        entry.weapon_state = self._detect_weapon_state_for(entry)
-        self._maybe_read_level_into(entry)
-        self._maybe_read_student_star_into(entry)
-        self._maybe_read_weapon_star_into(entry)  # 무기 레벨도 포함
-
+        self._read_skills_into(entry)       # 2. 스킬
+        self._read_weapon_into(entry)       # 3. 무기
+        self._read_equipment_into(entry)    # 4. 장비
+        self._read_level_into(entry)        # 5. 레벨
+        self._read_student_star_into(entry) # 6. 성작
+        self._read_stats_into(entry)        # 7. 스탯
         return entry
 
-    # ── C. 학생 texture 기반 식별 ────────────────────────
+    # ─────────────────────────────────────────────────────────
+    # 1. 학생 식별
+    # ─────────────────────────────────────────────────────────
     def _identify_student(self, idx: int = 0) -> str | None:
         img = capture_window()
         if img is None:
@@ -423,161 +459,313 @@ class Scanner:
         sr        = self.r["student"]
         texture_r = sr.get("student_texture_region")
         if not texture_r:
-            self.log(f"  ⚠️ [{idx+1}] student_texture_region 미정의 — 식별 불가")
+            self.log(f"  ⚠️ [{idx+1}] student_texture_region 미정의")
             return None
 
-        texture_crop = crop_ratio(img, texture_r)
-        sid, score   = match_student_texture(texture_crop)
-
+        sid, score = match_student_texture(crop_ratio(img, texture_r))
         if sid is not None:
-            self.log(f"  🔍 [{idx+1}] 식별: {student_names.display_name(sid)} (score={score:.3f})")
+            self.log(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
             return sid
 
         self.log(f"  ⚠️ [{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
         return None
 
-    # ── D. 스킬 읽기 ──────────────────────────────────────
+    # ─────────────────────────────────────────────────────────
+    # 2. 스킬 스캔 (세부 메뉴)
+    # ─────────────────────────────────────────────────────────
     def _read_skills_into(self, entry: StudentEntry) -> None:
-        img = capture_window()
-        if img is None:
-            return
-
-        sr = self.r["student"]
-        for field, region_key, tmpl_key in [
-            ("ex_skill", "ex_skill_region", "EX_Skill"),
-            ("skill1",   "skill1_region",   "Skill1"),
-            ("skill2",   "skill2_region",   "Skill2"),
-            ("skill3",   "skill3_region",   "Skill3"),
-        ]:
-            raw = read_skill(crop_ratio(img, sr[region_key]), tmpl_key)
-            try:
-                setattr(entry, field, int(raw))
-            except (TypeError, ValueError):
-                setattr(entry, field, None)
-
-    # ── E. 장비 읽기 (장비 창 진입 방식) ─────────────────
-    def _read_equipment_into(self, entry: StudentEntry) -> None:
         rect = get_window_rect()
         if not rect:
             return
 
         sr = self.r["student"]
-
-        # 1. 장비 창 버튼 클릭
-        equip_btn = sr.get("equipment_button")
-        if not equip_btn:
-            self.log(f"  ⚠️ equipment_button 미정의 — 장비 스캔 생략")
+        skill_btn = sr.get("skill_menu_button")
+        if not skill_btn:
+            self.log("  ⚠️ skill_menu_button 미정의 — 스킬 스캔 생략")
             return
 
+        click_center(rect, skill_btn, "skill_menu")
+        time.sleep(0.5)
+
+        img = capture_window()
+        if img is None:
+            self._close_skill_menu()
+            return
+
+        # 일괄 성장 체크 확인 → false면 클릭
+        check_r = sr.get("skill_all_view_check_region")
+        if check_r:
+            if read_skill_check(crop_ratio(img, check_r)) == CheckFlag.FALSE:
+                self.log("  🔘 스킬 일괄성장 체크 클릭")
+                click_center(rect, check_r, "skill_check")
+                time.sleep(0.3)
+                img = capture_window()
+                if img is None:
+                    self._close_skill_menu()
+                    return
+
+        # 스킬 읽기 — region 키는 student_skillmenu_regions.json 기준
+        for field_name, region_key, tmpl_key in [
+            ("ex_skill", "EX_skill",  "EX_Skill"),
+            ("skill1",   "Skill_1",   "Skill1"),
+            ("skill2",   "Skill_2",   "Skill2"),
+            ("skill3",   "Skill_3",   "Skill3"),
+        ]:
+            region = sr.get(region_key)
+            if region is None:
+                self.log(f"  ⚠️ {region_key} 미정의 — {field_name} 생략")
+                continue
+            raw = read_skill(crop_ratio(img, region), tmpl_key)
+            try:
+                setattr(entry, field_name, int(raw))
+            except (TypeError, ValueError):
+                setattr(entry, field_name, None)
+
+        self.log(
+            f"  🎓 스킬: EX={entry.ex_skill} "
+            f"S1={entry.skill1} S2={entry.skill2} S3={entry.skill3}"
+        )
+        self._close_skill_menu()
+
+    def _close_skill_menu(self) -> None:
+        rect = get_window_rect()
+        if not rect:
+            return
+        quit_btn = self.r["student"].get("skillmenu_quit_button")
+        if quit_btn:
+            click_center(rect, quit_btn, "skillmenu_quit")
+            time.sleep(0.3)
+
+    # ─────────────────────────────────────────────────────────
+    # 3. 무기 상태 판정 + 레벨/성작
+    # ─────────────────────────────────────────────────────────
+    def _read_weapon_into(self, entry: StudentEntry) -> None:
+        img = capture_window()
+        if img is None:
+            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            return
+
+        sr       = self.r["student"]
+        weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
+        if not weapon_r:
+            self.log("  ⚠️ weapon_detect_flag_region 미정의 → NO_WEAPON_SYSTEM")
+            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            return
+
+        state, score = detect_weapon_state(crop_ratio(img, weapon_r))
+        entry.weapon_state = state
+        self.log(f"  🗡 무기 상태: {state.name} (score={score:.3f})")
+
+        if state == WeaponState.NO_WEAPON_SYSTEM:
+            return  # 성작 스캔은 step 6에서
+
+        if state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
+            entry.weapon_star  = None
+            entry.weapon_level = None
+            self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
+            return
+
+        # WEAPON_EQUIPPED — 무기 메뉴 진입
+        rect = get_window_rect()
+        if not rect:
+            return
+
+        menu_btn = sr.get("weapon_info_menu_button")
+        if not menu_btn:
+            self.log("  ⚠️ weapon_info_menu_button 미정의 — 무기 상세 생략")
+            return
+
+        click_center(rect, menu_btn, "weapon_info_menu")
+        time.sleep(0.5)
+
+        img = capture_window()
+        if img is None:
+            self._quit_weapon_menu()
+            return
+
+        # 성작
+        star_r = sr.get("weapon_star_region")
+        if star_r:
+            entry.weapon_star = read_weapon_star_v5(crop_ratio(img, star_r))
+
+        # 레벨 (digit2=null → 1자리)
+        d1 = sr.get("weapon_level_digit_1")
+        d2 = sr.get("weapon_level_digit_2")
+        if d1 and d2:
+            entry.weapon_level = read_weapon_level(img, d1, d2)
+            self.log(f"  🗡 무기: {entry.weapon_star}★  Lv.{entry.weapon_level}")
+        else:
+            self.log("  ⚠️ weapon_level_digit 미정의 → weapon_level=None")
+
+        self._quit_weapon_menu()
+
+    def _quit_weapon_menu(self) -> None:
+        rect = get_window_rect()
+        if not rect:
+            return
+        quit_btn = self.r["student"].get("weapon_menu_quit_button")
+        if quit_btn:
+            click_center(rect, quit_btn, "weapon_menu_quit")
+            time.sleep(0.25)
+
+    # ─────────────────────────────────────────────────────────
+    # 4. 장비 스캔 (장비 창 진입)
+    # ─────────────────────────────────────────────────────────
+    def _read_equipment_into(self, entry: StudentEntry) -> None:
+        rect = get_window_rect()
+        if not rect:
+            return
+
+        sr        = self.r["student"]
+        equip_btn = sr.get("equipment_button")
+        if not equip_btn:
+            self.log("  ⚠️ equipment_button 미정의 — 장비 스캔 생략")
+            return
+
+        img = capture_window()
+        if img is None:
+            return
+
+        # equipcheck 영역으로 impossible 선검사
+        check_r = sr.get("equipment_all_view_check_region")
+        if check_r:
+            pre = read_equip_check(crop_ratio(img, check_r))
+            if pre == CheckFlag.IMPOSSIBLE:
+                self.log("  🚫 equipcheck=impossible — 장비 스캔 스킵")
+                return
+
+        # 장비 창 진입
         click_center(rect, equip_btn, "equipment_tab")
         time.sleep(0.5)
+
+        img = capture_window()
+        if img is None:
+            self._close_equipment_menu()
+            return
+
+        # 일괄 성장 체크 → false면 클릭
+        if check_r:
+            if read_equip_check(crop_ratio(img, check_r)) == CheckFlag.FALSE:
+                self.log("  🔘 장비 일괄성장 체크 클릭")
+                click_center(rect, check_r, "equip_check")
+                time.sleep(0.3)
+                img = capture_window()
+                if img is None:
+                    self._close_equipment_menu()
+                    return
+
+        # 슬롯별 스캔
+        self._scan_equip_slot(entry, img, sr, 1,
+                              skip_flags={EquipSlotFlag.EMPTY},
+                              scan_level=True)
+        self._scan_equip_slot(entry, img, sr, 2,
+                              skip_flags={EquipSlotFlag.EMPTY, EquipSlotFlag.LEVEL_LOCKED},
+                              scan_level=True)
+        self._scan_equip_slot(entry, img, sr, 3,
+                              skip_flags={EquipSlotFlag.EMPTY, EquipSlotFlag.LEVEL_LOCKED},
+                              scan_level=True)
+        self._scan_equip_slot(entry, img, sr, 4,
+                              skip_flags={EquipSlotFlag.EMPTY,
+                                          EquipSlotFlag.LOVE_LOCKED,
+                                          EquipSlotFlag.NULL},
+                              scan_level=False)
+
+        self._close_equipment_menu()
+
+    def _scan_equip_slot(
+        self,
+        entry: StudentEntry,
+        img: Image.Image,
+        sr: dict,
+        slot: int,
+        skip_flags: set[EquipSlotFlag],
+        scan_level: bool,
+    ) -> None:
+        # flag 영역으로 슬롯 상태 확인
+        flag_r = sr.get(f"equip{slot}_emptyflag") or sr.get(f"equip{slot}_empty_flag")
+        if flag_r:
+            slot_flag = read_equip_slot_flag(crop_ratio(img, flag_r), slot)
+            if slot_flag in skip_flags:
+                self.log(f"  🎒 장비{slot}: {slot_flag.value} — 스킵")
+                setattr(entry, f"equip{slot}", slot_flag.value)
+                return
+
+        # 티어
+        tier_r = sr.get(f"equipment_{slot}")
+        if tier_r:
+            tier = read_equip_tier(crop_ratio(img, tier_r), slot)
+            setattr(entry, f"equip{slot}", tier)
+            self.log(f"  🎒 장비{slot} 티어: {tier}")
+
+        # 레벨 (slot4 제외)
+        if scan_level:
+            d1 = sr.get(f"equipment_{slot}_level_digit_1")
+            d2 = sr.get(f"equipment_{slot}_level_digit_2")
+            if d1 and d2:
+                lv = read_equip_level(img, slot, d1, d2)
+                setattr(entry, f"equip{slot}_level", lv)
+                self.log(f"  🎒 장비{slot} 레벨: {lv}")
+            else:
+                self.log(f"  ⚠️ equipment_{slot}_level_digit 미정의 — 생략")
+
+    def _close_equipment_menu(self) -> None:
+        rect = get_window_rect()
+        if not rect:
+            return
+        quit_btn = self.r["student"].get("equipmentmenu_quit_button")
+        if quit_btn:
+            click_center(rect, quit_btn, "equipmentmenu_quit")
+            time.sleep(0.3)
+
+    # ─────────────────────────────────────────────────────────
+    # 5. 레벨 스캔
+    # ─────────────────────────────────────────────────────────
+    def _read_level_into(self, entry: StudentEntry) -> None:
+        if entry.level == MAX_STUDENT_LEVEL:
+            self.log(f"  ⏭ 레벨 스캔 생략: {entry.label()} (이미 Lv.90)")
+            return
+
+        rect = get_window_rect()
+        if not rect:
+            return
+
+        sr     = self.r["student"]
+        lv_btn = sr.get("levelcheck_button")
+        if not lv_btn:
+            self.log("  ⚠️ levelcheck_button 미정의 — 레벨 스캔 생략")
+            return
+
+        click_center(rect, lv_btn, "levelcheck_tab")
+        time.sleep(0.4)
 
         img = capture_window()
         if img is None:
             self._restore_basic_info_tab()
             return
 
-        # 2. 장비 티어 (1~4)
-        for slot_num in range(1, 5):
-            region_key = f"equipment_{slot_num}"
-            region = sr.get(region_key)
-            if region:
-                tier = read_equip_tier(crop_ratio(img, region), slot_num)
-                setattr(entry, f"equip{slot_num}", tier)
-                self.log(f"  🎒 장비{slot_num} 티어: {tier}")
-            else:
-                self.log(f"  ⚠️ {region_key} 미정의 — 장비{slot_num} 티어 생략")
+        lv = read_student_level_v5(img, sr["level_digit_1"], sr["level_digit_2"])
+        entry.level = lv
+        self.log(f"  📊 레벨: {entry.label()} → Lv.{lv}")
 
-        # 3. 장비 레벨 (1~3)
-        for slot_num in range(1, 4):
-            d1_key = f"equipment_{slot_num}_level_digit_1"
-            d2_key = f"equipment_{slot_num}_level_digit_2"
-            d1 = sr.get(d1_key)
-            d2 = sr.get(d2_key)
-            if d1 and d2:
-                lv = read_student_level_v5(img, d1, d2)
-                setattr(entry, f"equip{slot_num}_level", lv)
-                self.log(f"  🎒 장비{slot_num} 레벨: {lv}")
-            else:
-                self.log(f"  ⚠️ {d1_key}/{d2_key} 미정의 — 장비{slot_num} 레벨 생략")
-
-        # 4. 기본 정보 탭 복귀
         self._restore_basic_info_tab()
 
-    # ── F. 무기 상태 판별 ────────────────────────────────
-    def _detect_weapon_state_for(self, entry: StudentEntry) -> WeaponState:
-        """
-        weapon_detect_flag_region crop → detect_weapon_state() 호출.
-        region 없으면 NO_WEAPON_SYSTEM 반환 (성작 오기록 방지).
-        """
-        img = capture_window()
-        if img is None:
-            print("[Scanner] weapon_state 캡처 실패 → NO_WEAPON_SYSTEM 폴백")
-            return WeaponState.NO_WEAPON_SYSTEM
-
-        sr       = self.r["student"]
-        weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
-        if not weapon_r:
-            print("[Scanner] weapon_detect_flag_region 미정의 → NO_WEAPON_SYSTEM 폴백")
-            return WeaponState.NO_WEAPON_SYSTEM
-
-        state, _score = detect_weapon_state(crop_ratio(img, weapon_r))
-        print(f"[Scanner] weapon_state={state.name} (score={_score:.3f})")
-        return state
-
-    # ── G. 레벨 읽기 ──────────────────────────────────────
-    def _maybe_read_level_into(self, entry: StudentEntry) -> None:
-        if self._should_skip_level_scan(entry.student_id):
-            self.log(f"  ⏭ 레벨 스캔 생략: {entry.label()} (만렙 확정)")
-            entry.level = MAX_STUDENT_LEVEL
-            return
-
-        self._open_level_menu()
-        entry.level = self._read_student_level_from_menu()
-        self._close_level_menu_or_restore_basic_tab()
-
-    def _should_skip_level_scan(self, student_id: str | None) -> bool:
-        return False
-
-    def _open_level_menu(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        sr = self.r["student"]
-        click_center(rect, sr["levelcheck_button"], "levelcheck_tab")
-        time.sleep(0.4)
-
-    def _read_student_level_from_menu(self) -> int | None:
-        img = capture_window()
-        if img is None:
-            return None
-        sr = self.r["student"]
-        return read_student_level_v5(img, sr["level_digit_1"], sr["level_digit_2"])
-
-    def _close_level_menu_or_restore_basic_tab(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        sr = self.r["student"]
-        if "basic_info_button" in sr:
-            click_center(rect, sr["basic_info_button"], "basic_info_tab")
-            time.sleep(0.3)
-
-    # ── H. 학생 성작 판독 ────────────────────────────────
-    def _maybe_read_student_star_into(self, entry: StudentEntry) -> None:
+    # ─────────────────────────────────────────────────────────
+    # 6. 성작 스캔
+    # ─────────────────────────────────────────────────────────
+    def _read_student_star_into(self, entry: StudentEntry) -> None:
         if entry.weapon_state != WeaponState.NO_WEAPON_SYSTEM:
             entry.student_star = 5
-            self.log(f"  ⏭ 학생 성작 생략: {entry.label()} (무기 시스템 보유 → 5★ 확정)")
+            self.log(f"  ⏭ 성작 스캔 생략: {entry.label()} (무기 보유 → 5★)")
             return
 
         rect = get_window_rect()
         if not rect:
             return
 
-        sr = self.r["student"]
-        star_menu_btn = sr.get("star_menu_button")
-        if star_menu_btn:
-            click_center(rect, star_menu_btn, "star_menu")
+        sr       = self.r["student"]
+        star_btn = sr.get("star_menu_button")
+        if star_btn:
+            click_center(rect, star_btn, "star_menu")
             time.sleep(0.3)
 
         img = capture_window()
@@ -585,87 +773,81 @@ class Scanner:
             return
 
         region_key = "student_star_region" if "student_star_region" in sr else "star_region"
-        entry.student_star = read_student_star_v5(crop_ratio(img, sr[region_key]))
-        self.log(f"  ⭐ 학생 성작: {entry.label()} → {entry.student_star}★")
+        star_r = sr.get(region_key)
+        if star_r:
+            entry.student_star = read_student_star_v5(crop_ratio(img, star_r))
+            self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
 
-    # ── I. 무기 성작 + 레벨 판독 ─────────────────────────
-    def _maybe_read_weapon_star_into(self, entry: StudentEntry) -> None:
-        """
-        흐름:
-          1. weapon_info_menu_button 클릭 → 무기 상세 화면 진입
-          2. weapon_star_region 으로 무기 성작 판독
-          3. weapon_level_digit_1 / weapon_level_digit_2 로 무기 레벨 판독
-          4. weapon_menu_quit_button 으로 복귀
-        """
-        if entry.weapon_state == WeaponState.NO_WEAPON_SYSTEM:
-            return
-
+    # ─────────────────────────────────────────────────────────
+    # 7. 스탯 스캔
+    # ─────────────────────────────────────────────────────────
+    def _read_stats_into(self, entry: StudentEntry) -> None:
         rect = get_window_rect()
         if not rect:
             return
 
-        sr = self.r["student"]
+        sr       = self.r["student"]
+        stat_btn = sr.get("stat_menu_button")
+        if not stat_btn:
+            self.log("  ⚠️ stat_menu_button 미정의 — 스탯 스캔 생략")
+            return
 
-        # 1. 무기 메뉴 진입
-        weapon_menu_btn = sr.get("weapon_info_menu_button")
-        if weapon_menu_btn:
-            click_center(rect, weapon_menu_btn, "weapon_info_menu")
-            time.sleep(0.5)
-        else:
-            print("[Scanner] weapon_info_menu_button 미정의 — 무기 메뉴 진입 생략")
+        click_center(rect, stat_btn, "stat_menu")
+        time.sleep(0.4)
 
         img = capture_window()
         if img is None:
+            self._close_stat_menu()
             return
 
-        # 2. 무기 성작 판독
-        weapon_star_r = sr.get("weapon_star_region")
-        if weapon_star_r:
-            entry.weapon_star = read_weapon_star_v5(crop_ratio(img, weapon_star_r))
-        else:
-            print("[Scanner] weapon_star_region 미정의 → weapon_star=None")
+        for stat_key, field_name, region_key in [
+            ("hp",   "stat_hp",   "hp"),
+            ("atk",  "stat_atk",  "atk"),
+            ("heal", "stat_heal", "heal"),
+        ]:
+            region = sr.get(region_key)
+            if region:
+                val = read_stat_value(crop_ratio(img, region), stat_key)
+                setattr(entry, field_name, val)
+            else:
+                self.log(f"  ⚠️ {region_key} region 미정의 — {stat_key} 생략")
 
-        # 3. 무기 레벨 판독
-        wlv_d1 = sr.get("weapon_level_digit_1")
-        wlv_d2 = sr.get("weapon_level_digit_2")
-        if wlv_d1 and wlv_d2:
-            entry.weapon_level = read_student_level_v5(img, wlv_d1, wlv_d2)
-            self.log(
-                f"  🗡 무기: {entry.label()} → "
-                f"{entry.weapon_star}★  Lv.{entry.weapon_level}"
-            )
-        else:
-            print("[Scanner] weapon_level_digit region 미정의 → weapon_level=None")
-            self.log(f"  🗡 무기 성작: {entry.label()} → {entry.weapon_star}★")
+        self.log(
+            f"  📈 스탯: HP={entry.stat_hp} "
+            f"ATK={entry.stat_atk} HEAL={entry.stat_heal}"
+        )
+        self._close_stat_menu()
 
-        # 4. 무기 메뉴 복귀
-        self._quit_weapon_menu()
-
-    def _quit_weapon_menu(self) -> None:
+    def _close_stat_menu(self) -> None:
         rect = get_window_rect()
         if not rect:
             return
-        sr = self.r["student"]
-        quit_btn = sr.get("weapon_menu_quit_button")
+        quit_btn = self.r["student"].get("statmenu_quit_button")
         if quit_btn:
-            click_center(rect, quit_btn, "weapon_menu_quit")
-            time.sleep(0.25)
+            click_center(rect, quit_btn, "statmenu_quit")
+            time.sleep(0.3)
 
-    # ── J. 탭/화면 복귀 ──────────────────────────────────
-    def _restore_basic_info_tab(self) -> None:
+    # ─────────────────────────────────────────────────────────
+    # 이동/로깅
+    # ─────────────────────────────────────────────────────────
+    def _open_student_menu(self) -> bool:
         rect = get_window_rect()
         if not rect:
-            return
+            return False
+        self.log("  학생 메뉴 진입...")
+        click_center(rect, self.r["lobby"]["student_menu_button"], "student_menu")
+        time.sleep(STUDENT_MENU_WAIT)
+        return True
 
-        sr = self.r["student"]
-        if "basic_info_button" in sr:
-            click_center(rect, sr["basic_info_button"], "basic_info_tab")
-            time.sleep(0.3)
-        else:
-            press_esc()
-            time.sleep(0.4)
+    def _open_first_student(self) -> bool:
+        rect = get_window_rect()
+        if not rect:
+            return False
+        self.log("  첫 학생 선택...")
+        click_center(rect, self.r["student_menu"]["first_student_button"], "first_student")
+        time.sleep(0.8)
+        return True
 
-    # ── K. 다음 학생 이동 ─────────────────────────────────
     def _move_to_next_student(self) -> bool:
         rect = get_window_rect()
         if not rect:
@@ -676,7 +858,7 @@ class Scanner:
         if not next_btn:
             return False
 
-        before_img = capture_window()
+        before_img  = capture_window()
         before_hash = _img_hash(before_img) if before_img else ""
 
         click_center(rect, next_btn, "next_student")
@@ -691,26 +873,6 @@ class Scanner:
 
         self.log("  ⚠️ 화면 변화 없음 — 마지막 학생으로 판단")
         return False
-
-    # ── L. 진입 헬퍼 ─────────────────────────────────────
-    def _open_student_menu(self) -> bool:
-        rect = get_window_rect()
-        if not rect:
-            return False
-        lobby_r = self.r["lobby"]
-        self.log("  학생 메뉴 진입...")
-        click_center(rect, lobby_r["student_menu_button"], "student_menu")
-        time.sleep(STUDENT_MENU_WAIT)
-        return True
-
-    def _open_first_student(self) -> bool:
-        rect = get_window_rect()
-        if not rect:
-            return False
-        self.log("  첫 학생 선택...")
-        click_center(rect, self.r["student_menu"]["first_student_button"], "first_student")
-        time.sleep(0.8)
-        return True
 
     def _log_student(self, entry: StudentEntry, idx: int) -> None:
         weapon_info = ""
@@ -727,11 +889,11 @@ class Scanner:
         )
 
         self.log(
-            f"  👩 [{idx+1:>3}] {entry.label()}  "
-            f"Lv.{entry.level}  {entry.student_star}★{weapon_info}  "
-            f"EX:{entry.ex_skill} S1:{entry.skill1} "
-            f"S2:{entry.skill2} S3:{entry.skill3}  "
-            f"장비:{equip_info}"
+            f"  👩 [{idx+1:>3}] {entry.label()}  Lv.{entry.level}  "
+            f"{entry.student_star}★{weapon_info}  "
+            f"EX:{entry.ex_skill} S1:{entry.skill1} S2:{entry.skill2} S3:{entry.skill3}  "
+            f"장비:{equip_info}  "
+            f"스탯(HP:{entry.stat_hp}/ATK:{entry.stat_atk}/HEAL:{entry.stat_heal})"
         )
 
     # ── 전체 스캔 ─────────────────────────────────────────
