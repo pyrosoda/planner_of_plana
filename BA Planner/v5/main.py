@@ -43,7 +43,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.withdraw()
-        self.title("BA Analyzer v4")
+        self.title("BA Analyzer v5")
 
         self._regions = load_regions()
         self._config  = load_config()
@@ -167,7 +167,7 @@ class App(tk.Tk):
                     # 식별
                     "student_id":   s.student_id,
                     "display_name": s.display_name,
-                    # 수치
+                    # 학생 수치
                     "level":        s.level,
                     "student_star": s.student_star,
                     # 무기 — enum.value 로 직렬화 (문자열 리터럴)
@@ -179,11 +179,15 @@ class App(tk.Tk):
                     "skill1":   s.skill1,
                     "skill2":   s.skill2,
                     "skill3":   s.skill3,
-                    # 장비
+                    # 장비 티어
                     "equip1": s.equip1,
                     "equip2": s.equip2,
                     "equip3": s.equip3,
                     "equip4": s.equip4,
+                    # 장비 레벨 (1~3만)
+                    "equip1_level": s.equip1_level,
+                    "equip2_level": s.equip2_level,
+                    "equip3_level": s.equip3_level,
                 }
                 for s in result.students
             ],

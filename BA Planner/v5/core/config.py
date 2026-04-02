@@ -25,6 +25,7 @@ _STUDENT_REGION_FILES: list[str] = [
     "student_normal_info_regions.json",
     "student_level_info_regions.json",
     "student_star_region.json",
+    "student_equipment_regions.json",   # 장비 창 region (티어 + 레벨)
 ]
 
 

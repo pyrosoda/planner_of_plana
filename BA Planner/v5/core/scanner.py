@@ -2,9 +2,13 @@
 core/scanner.py — 스캔 자동화 엔진  V5
 
 [수정]
+  - StudentEntry: weapon_level, equip1_level~equip3_level 필드 추가
+  - _read_equipment_into(): 장비 창(equipment_button) 진입 후 스캔으로 변경
+    - 장비 티어 (1~4) + 장비 레벨 (1~3) 읽기
+    - 스캔 완료 후 기본 정보 탭 복귀
+  - _maybe_read_weapon_star_into(): 무기 레벨(weapon_level) 읽기 추가
   - _detect_weapon_state_for(): region 없을 때 기본값 NO_WEAPON_SYSTEM 으로 변경
-  - _maybe_read_weapon_star_into(): weapon_info_menu_button 클릭으로 무기 메뉴 진입 추가
-  - weapon_level 관련 코드 완전 제거 (무기 레벨은 스캔하지 않음)
+  - weapon_level 은 무기 장착 상태에서만 읽음
 """
 
 import time
@@ -65,14 +69,18 @@ class StudentEntry:
     student_star: int | None = None
     weapon_state: WeaponState | None = None
     weapon_star:  int | None         = None
+    weapon_level: int | None         = None   # 무기 레벨 (장착 시)
     ex_skill: int | None = None
     skill1:   int | None = None
     skill2:   int | None = None
     skill3:   int | None = None
-    equip1: str | None = None
-    equip2: str | None = None
-    equip3: str | None = None
-    equip4: str | None = None
+    equip1:       str | None = None
+    equip2:       str | None = None
+    equip3:       str | None = None
+    equip4:       str | None = None
+    equip1_level: int | None = None   # 장비1 레벨
+    equip2_level: int | None = None   # 장비2 레벨
+    equip3_level: int | None = None   # 장비3 레벨
 
     def label(self) -> str:
         return self.display_name or self.student_id or "?"
@@ -398,11 +406,11 @@ class Scanner:
         )
 
         self._read_skills_into(entry)
-        self._read_equipment_into(entry)
+        self._read_equipment_into(entry)          # 장비 창 진입 방식
         entry.weapon_state = self._detect_weapon_state_for(entry)
         self._maybe_read_level_into(entry)
         self._maybe_read_student_star_into(entry)
-        self._maybe_read_weapon_star_into(entry)
+        self._maybe_read_weapon_star_into(entry)  # 무기 레벨도 포함
 
         return entry
 
@@ -447,17 +455,54 @@ class Scanner:
             except (TypeError, ValueError):
                 setattr(entry, field, None)
 
-    # ── E. 장비 읽기 ──────────────────────────────────────
+    # ── E. 장비 읽기 (장비 창 진입 방식) ─────────────────
     def _read_equipment_into(self, entry: StudentEntry) -> None:
-        img = capture_window()
-        if img is None:
+        rect = get_window_rect()
+        if not rect:
             return
 
         sr = self.r["student"]
-        entry.equip1 = read_equip_tier(crop_ratio(img, sr["equipment1_region"]), 1)
-        entry.equip2 = read_equip_tier(crop_ratio(img, sr["equipment2_region"]), 2)
-        entry.equip3 = read_equip_tier(crop_ratio(img, sr["equipment3_region"]), 3)
-        entry.equip4 = read_equip_tier(crop_ratio(img, sr["equipment4_region"]), 4)
+
+        # 1. 장비 창 버튼 클릭
+        equip_btn = sr.get("equipment_button")
+        if not equip_btn:
+            self.log(f"  ⚠️ equipment_button 미정의 — 장비 스캔 생략")
+            return
+
+        click_center(rect, equip_btn, "equipment_tab")
+        time.sleep(0.5)
+
+        img = capture_window()
+        if img is None:
+            self._restore_basic_info_tab()
+            return
+
+        # 2. 장비 티어 (1~4)
+        for slot_num in range(1, 5):
+            region_key = f"equipment_{slot_num}"
+            region = sr.get(region_key)
+            if region:
+                tier = read_equip_tier(crop_ratio(img, region), slot_num)
+                setattr(entry, f"equip{slot_num}", tier)
+                self.log(f"  🎒 장비{slot_num} 티어: {tier}")
+            else:
+                self.log(f"  ⚠️ {region_key} 미정의 — 장비{slot_num} 티어 생략")
+
+        # 3. 장비 레벨 (1~3)
+        for slot_num in range(1, 4):
+            d1_key = f"equipment_{slot_num}_level_digit_1"
+            d2_key = f"equipment_{slot_num}_level_digit_2"
+            d1 = sr.get(d1_key)
+            d2 = sr.get(d2_key)
+            if d1 and d2:
+                lv = read_student_level_v5(img, d1, d2)
+                setattr(entry, f"equip{slot_num}_level", lv)
+                self.log(f"  🎒 장비{slot_num} 레벨: {lv}")
+            else:
+                self.log(f"  ⚠️ {d1_key}/{d2_key} 미정의 — 장비{slot_num} 레벨 생략")
+
+        # 4. 기본 정보 탭 복귀
+        self._restore_basic_info_tab()
 
     # ── F. 무기 상태 판별 ────────────────────────────────
     def _detect_weapon_state_for(self, entry: StudentEntry) -> WeaponState:
@@ -543,14 +588,14 @@ class Scanner:
         entry.student_star = read_student_star_v5(crop_ratio(img, sr[region_key]))
         self.log(f"  ⭐ 학생 성작: {entry.label()} → {entry.student_star}★")
 
-    # ── I. 무기 성작 판독 ────────────────────────────────
+    # ── I. 무기 성작 + 레벨 판독 ─────────────────────────
     def _maybe_read_weapon_star_into(self, entry: StudentEntry) -> None:
         """
         흐름:
           1. weapon_info_menu_button 클릭 → 무기 상세 화면 진입
-          2. weapon_star_region 판독
-          3. weapon_menu_quit_button 으로 복귀
-        무기 레벨은 스캔하지 않음.
+          2. weapon_star_region 으로 무기 성작 판독
+          3. weapon_level_digit_1 / weapon_level_digit_2 로 무기 레벨 판독
+          4. weapon_menu_quit_button 으로 복귀
         """
         if entry.weapon_state == WeaponState.NO_WEAPON_SYSTEM:
             return
@@ -580,9 +625,20 @@ class Scanner:
         else:
             print("[Scanner] weapon_star_region 미정의 → weapon_star=None")
 
-        self.log(f"  🗡 무기 성작: {entry.label()} → {entry.weapon_star}★")
+        # 3. 무기 레벨 판독
+        wlv_d1 = sr.get("weapon_level_digit_1")
+        wlv_d2 = sr.get("weapon_level_digit_2")
+        if wlv_d1 and wlv_d2:
+            entry.weapon_level = read_student_level_v5(img, wlv_d1, wlv_d2)
+            self.log(
+                f"  🗡 무기: {entry.label()} → "
+                f"{entry.weapon_star}★  Lv.{entry.weapon_level}"
+            )
+        else:
+            print("[Scanner] weapon_level_digit region 미정의 → weapon_level=None")
+            self.log(f"  🗡 무기 성작: {entry.label()} → {entry.weapon_star}★")
 
-        # 3. 무기 메뉴 복귀
+        # 4. 무기 메뉴 복귀
         self._quit_weapon_menu()
 
     def _quit_weapon_menu(self) -> None:
@@ -659,16 +715,23 @@ class Scanner:
     def _log_student(self, entry: StudentEntry, idx: int) -> None:
         weapon_info = ""
         if entry.weapon_state == WeaponState.WEAPON_EQUIPPED:
-            weapon_info = f" | 무기:{entry.weapon_star}★"
+            weapon_info = f" | 무기:{entry.weapon_star}★ Lv.{entry.weapon_level}"
         elif entry.weapon_state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
             weapon_info = " | 무기:미장착"
+
+        equip_info = (
+            f"{entry.equip1}(Lv.{entry.equip1_level})/"
+            f"{entry.equip2}(Lv.{entry.equip2_level})/"
+            f"{entry.equip3}(Lv.{entry.equip3_level})/"
+            f"{entry.equip4}"
+        )
 
         self.log(
             f"  👩 [{idx+1:>3}] {entry.label()}  "
             f"Lv.{entry.level}  {entry.student_star}★{weapon_info}  "
             f"EX:{entry.ex_skill} S1:{entry.skill1} "
             f"S2:{entry.skill2} S3:{entry.skill3}  "
-            f"장비:{entry.equip1}/{entry.equip2}/{entry.equip3}/{entry.equip4}"
+            f"장비:{equip_info}"
         )
 
     # ── 전체 스캔 ─────────────────────────────────────────
