@@ -1,0 +1,24 @@
+{
+  "scanned_at": "20260329_165556",
+  "resources": {},
+  "items": [],
+  "equipment": [],
+  "students": [
+    {
+      "name": "",
+      "level": "1",
+      "stars": 1,
+      "weapon_level": null,
+      "weapon_stars": 0,
+      "weapon_locked": true,
+      "ex_skill": "1",
+      "skill1": "1",
+      "skill2": "1",
+      "skill3": "1",
+      "equip1": "unknown",
+      "equip2": "locked",
+      "equip3": "locked",
+      "equip4": "T1"
+    }
+  ]
+}

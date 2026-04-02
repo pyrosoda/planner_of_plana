@@ -1,0 +1,6 @@
+anthropic>=0.25.0
+customtkinter>=5.2.0
+Pillow>=10.0.0
+pygetwindow>=0.0.9
+pyautogui>=0.9.54
+pytesseract>=0.3.10
