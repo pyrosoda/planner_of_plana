@@ -1,0 +1,31 @@
+{
+  "scanned_at": "20260403_113655",
+  "resources": {},
+  "items": [],
+  "equipment": [],
+  "students": [
+    {
+      "student_id": "hibiki",
+      "display_name": "히비키",
+      "level": 90,
+      "student_star": 5,
+      "weapon_state": "weapon_equipped",
+      "weapon_star": 4,
+      "weapon_level": 60,
+      "ex_skill": 5,
+      "skill1": 10,
+      "skill2": 10,
+      "skill3": 10,
+      "equip1": "T10",
+      "equip2": "T10",
+      "equip3": "T10",
+      "equip4": "T2",
+      "equip1_level": 70,
+      "equip2_level": 70,
+      "equip3_level": 70,
+      "stat_hp": 0,
+      "stat_atk": 25,
+      "stat_heal": 0
+    }
+  ]
+}

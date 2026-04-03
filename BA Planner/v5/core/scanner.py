@@ -75,7 +75,6 @@ SCROLL_ITEM         = -3
 SCROLL_EQUIP        = -2
 SAME_THRESH         = 0.97
 STUDENT_MENU_WAIT   = 3.0
-STUDENT_NEXT_WAIT   = 0.4
 MAX_CONSECUTIVE_DUP = 3
 MAX_STUDENT_LEVEL   = 90
 
@@ -254,7 +253,8 @@ class Scanner:
                 if not name:
                     continue
 
-                entry = ItemEntry(name=name, quantity=count, source=source)
+                entry = ItemEntry(name=name, quantity=count, source=source,
+                                  index=len(items))
                 k = entry.key()
                 if k not in seen_keys:
                     seen_keys.add(k)
@@ -374,53 +374,69 @@ class Scanner:
         results: list[StudentEntry] = []
 
         try:
-            ocr.load()
             if not self._open_student_menu():
                 return []
             if not self._open_first_student():
                 return []
 
-            seen_ids: set[str] = set()
-            consecutive_dup    = 0
+            seen_ids: set[str]  = set()
+            consecutive_dup: int = 0
+            prev_id: str | None  = None
 
             for idx in range(500):
                 if self._stop:
                     break
 
+                # ── 학생 식별 (실패 시 1회 재시도) ──────────────
                 entry = self.scan_one_student_v5(idx)
                 if entry is None:
-                    self.log(f"  ⚠️ [{idx+1}] 식별 실패 — 스캔 종료")
-                    break
+                    self.log(f"  ⚠️ [{idx+1}] 식별 실패 — 0.6초 후 재시도")
+                    time.sleep(0.6)
+                    entry = self.scan_one_student_v5(idx)
+                    if entry is None:
+                        self.log(f"  ⚠️ [{idx+1}] 재시도도 실패 — 스캔 종료")
+                        break
 
                 dedup_key = entry.student_id or entry.display_name or ""
-                if dedup_key and dedup_key in seen_ids:
+
+                # ── 중복 판정: 이전 학생과 같은 ID면 이동 실패 또는 마지막 ──
+                if dedup_key and dedup_key == prev_id:
                     consecutive_dup += 1
-                    self.log(f"  🔁 중복: {entry.label()} ({consecutive_dup}/{MAX_CONSECUTIVE_DUP})")
-                else:
-                    consecutive_dup = 0
-                    if dedup_key:
-                        seen_ids.add(dedup_key)
+                    self.log(
+                        f"  🔁 이전과 동일: {entry.label()} "
+                        f"({consecutive_dup}/{MAX_CONSECUTIVE_DUP})"
+                    )
+                    if consecutive_dup >= MAX_CONSECUTIVE_DUP:
+                        self.log("  ✅ 연속 동일 → 마지막 학생으로 판단, 스캔 종료")
+                        break
+                    # 아직 종료 아님 — 다음 버튼 재클릭 후 계속
+                    self._restore_basic_info_tab()
+                    self._move_to_next_student()
+                    continue
 
+                consecutive_dup = 0
+                prev_id = dedup_key
+
+                # ── 이미 본 학생 (seen_ids 기준) ────────────────
+                if dedup_key and dedup_key in seen_ids:
+                    self.log(f"  🔁 이미 스캔됨: {entry.label()} — 스캔 종료")
+                    break
+
+                # ── 새 학생 저장 ─────────────────────────────────
+                if dedup_key:
+                    seen_ids.add(dedup_key)
                 results.append(entry)
-                self._log_student(entry, idx)
+                self._log_student(entry, len(results) - 1)
 
-                if consecutive_dup >= MAX_CONSECUTIVE_DUP:
-                    self.log("  ✅ 연속 중복 → 스캔 종료")
-                    break
-
-                # 8. 기본 정보 탭 복귀
+                # ── 기본 탭 복귀 → 다음 버튼 ────────────────────
                 self._restore_basic_info_tab()
-                # 9. 다음 학생
-                if not self._move_to_next_student():
-                    self.log("  ✅ 마지막 학생 — 스캔 종료")
-                    break
+                self._move_to_next_student()
 
         except Exception as e:
             self.log(f"❌ 학생 스캔 오류: {e}")
             import traceback; traceback.print_exc()
         finally:
             self._return_lobby()
-            ocr.unload()
 
         self.log(f"━━━ 👩 학생 스캔 완료: {len(results)}명 ━━━")
         return results
@@ -528,13 +544,8 @@ class Scanner:
         self._close_skill_menu()
 
     def _close_skill_menu(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        quit_btn = self.r["student"].get("skillmenu_quit_button")
-        if quit_btn:
-            click_center(rect, quit_btn, "skillmenu_quit")
-            time.sleep(0.3)
+        press_esc()
+        time.sleep(0.3)
 
     # ─────────────────────────────────────────────────────────
     # 3. 무기 상태 판정 + 레벨/성작
@@ -589,8 +600,10 @@ class Scanner:
             entry.weapon_star = read_weapon_star_v5(crop_ratio(img, star_r))
 
         # 레벨 (digit2=null → 1자리)
-        d1 = sr.get("weapon_level_digit_1")
-        d2 = sr.get("weapon_level_digit_2")
+        # weapon_level_digit 키: JSON에 따라 언더스코어 구분자 유무가 다를 수 있어
+        # "weapon_level_digit_1" / "weapon_level_digit1" 둘 다 허용
+        d1 = sr.get("weapon_level_digit_1") or sr.get("weapon_level_digit1")
+        d2 = sr.get("weapon_level_digit_2") or sr.get("weapon_level_digit2")
         if d1 and d2:
             entry.weapon_level = read_weapon_level(img, d1, d2)
             self.log(f"  🗡 무기: {entry.weapon_star}★  Lv.{entry.weapon_level}")
@@ -600,13 +613,8 @@ class Scanner:
         self._quit_weapon_menu()
 
     def _quit_weapon_menu(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        quit_btn = self.r["student"].get("weapon_menu_quit_button")
-        if quit_btn:
-            click_center(rect, quit_btn, "weapon_menu_quit")
-            time.sleep(0.25)
+        press_esc()
+        time.sleep(0.25)
 
     # ─────────────────────────────────────────────────────────
     # 4. 장비 스캔 (장비 창 진입)
@@ -682,7 +690,9 @@ class Scanner:
         scan_level: bool,
     ) -> None:
         # flag 영역으로 슬롯 상태 확인
-        flag_r = sr.get(f"equip{slot}_emptyflag") or sr.get(f"equip{slot}_empty_flag")
+        flag_r = (sr.get(f"equip{slot}_flag")
+                  or sr.get(f"equip{slot}_emptyflag")
+                  or sr.get(f"equip{slot}_empty_flag"))
         if flag_r:
             slot_flag = read_equip_slot_flag(crop_ratio(img, flag_r), slot)
             if slot_flag in skip_flags:
@@ -709,13 +719,8 @@ class Scanner:
                 self.log(f"  ⚠️ equipment_{slot}_level_digit 미정의 — 생략")
 
     def _close_equipment_menu(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        quit_btn = self.r["student"].get("equipmentmenu_quit_button")
-        if quit_btn:
-            click_center(rect, quit_btn, "equipmentmenu_quit")
-            time.sleep(0.3)
+        press_esc()
+        time.sleep(0.3)
 
     # ─────────────────────────────────────────────────────────
     # 5. 레벨 스캔
@@ -819,13 +824,8 @@ class Scanner:
         self._close_stat_menu()
 
     def _close_stat_menu(self) -> None:
-        rect = get_window_rect()
-        if not rect:
-            return
-        quit_btn = self.r["student"].get("statmenu_quit_button")
-        if quit_btn:
-            click_center(rect, quit_btn, "statmenu_quit")
-            time.sleep(0.3)
+        press_esc()
+        time.sleep(0.3)
 
     # ─────────────────────────────────────────────────────────
     # 이동/로깅
@@ -849,30 +849,24 @@ class Scanner:
         return True
 
     def _move_to_next_student(self) -> bool:
+        """
+        다음 학생 버튼을 누르고 충분히 기다린다.
+        이동 성공/실패 판정은 하지 않는다 — 다음 루프의 식별 결과로 판단.
+        """
         rect = get_window_rect()
         if not rect:
+            self.log("  ⚠️ 창 rect 없음")
             return False
 
         sr       = self.r["student"]
         next_btn = sr.get("next_student_button")
         if not next_btn:
+            self.log("  ⚠️ next_student_button 미정의")
             return False
 
-        before_img  = capture_window()
-        before_hash = _img_hash(before_img) if before_img else ""
-
         click_center(rect, next_btn, "next_student")
-        time.sleep(STUDENT_NEXT_WAIT)
-
-        for _ in range(3):
-            after_img  = capture_window()
-            after_hash = _img_hash(after_img) if after_img else ""
-            if after_hash and after_hash != before_hash:
-                return True
-            time.sleep(0.15)
-
-        self.log("  ⚠️ 화면 변화 없음 — 마지막 학생으로 판단")
-        return False
+        time.sleep(1.0)   # 화면 전환 애니메이션 충분히 대기
+        return True
 
     def _log_student(self, entry: StudentEntry, idx: int) -> None:
         weapon_info = ""

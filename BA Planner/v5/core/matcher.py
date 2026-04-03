@@ -492,8 +492,12 @@ def read_student_star(crop: Image.Image) -> int:
 def read_weapon_star(crop: Image.Image) -> int:
     return read_star(crop, "weapon_star", 4)
 
-def read_weapon_unlocked(crop: Image.Image) -> bool:
+def is_weapon_equipped(crop: Image.Image) -> bool:
+    """무기 장착 여부 반환 (WEAPON_EQUIPPED 상태일 때만 True)."""
     return detect_weapon_state(crop)[0] == WeaponState.WEAPON_EQUIPPED
+
+# 하위 호환 alias — 기존 코드에서 read_weapon_unlocked 를 쓰던 곳이 있어도 동작
+read_weapon_unlocked = is_weapon_equipped
 
 
 # ── 학생 레벨 digit ──────────────────────────────────────
@@ -576,32 +580,55 @@ def read_skill(crop: Image.Image, skill_key: str) -> str:
 
 
 # ── 장비 티어 ─────────────────────────────────────────────
+def _score_equip_tier_tmpl(crop: Image.Image, tmpl_path: str) -> float:
+    """
+    장비 티어 전용 점수 계산.
+    티어 아이콘은 작은 컬러 뱃지 형태이므로
+    컬러 히스토그램(40%) + 리사이즈 그레이(60%) 혼합 사용.
+    """
+    gray_s  = match_score_resized(crop, tmpl_path, focus_center=False)
+    color_s = _color_hist_score(crop, tmpl_path)
+    return 0.60 * gray_s + 0.40 * color_s
+
+
 def read_equip_tier(crop: Image.Image, slot: int) -> str:
     d = TEMPLATE_DIR / f"equip{slot}"
+
+    # 전체 후보 수집 (empty 포함)
+    candidates: dict[str, str] = {}
+
     empty_p = d / f"equip{slot}_empty.png"
-    if empty_p.exists() and match_score(crop, str(empty_p)) >= THRESHOLD_LOOSE:
-        return "empty"
+    if empty_p.exists():
+        candidates["empty"] = str(empty_p)
 
-    large, normal = [], []
     for p in d.glob(f"equip{slot}_T*.png"):
-        tier = p.stem.replace(f"equip{slot}_", "")
-        w    = Image.open(p).width
-        (large if w > 40 else normal).append((tier, str(p), w))
+        tier = p.stem.replace(f"equip{slot}_", "")  # "T1" ~ "T10"
+        candidates[tier] = str(p)
 
-    large.sort(key=lambda x: x[2], reverse=True)
-    for tier, path, _ in large:
-        if match_score(crop, path) >= THRESHOLD_LOOSE:
-            return tier
+    if not candidates:
+        print(f"[Matcher] equip{slot}: 템플릿 없음 → unknown")
+        return "unknown"
 
-    normal.sort(key=lambda x: int(x[0][1:]) if x[0][1:].isdigit() else 0, reverse=True)
-    if normal:
-        scored = [(tier, match_score(crop, path)) for tier, path, _ in normal]
-        best_tier, best_score = max(scored, key=lambda x: x[1])
-        print(f"[Matcher] equip{slot} tier: { {t: f'{s:.3f}' for t,s in scored} }")
-        if best_score >= THRESHOLD_LOOSE:
-            return best_tier
+    # 모든 후보 점수 계산
+    scores: dict[str, float] = {
+        lbl: _score_equip_tier_tmpl(crop, path)
+        for lbl, path in candidates.items()
+    }
 
-    return "T1" if slot == 4 else "unknown"
+    # 로그: 점수 내림차순 출력
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    print(
+        f"[Matcher] equip{slot} tier scores: "
+        + " ".join(f"{t}={s:.3f}" for t, s in ranked)
+    )
+
+    best_lbl, best_score = ranked[0]
+
+    if best_score < THRESHOLD_LOOSE:
+        print(f"[Matcher] equip{slot}: 최고점 {best_lbl}({best_score:.3f}) < {THRESHOLD_LOOSE} → unknown")
+        return "unknown"
+
+    return best_lbl
 
 
 # ══════════════════════════════════════════════════════════
