@@ -352,10 +352,6 @@ detect_weapon_status = detect_weapon_state  # 하위 호환
 
 # ── check 플래그 ──────────────────────────────────────────
 def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
-    """
-    true / false 2종 플래그 판별 (skillcheck 전용).
-    impossible 없는 폴더에서 사용.
-    """
     d = TEMPLATE_DIR / folder
     cands = {}
     for flag in ("true", "false"):
@@ -372,29 +368,12 @@ def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
 
 
 def read_skill_check(crop: Image.Image) -> CheckFlag:
-    """skillcheck 폴더 기준 true / false 판별."""
     return read_check_flag(crop, SKILL_CHECK_DIR)
 
 
 def read_equip_check(crop: Image.Image) -> CheckFlag:
-    """
-    장비 창 진입 전 사전 검사.
-
-    최신 템플릿 기준으로는 equipment_button이
-      - possible.png   : 장비 창 진입 가능
-      - impossible.png : 장비 시스템 없음 / 비활성
-    형태로 구분될 수 있으므로, 우선 possible/impossible을 직접 비교한다.
-
-    구버전 템플릿(true/false)도 남아 있을 수 있으니 하위 호환 fallback도 유지한다.
-    반환 규칙:
-      - possible 우세      → FALSE      (스캐너에서는 "진입 가능" 의미)
-      - impossible 우세    → IMPOSSIBLE
-      - fallback true 우세 → TRUE
-      - 그 외              → FALSE
-    """
     d = TEMPLATE_DIR / EQUIP_CHECK_DIR
 
-    # 1) 신형 템플릿: possible / impossible 직접 비교
     explicit_scores: dict[str, float] = {}
     for flag in ("possible", "impossible"):
         p = d / f"{flag}.png"
@@ -413,8 +392,6 @@ def read_equip_check(crop: Image.Image) -> CheckFlag:
         best_score   = explicit_scores[best_label]
         margin       = abs(possible_s - impossible_s)
 
-        # explicit 템플릿이 존재하면 이것을 최우선 사용.
-        # 점수가 둘 다 낮더라도 상대 비교에서 possible이 더 높으면 진입 허용 쪽이 안전하다.
         if best_label == "impossible" and (best_score >= 0.50 or margin >= 0.03):
             print(
                 f"[Matcher] equip_check → IMPOSSIBLE "
@@ -428,8 +405,7 @@ def read_equip_check(crop: Image.Image) -> CheckFlag:
         )
         return CheckFlag.FALSE
 
-    # 2) 하위 호환: true / false / impossible
-    IMPOSSIBLE_TF_MAX = 0.45   # 로그 기준: impossible 상태일 때 best_tf ≈ 0.30
+    IMPOSSIBLE_TF_MAX = 0.45
     TRUE_THRESHOLD    = 0.55
 
     scores: dict[str, float] = {}
@@ -460,10 +436,6 @@ def read_equip_check(crop: Image.Image) -> CheckFlag:
 
 
 def read_equip_check_inside(crop: Image.Image) -> CheckFlag:
-    """
-    장비 창 진입 후 일괄성장 체크박스 상태 판별.
-    이미 창이 열린 상태이므로 impossible은 고려하지 않고 true/false만 판별.
-    """
     TRUE_THRESHOLD = 0.55
 
     d = TEMPLATE_DIR / EQUIP_CHECK_DIR
@@ -544,50 +516,81 @@ def _read_digit_from_folder(folder: Path, prefix: int, crop: Image.Image) -> str
 
 
 def read_equip_level(img: Image.Image, slot: int, d1_region: dict, d2_region: dict) -> int | None:
+    """
+    장비 레벨 읽기.
+    - digit1 결과가 'v' 이거나 None → 1자리: digit2 값만 사용
+    - 그 외 → digit1 + digit2 를 이어붙여 2자리
+    """
     from core.capture import crop_ratio
     folder1 = TEMPLATE_DIR / f"equip{slot}level_digit1"
     folder2 = TEMPLATE_DIR / f"equip{slot}level_digit2"
     d1 = _read_digit_from_folder(folder1, 1, crop_ratio(img, d1_region))
     d2 = _read_digit_from_folder(folder2, 2, crop_ratio(img, d2_region))
-    # d1 == 'v' 이거나 None이면 1자리
-    if d1 and d1 != "v" and d2:
+
+    # digit1 == 'v' 또는 None → 1자리 숫자, digit2가 실제 값
+    if not d1 or d1 == "v":
+        if d2:
+            try:
+                return int(d2)
+            except ValueError:
+                pass
+        print(f"[Matcher] equip{slot}_level: 1자리 판정 실패 (d1={d1!r} d2={d2!r})")
+        return None
+
+    # 2자리
+    if d2:
         try:
             return int(d1 + d2)
         except ValueError:
             pass
-    if d2:
-        try:
-            return int(d2)
-        except ValueError:
-            pass
+
+    # d2 없으면 d1만으로 fallback
+    try:
+        return int(d1)
+    except ValueError:
+        pass
+
+    print(f"[Matcher] equip{slot}_level: 변환 실패 (d1={d1!r} d2={d2!r})")
     return None
 
 
 # ── 무기 레벨 ─────────────────────────────────────────────
 def read_weapon_level(img: Image.Image, d1_region: dict, d2_region: dict) -> int | None:
+    """
+    무기 레벨 읽기.
+    - digit2 결과가 'null' 또는 None → 1자리: digit1 값만 사용
+    - 그 외 → digit1 + digit2 를 이어붙여 2자리
+    """
     from core.capture import crop_ratio
     folder1 = TEMPLATE_DIR / "weaponlevel_digit1"
     folder2 = TEMPLATE_DIR / "weaponlevel_digit2"
     d1 = _read_digit_from_folder(folder1, 1, crop_ratio(img, d1_region))
     d2 = _read_digit_from_folder(folder2, 2, crop_ratio(img, d2_region))
-    # d2 == 'null' → 오른쪽 정렬, d1이 실제 1의자리
-    if d2 == "null":
+
+    # digit2 == 'null' 또는 None → 1자리, digit1이 실제 값
+    if not d2 or d2 == "null":
         if d1:
             try:
                 return int(d1)
             except ValueError:
                 pass
+        print(f"[Matcher] weapon_level: 1자리 판정 실패 (d1={d1!r} d2={d2!r})")
         return None
-    if d1 and d2:
+
+    # 2자리
+    if d1:
         try:
             return int(d1 + d2)
         except ValueError:
             pass
-    if d2:
-        try:
-            return int(d2)
-        except ValueError:
-            pass
+
+    # d1 없으면 d2만으로 fallback
+    try:
+        return int(d2)
+    except ValueError:
+        pass
+
+    print(f"[Matcher] weapon_level: 변환 실패 (d1={d1!r} d2={d2!r})")
     return None
 
 
@@ -607,10 +610,8 @@ def read_weapon_star(crop: Image.Image) -> int:
     return read_star(crop, "weapon_star", 4)
 
 def is_weapon_equipped(crop: Image.Image) -> bool:
-    """무기 장착 여부 반환 (WEAPON_EQUIPPED 상태일 때만 True)."""
     return detect_weapon_state(crop)[0] == WeaponState.WEAPON_EQUIPPED
 
-# 하위 호환 alias — 기존 코드에서 read_weapon_unlocked 를 쓰던 곳이 있어도 동작
 read_weapon_unlocked = is_weapon_equipped
 
 
@@ -630,25 +631,32 @@ def read_level_digit(crop: Image.Image, digit_pos: int) -> str | None:
 
 
 def read_student_level(img: Image.Image, digit1_region: dict, digit2_region: dict) -> str:
+    """
+    학생 레벨 읽기.
+    - digit2 결과가 'null' 또는 None → 1자리: digit1 값만 사용
+    - 그 외 → digit1 + digit2 를 이어붙여 2자리
+    """
     from core.capture import crop_ratio
     d1 = read_level_digit(crop_ratio(img, digit1_region), 1)
     d2 = read_level_digit(crop_ratio(img, digit2_region), 2)
-    if d1 and d2:
+
+    # digit2 == 'null' 또는 None → 1자리, digit1이 실제 값
+    if not d2 or d2 == "null":
+        if d1:
+            print(f"[Matcher] student_level: 1자리 판정 → {d1}")
+            return d1
+        return "unknown"
+
+    # 2자리
+    if d1:
         return f"{d1}{d2}"
-    if d2:
-        return d2
-    return "unknown"
+
+    # d1 없으면 d2만으로 fallback
+    return d2
 
 
 # ── 스킬 레벨 ─────────────────────────────────────────────
 def read_skill(crop: Image.Image, skill_key: str) -> str:
-    """
-    실제 파일명 규칙:
-      EX_Skill → EX_Skill_1.png ~ EX_Skill_5.png
-      Skill1   → Skill_1_1.png ~ Skill_1_10.png
-      Skill2   → Skill_2_1.png ~ Skill_2_10.png, Skill_2_locked.png
-      Skill3   → Skill_3_1.png ~ Skill_3_10.png, Skill_3_locked.png
-    """
     d = TEMPLATE_DIR / skill_key
     max_lv = 5 if skill_key == "EX_Skill" else 10
     cands: dict[str, str] = {}
@@ -659,7 +667,6 @@ def read_skill(crop: Image.Image, skill_key: str) -> str:
             if p.exists():
                 cands[str(i)] = str(p)
     else:
-        # Skill1 → "Skill_1", Skill2 → "Skill_2", Skill3 → "Skill_3"
         prefix = skill_key.replace("Skill", "Skill_")
         locked = d / f"{prefix}_locked.png"
         if locked.exists():
@@ -695,11 +702,6 @@ def read_skill(crop: Image.Image, skill_key: str) -> str:
 
 # ── 장비 티어 ─────────────────────────────────────────────
 def _score_equip_tier_tmpl(crop: Image.Image, tmpl_path: str) -> float:
-    """
-    장비 티어 전용 점수 계산.
-    티어 아이콘은 작은 컬러 뱃지 형태이므로
-    컬러 히스토그램(40%) + 리사이즈 그레이(60%) 혼합 사용.
-    """
     gray_s  = match_score_resized(crop, tmpl_path, focus_center=False)
     color_s = _color_hist_score(crop, tmpl_path)
     return 0.60 * gray_s + 0.40 * color_s
@@ -708,7 +710,6 @@ def _score_equip_tier_tmpl(crop: Image.Image, tmpl_path: str) -> float:
 def read_equip_tier(crop: Image.Image, slot: int) -> str:
     d = TEMPLATE_DIR / f"equip{slot}"
 
-    # 전체 후보 수집 (empty 포함)
     candidates: dict[str, str] = {}
 
     empty_p = d / f"equip{slot}_empty.png"
@@ -716,20 +717,18 @@ def read_equip_tier(crop: Image.Image, slot: int) -> str:
         candidates["empty"] = str(empty_p)
 
     for p in d.glob(f"equip{slot}_T*.png"):
-        tier = p.stem.replace(f"equip{slot}_", "")  # "T1" ~ "T10"
+        tier = p.stem.replace(f"equip{slot}_", "")
         candidates[tier] = str(p)
 
     if not candidates:
         print(f"[Matcher] equip{slot}: 템플릿 없음 → unknown")
         return "unknown"
 
-    # 모든 후보 점수 계산
     scores: dict[str, float] = {
         lbl: _score_equip_tier_tmpl(crop, path)
         for lbl, path in candidates.items()
     }
 
-    # 로그: 점수 내림차순 출력
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     print(
         f"[Matcher] equip{slot} tier scores: "

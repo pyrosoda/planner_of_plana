@@ -29,6 +29,7 @@ core/scanner.py — 스캔 자동화 엔진  V5.1
        weapon_state != NO_WEAPON_SYSTEM → 5성 확정 스킵
        아니면 star_menu_button 클릭 → student_star_region 읽기
   7. 스탯 스캔
+       레벨 90 + 성작 5 이상인 경우에만 해금 → 조건 미달 시 스킵
        stat_menu_button 클릭 → hp/atk/heal 읽기 → statmenu_quit_button 닫기
   8. 기본 정보 탭 복귀 (루프에서 처리)
   9. 다음 학생 버튼
@@ -78,6 +79,10 @@ SAME_THRESH         = 0.97
 STUDENT_MENU_WAIT   = 3.0
 MAX_CONSECUTIVE_DUP = 3
 MAX_STUDENT_LEVEL   = 90
+
+# 스탯 스캔 해금 조건
+STAT_UNLOCK_LEVEL = 90
+STAT_UNLOCK_STAR  = 5
 
 
 # ── 데이터 클래스 ──────────────────────────────────────────
@@ -388,7 +393,6 @@ class Scanner:
                 if self._stop:
                     break
 
-                # ── 학생 식별 (실패 시 1회 재시도) ──────────────
                 entry = self.scan_one_student_v5(idx)
                 if entry is None:
                     self.log(f"  ⚠️ [{idx+1}] 식별 실패 — 0.6초 후 재시도")
@@ -400,7 +404,6 @@ class Scanner:
 
                 dedup_key = entry.student_id or entry.display_name or ""
 
-                # ── 중복 판정: 이전 학생과 같은 ID면 이동 실패 또는 마지막 ──
                 if dedup_key and dedup_key == prev_id:
                     consecutive_dup += 1
                     self.log(
@@ -410,7 +413,6 @@ class Scanner:
                     if consecutive_dup >= MAX_CONSECUTIVE_DUP:
                         self.log("  ✅ 연속 동일 → 마지막 학생으로 판단, 스캔 종료")
                         break
-                    # 아직 종료 아님 — 다음 버튼 재클릭 후 계속
                     self._restore_basic_info_tab()
                     self._move_to_next_student()
                     continue
@@ -418,18 +420,15 @@ class Scanner:
                 consecutive_dup = 0
                 prev_id = dedup_key
 
-                # ── 이미 본 학생 (seen_ids 기준) ────────────────
                 if dedup_key and dedup_key in seen_ids:
                     self.log(f"  🔁 이미 스캔됨: {entry.label()} — 스캔 종료")
                     break
 
-                # ── 새 학생 저장 ─────────────────────────────────
                 if dedup_key:
                     seen_ids.add(dedup_key)
                 results.append(entry)
                 self._log_student(entry, len(results) - 1)
 
-                # ── 기본 탭 복귀 → 다음 버튼 ────────────────────
                 self._restore_basic_info_tab()
                 self._move_to_next_student()
 
@@ -462,7 +461,7 @@ class Scanner:
         self._read_equipment_into(entry)    # 4. 장비
         self._read_level_into(entry)        # 5. 레벨
         self._read_student_star_into(entry) # 6. 성작
-        self._read_stats_into(entry)        # 7. 스탯
+        self._read_stats_into(entry)        # 7. 스탯 (레벨90 + 5성 이상 조건)
         return entry
 
     # ─────────────────────────────────────────────────────────
@@ -488,7 +487,7 @@ class Scanner:
         return None
 
     # ─────────────────────────────────────────────────────────
-    # 2. 스킬 스캔 (세부 메뉴)
+    # 2. 스킬 스캔
     # ─────────────────────────────────────────────────────────
     def _read_skills_into(self, entry: StudentEntry) -> None:
         rect = get_window_rect()
@@ -509,7 +508,6 @@ class Scanner:
             self._close_skill_menu()
             return
 
-        # 일괄 성장 체크 확인 → false면 클릭
         check_r = sr.get("skill_all_view_check_region")
         if check_r:
             if read_skill_check(crop_ratio(img, check_r)) == CheckFlag.FALSE:
@@ -521,7 +519,6 @@ class Scanner:
                     self._close_skill_menu()
                     return
 
-        # 스킬 읽기 — region 키는 student_skillmenu_regions.json 기준
         for field_name, region_key, tmpl_key in [
             ("ex_skill", "EX_skill",  "EX_Skill"),
             ("skill1",   "Skill_1",   "Skill1"),
@@ -569,7 +566,7 @@ class Scanner:
         self.log(f"  🗡 무기 상태: {state.name} (score={score:.3f})")
 
         if state == WeaponState.NO_WEAPON_SYSTEM:
-            return  # 성작 스캔은 step 6에서
+            return
 
         if state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
             entry.weapon_star  = None
@@ -577,7 +574,7 @@ class Scanner:
             self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
             return
 
-        # WEAPON_EQUIPPED — 무기 메뉴 진입
+        # WEAPON_EQUIPPED
         rect = get_window_rect()
         if not rect:
             return
@@ -595,14 +592,10 @@ class Scanner:
             self._quit_weapon_menu()
             return
 
-        # 성작
         star_r = sr.get("weapon_star_region")
         if star_r:
             entry.weapon_star = read_weapon_star_v5(crop_ratio(img, star_r))
 
-        # 레벨 (digit2=null → 1자리)
-        # weapon_level_digit 키: JSON에 따라 언더스코어 구분자 유무가 다를 수 있어
-        # "weapon_level_digit_1" / "weapon_level_digit1" 둘 다 허용
         d1 = sr.get("weapon_level_digit_1") or sr.get("weapon_level_digit1")
         d2 = sr.get("weapon_level_digit_2") or sr.get("weapon_level_digit2")
         if d1 and d2:
@@ -618,7 +611,7 @@ class Scanner:
         time.sleep(0.25)
 
     # ─────────────────────────────────────────────────────────
-    # 4. 장비 스캔 (장비 창 진입)
+    # 4. 장비 스캔
     # ─────────────────────────────────────────────────────────
     def _read_equipment_into(self, entry: StudentEntry) -> None:
         rect = get_window_rect()
@@ -635,13 +628,11 @@ class Scanner:
         if img is None:
             return
 
-        # equipment_button 텍스처가 impossible이면 장비 시스템 없는 학생 → 스킵
         pre = read_equip_check(crop_ratio(img, equip_btn))
         if pre == CheckFlag.IMPOSSIBLE:
             self.log("  🚫 equipment_button=impossible — 장비 스캔 스킵")
             return
 
-        # 장비 창 진입
         click_center(rect, equip_btn, "equipment_tab")
         time.sleep(0.5)
 
@@ -650,7 +641,6 @@ class Scanner:
             self._close_equipment_menu()
             return
 
-        # 일괄 성장 체크 → false면 클릭
         check_r = sr.get("equipment_all_view_check_region")
         if check_r:
             if read_equip_check_inside(crop_ratio(img, check_r)) == CheckFlag.FALSE:
@@ -662,7 +652,6 @@ class Scanner:
                     self._close_equipment_menu()
                     return
 
-        # 슬롯별 스캔
         self._scan_equip_slot(entry, img, sr, 1,
                               skip_flags={EquipSlotFlag.EMPTY},
                               scan_level=True)
@@ -689,7 +678,6 @@ class Scanner:
         skip_flags: set[EquipSlotFlag],
         scan_level: bool,
     ) -> None:
-        # flag 영역으로 슬롯 상태 확인
         flag_r = (sr.get(f"equip{slot}_flag")
                   or sr.get(f"equip{slot}_emptyflag")
                   or sr.get(f"equip{slot}_empty_flag"))
@@ -700,14 +688,12 @@ class Scanner:
                 setattr(entry, f"equip{slot}", slot_flag.value)
                 return
 
-        # 티어
         tier_r = sr.get(f"equipment_{slot}")
         if tier_r:
             tier = read_equip_tier(crop_ratio(img, tier_r), slot)
             setattr(entry, f"equip{slot}", tier)
             self.log(f"  🎒 장비{slot} 티어: {tier}")
 
-        # 레벨 (slot4 제외)
         if scan_level:
             d1 = sr.get(f"equipment_{slot}_level_digit_1")
             d2 = sr.get(f"equipment_{slot}_level_digit_2")
@@ -784,9 +770,21 @@ class Scanner:
             self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
 
     # ─────────────────────────────────────────────────────────
-    # 7. 스탯 스캔
+    # 7. 스탯 스캔 (레벨 90 + 성작 5 이상 조건)
     # ─────────────────────────────────────────────────────────
     def _read_stats_into(self, entry: StudentEntry) -> None:
+        # 스탯 메뉴는 레벨 90 + 성작 5 이상인 경우에만 해금
+        level_ok = entry.level is not None and entry.level >= STAT_UNLOCK_LEVEL
+        star_ok  = entry.student_star is not None and entry.student_star >= STAT_UNLOCK_STAR
+
+        if not level_ok or not star_ok:
+            self.log(
+                f"  ⏭ 스탯 스캔 생략: {entry.label()} "
+                f"(Lv.{entry.level} / {entry.student_star}★ — "
+                f"조건: Lv.{STAT_UNLOCK_LEVEL} + {STAT_UNLOCK_STAR}★ 이상)"
+            )
+            return
+
         rect = get_window_rect()
         if not rect:
             return
@@ -849,10 +847,6 @@ class Scanner:
         return True
 
     def _move_to_next_student(self) -> bool:
-        """
-        다음 학생 버튼을 누르고 충분히 기다린다.
-        이동 성공/실패 판정은 하지 않는다 — 다음 루프의 식별 결과로 판단.
-        """
         rect = get_window_rect()
         if not rect:
             self.log("  ⚠️ 창 rect 없음")
@@ -865,7 +859,7 @@ class Scanner:
             return False
 
         click_center(rect, next_btn, "next_student")
-        time.sleep(1.0)   # 화면 전환 애니메이션 충분히 대기
+        time.sleep(1.0)
         return True
 
     def _log_student(self, entry: StudentEntry, idx: int) -> None:
