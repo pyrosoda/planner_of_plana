@@ -352,9 +352,13 @@ detect_weapon_status = detect_weapon_state  # 하위 호환
 
 # ── check 플래그 ──────────────────────────────────────────
 def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
+    """
+    true / false 2종 플래그 판별 (skillcheck 전용).
+    impossible 없는 폴더에서 사용.
+    """
     d = TEMPLATE_DIR / folder
     cands = {}
-    for flag in ("true", "false", "impossible"):
+    for flag in ("true", "false"):
         p = d / f"{flag}.png"
         if p.exists():
             cands[flag] = str(p)
@@ -366,11 +370,121 @@ def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
     print(f"[Matcher] check_flag({folder}): {lbl} ({score:.3f})")
     return CheckFlag(lbl)
 
+
 def read_skill_check(crop: Image.Image) -> CheckFlag:
+    """skillcheck 폴더 기준 true / false 판별."""
     return read_check_flag(crop, SKILL_CHECK_DIR)
 
+
 def read_equip_check(crop: Image.Image) -> CheckFlag:
-    return read_check_flag(crop, EQUIP_CHECK_DIR)
+    """
+    장비 창 진입 전 사전 검사.
+
+    최신 템플릿 기준으로는 equipment_button이
+      - possible.png   : 장비 창 진입 가능
+      - impossible.png : 장비 시스템 없음 / 비활성
+    형태로 구분될 수 있으므로, 우선 possible/impossible을 직접 비교한다.
+
+    구버전 템플릿(true/false)도 남아 있을 수 있으니 하위 호환 fallback도 유지한다.
+    반환 규칙:
+      - possible 우세      → FALSE      (스캐너에서는 "진입 가능" 의미)
+      - impossible 우세    → IMPOSSIBLE
+      - fallback true 우세 → TRUE
+      - 그 외              → FALSE
+    """
+    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
+
+    # 1) 신형 템플릿: possible / impossible 직접 비교
+    explicit_scores: dict[str, float] = {}
+    for flag in ("possible", "impossible"):
+        p = d / f"{flag}.png"
+        if p.exists():
+            explicit_scores[flag] = match_score_resized(crop, str(p), focus_center=True)
+
+    if explicit_scores:
+        print(
+            f"[Matcher] equip_check explicit scores: "
+            + " ".join(f"{k}={v:.3f}" for k, v in explicit_scores.items())
+        )
+
+        possible_s   = explicit_scores.get("possible", 0.0)
+        impossible_s = explicit_scores.get("impossible", 0.0)
+        best_label   = max(explicit_scores, key=explicit_scores.get)
+        best_score   = explicit_scores[best_label]
+        margin       = abs(possible_s - impossible_s)
+
+        # explicit 템플릿이 존재하면 이것을 최우선 사용.
+        # 점수가 둘 다 낮더라도 상대 비교에서 possible이 더 높으면 진입 허용 쪽이 안전하다.
+        if best_label == "impossible" and (best_score >= 0.50 or margin >= 0.03):
+            print(
+                f"[Matcher] equip_check → IMPOSSIBLE "
+                f"(possible={possible_s:.3f} impossible={impossible_s:.3f})"
+            )
+            return CheckFlag.IMPOSSIBLE
+
+        print(
+            f"[Matcher] equip_check → POSSIBLE/FALSE "
+            f"(possible={possible_s:.3f} impossible={impossible_s:.3f})"
+        )
+        return CheckFlag.FALSE
+
+    # 2) 하위 호환: true / false / impossible
+    IMPOSSIBLE_TF_MAX = 0.45   # 로그 기준: impossible 상태일 때 best_tf ≈ 0.30
+    TRUE_THRESHOLD    = 0.55
+
+    scores: dict[str, float] = {}
+    for flag in ("impossible", "true", "false"):
+        p = d / f"{flag}.png"
+        if p.exists():
+            scores[flag] = match_score_resized(crop, str(p))
+
+    print(
+        f"[Matcher] equip_check legacy scores: "
+        + " ".join(f"{k}={v:.3f}" for k, v in scores.items())
+    )
+
+    true_s  = scores.get("true",  0.0)
+    false_s = scores.get("false", 0.0)
+    best_tf = max(true_s, false_s)
+
+    if best_tf < IMPOSSIBLE_TF_MAX:
+        print(f"[Matcher] equip_check → IMPOSSIBLE (best_tf={best_tf:.3f} < {IMPOSSIBLE_TF_MAX})")
+        return CheckFlag.IMPOSSIBLE
+
+    if true_s >= TRUE_THRESHOLD:
+        print(f"[Matcher] equip_check → TRUE ({true_s:.3f})")
+        return CheckFlag.TRUE
+
+    print(f"[Matcher] equip_check → FALSE (true={true_s:.3f} false={false_s:.3f})")
+    return CheckFlag.FALSE
+
+
+def read_equip_check_inside(crop: Image.Image) -> CheckFlag:
+    """
+    장비 창 진입 후 일괄성장 체크박스 상태 판별.
+    이미 창이 열린 상태이므로 impossible은 고려하지 않고 true/false만 판별.
+    """
+    TRUE_THRESHOLD = 0.55
+
+    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
+    scores: dict[str, float] = {}
+    for flag in ("true", "false"):
+        p = d / f"{flag}.png"
+        if p.exists():
+            scores[flag] = match_score_resized(crop, str(p))
+
+    print(
+        f"[Matcher] equip_check_inside scores: "
+        + " ".join(f"{k}={v:.3f}" for k, v in scores.items())
+    )
+
+    true_s = scores.get("true", 0.0)
+    if true_s >= TRUE_THRESHOLD:
+        print(f"[Matcher] equip_check_inside → TRUE ({true_s:.3f})")
+        return CheckFlag.TRUE
+
+    print(f"[Matcher] equip_check_inside → FALSE")
+    return CheckFlag.FALSE
 
 
 # ── 장비 슬롯 플래그 ──────────────────────────────────────

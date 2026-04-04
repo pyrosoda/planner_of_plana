@@ -54,6 +54,7 @@ from core.matcher import (
     detect_weapon_state,
     read_skill_check,
     read_equip_check,
+    read_equip_check_inside,
     read_equip_slot_flag,
     read_stat_value,
     read_student_star_v5,
@@ -634,13 +635,11 @@ class Scanner:
         if img is None:
             return
 
-        # equipcheck 영역으로 impossible 선검사
-        check_r = sr.get("equipment_all_view_check_region")
-        if check_r:
-            pre = read_equip_check(crop_ratio(img, check_r))
-            if pre == CheckFlag.IMPOSSIBLE:
-                self.log("  🚫 equipcheck=impossible — 장비 스캔 스킵")
-                return
+        # equipment_button 텍스처가 impossible이면 장비 시스템 없는 학생 → 스킵
+        pre = read_equip_check(crop_ratio(img, equip_btn))
+        if pre == CheckFlag.IMPOSSIBLE:
+            self.log("  🚫 equipment_button=impossible — 장비 스캔 스킵")
+            return
 
         # 장비 창 진입
         click_center(rect, equip_btn, "equipment_tab")
@@ -652,8 +651,9 @@ class Scanner:
             return
 
         # 일괄 성장 체크 → false면 클릭
+        check_r = sr.get("equipment_all_view_check_region")
         if check_r:
-            if read_equip_check(crop_ratio(img, check_r)) == CheckFlag.FALSE:
+            if read_equip_check_inside(crop_ratio(img, check_r)) == CheckFlag.FALSE:
                 self.log("  🔘 장비 일괄성장 체크 클릭")
                 click_center(rect, check_r, "equip_check")
                 time.sleep(0.3)
