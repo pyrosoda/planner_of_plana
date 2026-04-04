@@ -95,7 +95,7 @@ STUDENTS: dict[str, StudentMeta] = {
     },
     "shiroko_riding": {
         "display_name":  "시로코(라이딩)",
-        "template_name": "shiroko_riding.png",
+        "template_name": "shiroko_ridingsuit.png",
         "group":         "시로코",
         "variant":       "라이딩",
     },
@@ -1077,7 +1077,7 @@ STUDENTS: dict[str, StudentMeta] = {
     },
     "reijo": {
         "display_name":  "레이죠",
-        "template_name": "reijo.png",
+        "template_name": "reizyo.png",
         "group":         "레이죠",
         "variant":       None,
     },

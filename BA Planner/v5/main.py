@@ -1,10 +1,9 @@
 """
-main.py — Blue Archive Analyzer v5
+main.py — Blue Archive Analyzer v5.2
 """
 import sys
 import os
 import threading
-import json
 import importlib.util
 from pathlib import Path
 
@@ -24,13 +23,14 @@ if missing:
     sys.exit(1)
 
 import tkinter as tk
-from datetime import datetime
 
 from core.config        import load_regions, load_config, save_config
 from core.capture       import clear_target
 from core.lobby_watcher import LobbyWatcher
 from core.scanner       import Scanner, ScanResult
-from core.matcher       import WeaponState
+from core.db_writer     import build_scan_meta
+from core.repository    import ScanRepository
+from core.analyzer      import analyze_scan_summary, is_student_maxed
 import core.student_names as student_names
 from gui.floating       import FloatingOverlay
 from gui.window_picker  import WindowPicker
@@ -44,9 +44,10 @@ class App(tk.Tk):
 
         self._regions = load_regions()
         self._config  = load_config()
-        self._result: ScanResult | None = None
-        self._scanner: Scanner | None   = None
-        self._watcher: LobbyWatcher | None = None
+        self._result:  ScanResult | None    = None
+        self._scanner: Scanner | None       = None
+        self._watcher: LobbyWatcher | None  = None
+        self._repo    = ScanRepository()
 
         self._overlay = FloatingOverlay(
             self,
@@ -61,6 +62,7 @@ class App(tk.Tk):
         clear_target()
         self.after(300, self._open_window_picker)
 
+    # ── 로비 감시 ─────────────────────────────────────────
     def _start_watcher(self):
         if self._watcher:
             self._watcher.stop()
@@ -75,11 +77,37 @@ class App(tk.Tk):
         )
         self._watcher.start()
 
-    def _scan(self, mode: str):
-        self._scanner = Scanner(
+    # ── Scanner 생성 (만렙 스킵 목록 주입) ───────────────
+    def _build_scanner(self) -> Scanner:
+        """
+        repository에서 만렙 학생 목록을 로드해 Scanner에 주입.
+        스캔 시작 시마다 호출해 항상 최신 상태를 반영.
+        """
+        current_students = self._repo.load_current_students()
+
+        maxed_ids:    set[str]        = set()
+        maxed_cache:  dict[str, dict] = {}
+
+        for sid, data in current_students.items():
+            if is_student_maxed(data):
+                maxed_ids.add(sid)
+                maxed_cache[sid] = data
+
+        if maxed_ids:
+            print(f"[App] 만렙 스킵 대상: {len(maxed_ids)}명")
+
+        return Scanner(
             self._regions,
-            on_progress=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m))
+            on_progress=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
+            maxed_ids=maxed_ids,
+            maxed_cache=maxed_cache,
         )
+
+    # ── 스캔 ──────────────────────────────────────────────
+    def _scan(self, mode: str):
+        meta = build_scan_meta()
+        self._scanner = self._build_scanner()
+
         self._overlay.set_scanning(True)
         self._overlay.hide()
         self.update_idletasks()
@@ -88,22 +116,29 @@ class App(tk.Tk):
         def task():
             try:
                 result = ScanResult()
+
                 if mode in ("items", "all"):
                     result.resources = self._scanner.scan_resources()
                     self.after(0, lambda: self._overlay.update_resources(result.resources))
                     result.items = self._scanner.scan_items()
-                    self.after(0, lambda: self._overlay.add_log(f"✅ 아이템 {len(result.items)}개"))
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"✅ 아이템 {len(result.items)}개"))
 
                 if mode in ("equipment", "all") and not self._scanner._stop:
                     result.equipment = self._scanner.scan_equipment()
-                    self.after(0, lambda: self._overlay.add_log(f"✅ 장비 {len(result.equipment)}개"))
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"✅ 장비 {len(result.equipment)}개"))
 
                 if mode in ("students", "all") and not self._scanner._stop:
                     result.students = self._scanner.scan_students()
-                    self.after(0, lambda: self._overlay.add_log(f"✅ 학생 {len(result.students)}명"))
+                    skipped = sum(1 for s in result.students if s.skipped)
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"✅ 학생 {len(result.students)}명 "
+                        f"(스킵:{skipped})"))
 
                 self._result = result
-                self._auto_save(result)
+                self._auto_save(result, meta)
+
             except Exception as e:
                 self.after(0, lambda: self._overlay.add_log(f"❌ {e}"))
                 import traceback; traceback.print_exc()
@@ -112,49 +147,43 @@ class App(tk.Tk):
 
         self.after(180, lambda: threading.Thread(target=task, daemon=True).start())
 
-    def _auto_save(self, result: ScanResult):
-        ts      = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = Path(__file__).resolve().parent / "scan_results"
-        out_dir.mkdir(exist_ok=True)
-        path    = out_dir / f"scan_result_{ts}.json"
+    # ── 저장 ──────────────────────────────────────────────
+    def _auto_save(self, result: ScanResult, meta: dict):
+        scan_id = meta["scan_id"]
+        try:
+            self._repo.save(result, meta)
+            self.after(0, lambda: self._overlay.add_log(f"💾 저장 완료 ({scan_id})"))
 
-        data = {
-            "scanned_at": ts,
-            "resources":  result.resources,
-            "items": [{"index": i.index, "name": i.name, "quantity": i.quantity}
-                      for i in result.items],
-            "equipment": [{"index": i.index, "name": i.name, "quantity": i.quantity}
-                          for i in result.equipment],
-            "students": [
-                {
-                    "student_id":   s.student_id,
-                    "display_name": s.display_name,
-                    "level":        s.level,
-                    "student_star": s.student_star,
-                    "weapon_state": s.weapon_state.value if s.weapon_state else None,
-                    "weapon_star":  s.weapon_star  if s.weapon_state == WeaponState.WEAPON_EQUIPPED else None,
-                    "weapon_level": s.weapon_level if s.weapon_state == WeaponState.WEAPON_EQUIPPED else None,
-                    "ex_skill": s.ex_skill,
-                    "skill1":   s.skill1,
-                    "skill2":   s.skill2,
-                    "skill3":   s.skill3,
-                    "equip1": s.equip1, "equip2": s.equip2,
-                    "equip3": s.equip3, "equip4": s.equip4,
-                    "equip1_level": s.equip1_level,
-                    "equip2_level": s.equip2_level,
-                    "equip3_level": s.equip3_level,
-                    "stat_hp":   s.stat_hp,
-                    "stat_atk":  s.stat_atk,
-                    "stat_heal": s.stat_heal,
-                }
-                for s in result.students
-            ],
-        }
+            if result.students:
+                current_students = list(self._repo.load_current_students().values())
+                all_changes      = self._repo.load_student_changes()
+                this_changes     = [c for c in all_changes if c.get("scan_id") == scan_id]
+                summary = analyze_scan_summary(current_students, this_changes, scan_id)
 
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"[App] 결과 저장: {path}")
-        self.after(0, lambda: self._overlay.add_log(f"💾 {path.name}"))
+                if summary.total_field_changes:
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"📝 변경 {summary.total_field_changes}건 "
+                        f"({summary.changed_students}명)"))
+                    top = sorted(summary.changed_fields_freq.items(),
+                                 key=lambda x: x[1], reverse=True)[:3]
+                    for fn, cnt in top:
+                        self.after(0, lambda fn=fn, cnt=cnt:
+                            self._overlay.add_log(f"  · {fn}: {cnt}건"))
 
+                if summary.low_confidence:
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"⚠️  신뢰도 낮음: {len(summary.low_confidence)}명"))
+
+                if summary.maxed_students:
+                    self.after(0, lambda: self._overlay.add_log(
+                        f"⭐ 만렙 도달: {len(summary.maxed_students)}명"))
+
+        except Exception as e:
+            print(f"[App] 저장 실패: {e}")
+            import traceback; traceback.print_exc()
+            self.after(0, lambda: self._overlay.add_log(f"❌ 저장 실패: {e}"))
+
+    # ── 창 선택 / 설정 ────────────────────────────────────
     def _open_window_picker(self):
         if self._watcher:
             self._watcher.stop()

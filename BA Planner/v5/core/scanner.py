@@ -1,37 +1,21 @@
 """
-core/scanner.py — 스캔 자동화 엔진  V5.1
+core/scanner.py — 스캔 자동화 엔진  V5.2
+
+[V5.2 추가]
+  - maxed_ids / maxed_cache 파라미터: 만렙 학생 스킵
+  - _should_skip(): maxed_ids 에 있으면 세부 스캔 전체 건너뜀
+  - scan_students_v5(): 스킵 학생은 캐시 데이터 그대로 사용
 
 [학생 1명 스캔 순서]
   1. 학생 식별 (texture 매칭)
+  1.5 만렙 스킵 판정 → maxed_ids 에 있으면 캐시 반환 후 next
   2. 스킬 스캔
-       skill_menu_button 클릭 → skillcheck 플래그 확인 후 false면 체크 클릭
-       → EX/S1/S2/S3 읽기 → skillmenu_quit_button 닫기
   3. 무기 상태 판정
-       weapon_detect_flag_region 으로 3-상태 판별
-       - NO_WEAPON_SYSTEM        → 성작 스캔 단계로
-       - UNLOCKED_NOT_EQUIPPED   → weapon_star=None, weapon_level=None
-       - EQUIPPED                → weapon_info_menu_button 클릭
-                                   → 성작 + 레벨(digit2=null이면 1자리) 읽기
-                                   → weapon_menu_quit_button 닫기
   4. 장비 스캔
-       equipment_all_view_check_region 텍스처가 impossible이면 스킵
-       아니면 equipment_button 클릭 → equipcheck false면 체크 클릭
-       슬롯별 flag 확인:
-         equip1: empty가 아니면 → 티어 + 레벨
-         equip2: empty / level_locked 가 아니면 → 티어 + 레벨
-         equip3: empty / level_locked 가 아니면 → 티어 + 레벨
-         equip4: empty / love_locked / null 가 아니면 → 티어만 (레벨 없음)
-       equipmentmenu_quit_button 닫기
   5. 레벨 스캔
-       entry.level 이 이미 90이면 스킵
-       levelcheck_button 클릭 → digit 읽기 → basic_info_button 복귀
   6. 성작 스캔
-       weapon_state != NO_WEAPON_SYSTEM → 5성 확정 스킵
-       아니면 star_menu_button 클릭 → student_star_region 읽기
-  7. 스탯 스캔
-       레벨 90 + 성작 5 이상인 경우에만 해금 → 조건 미달 시 스킵
-       stat_menu_button 클릭 → hp/atk/heal 읽기 → statmenu_quit_button 닫기
-  8. 기본 정보 탭 복귀 (루프에서 처리)
+  7. 스탯 스캔 (Lv90 + 5★ 조건)
+  8. 기본 정보 탭 복귀
   9. 다음 학생 버튼
 """
 
@@ -70,6 +54,7 @@ from core.matcher import (
 import core.ocr as ocr
 import core.student_names as student_names
 from core.item_names import correct_item_name
+from core.equip4_students import has_equip4
 
 # ── 상수 ──────────────────────────────────────────────────
 MAX_SCROLLS         = 60
@@ -80,7 +65,6 @@ STUDENT_MENU_WAIT   = 3.0
 MAX_CONSECUTIVE_DUP = 3
 MAX_STUDENT_LEVEL   = 90
 
-# 스탯 스캔 해금 조건
 STAT_UNLOCK_LEVEL = 90
 STAT_UNLOCK_STAR  = 5
 
@@ -125,6 +109,8 @@ class StudentEntry:
     stat_hp:   int | None = None
     stat_atk:  int | None = None
     stat_heal: int | None = None
+    # 스킵 여부 (로그/분석용)
+    skipped: bool = False
 
     def label(self) -> str:
         return self.display_name or self.student_id or "?"
@@ -163,16 +149,88 @@ def _grid_region(slots: list[dict]) -> dict:
     }
 
 
+def _dict_to_student_entry(d: dict) -> StudentEntry:
+    """repository 캐시 dict → StudentEntry 복원."""
+    ws_raw = d.get("weapon_state")
+    try:
+        ws = WeaponState(ws_raw) if ws_raw else None
+    except ValueError:
+        ws = None
+    return StudentEntry(
+        student_id=d.get("student_id"),
+        display_name=d.get("display_name"),
+        level=d.get("level"),
+        student_star=d.get("student_star"),
+        weapon_state=ws,
+        weapon_star=d.get("weapon_star"),
+        weapon_level=d.get("weapon_level"),
+        ex_skill=d.get("ex_skill"),
+        skill1=d.get("skill1"),
+        skill2=d.get("skill2"),
+        skill3=d.get("skill3"),
+        equip1=d.get("equip1"),
+        equip2=d.get("equip2"),
+        equip3=d.get("equip3"),
+        equip4=d.get("equip4"),
+        equip1_level=d.get("equip1_level"),
+        equip2_level=d.get("equip2_level"),
+        equip3_level=d.get("equip3_level"),
+        stat_hp=d.get("stat_hp"),
+        stat_atk=d.get("stat_atk"),
+        stat_heal=d.get("stat_heal"),
+        skipped=True,
+    )
+
+
 # ── 스캐너 ────────────────────────────────────────────────
 class Scanner:
-    def __init__(self, regions: dict,
-                 on_progress: Callable[[str], None] | None = None):
-        self.r     = regions
-        self.log   = on_progress or print
-        self._stop = False
+    def __init__(
+        self,
+        regions: dict,
+        on_progress: Callable[[str], None] | None = None,
+        maxed_ids:   set[str] | None = None,
+        maxed_cache: dict[str, dict] | None = None,
+    ):
+        """
+        Parameters
+        ----------
+        regions      : load_regions() 결과
+        on_progress  : 로그 콜백
+        maxed_ids    : 만렙 판정된 student_id 집합 (스킵 대상)
+        maxed_cache  : {student_id: dict} 형태의 기존 데이터 캐시
+                       스킵 시 이 데이터를 StudentEntry로 변환해 반환
+        """
+        self.r           = regions
+        self.log         = on_progress or print
+        self._stop       = False
+        self._maxed_ids  = frozenset(maxed_ids or [])
+        self._maxed_cache: dict[str, dict] = maxed_cache or {}
+
+        if self._maxed_ids:
+            self.log(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
 
     def stop(self):
         self._stop = True
+
+    # ── 만렙 스킵 판정 ────────────────────────────────────
+    def _should_skip(self, student_id: str) -> bool:
+        return student_id in self._maxed_ids
+
+    def _make_skipped_entry(self, student_id: str) -> StudentEntry:
+        """
+        캐시에서 기존 데이터를 복원해 반환.
+        캐시가 없으면 student_id만 채운 최소 entry 반환.
+        """
+        if student_id in self._maxed_cache:
+            entry = _dict_to_student_entry(self._maxed_cache[student_id])
+        else:
+            entry = StudentEntry(
+                student_id=student_id,
+                display_name=student_names.display_name(student_id),
+                skipped=True,
+            )
+        entry.skipped = True
+        return entry
 
     # ── 재화 ──────────────────────────────────────────────
     def scan_resources(self) -> dict:
@@ -328,7 +386,7 @@ class Scanner:
             press_esc()
             time.sleep(0.4)
 
-    # ── 아이템 스캔 ───────────────────────────────────────
+    # ── 아이템/장비 스캔 ──────────────────────────────────
     def scan_items(self) -> list[ItemEntry]:
         self._stop = False
         self.log("━━━ 📦 아이템 스캔 시작 ━━━")
@@ -349,7 +407,6 @@ class Scanner:
             self._return_lobby()
             ocr.unload()
 
-    # ── 장비 스캔 ─────────────────────────────────────────
     def scan_equipment(self) -> list[ItemEntry]:
         self._stop = False
         self.log("━━━ 🔧 장비 스캔 시작 ━━━")
@@ -376,8 +433,11 @@ class Scanner:
 
     def scan_students_v5(self) -> list[StudentEntry]:
         self._stop = False
-        self.log("━━━ 👩 학생 스캔 시작 (V5) ━━━")
+        self.log("━━━ 👩 학생 스캔 시작 (V5.2) ━━━")
         results: list[StudentEntry] = []
+
+        skipped_count = 0
+        scanned_count = 0
 
         try:
             if not self._open_student_menu():
@@ -385,7 +445,7 @@ class Scanner:
             if not self._open_first_student():
                 return []
 
-            seen_ids: set[str]  = set()
+            seen_ids: set[str]   = set()
             consecutive_dup: int = 0
             prev_id: str | None  = None
 
@@ -393,40 +453,63 @@ class Scanner:
                 if self._stop:
                     break
 
-                entry = self.scan_one_student_v5(idx)
-                if entry is None:
+                # ── 학생 식별 ─────────────────────────────
+                sid = self._identify_student(idx)
+                if sid is None:
                     self.log(f"  ⚠️ [{idx+1}] 식별 실패 — 0.6초 후 재시도")
                     time.sleep(0.6)
-                    entry = self.scan_one_student_v5(idx)
-                    if entry is None:
+                    sid = self._identify_student(idx)
+                    if sid is None:
                         self.log(f"  ⚠️ [{idx+1}] 재시도도 실패 — 스캔 종료")
                         break
 
-                dedup_key = entry.student_id or entry.display_name or ""
-
-                if dedup_key and dedup_key == prev_id:
+                # ── 중복/종료 판정 ────────────────────────
+                if sid == prev_id:
                     consecutive_dup += 1
-                    self.log(
-                        f"  🔁 이전과 동일: {entry.label()} "
-                        f"({consecutive_dup}/{MAX_CONSECUTIVE_DUP})"
-                    )
+                    self.log(f"  🔁 이전과 동일: {sid} ({consecutive_dup}/{MAX_CONSECUTIVE_DUP})")
                     if consecutive_dup >= MAX_CONSECUTIVE_DUP:
-                        self.log("  ✅ 연속 동일 → 마지막 학생으로 판단, 스캔 종료")
+                        self.log("  ✅ 연속 동일 → 마지막 학생, 스캔 종료")
                         break
                     self._restore_basic_info_tab()
                     self._move_to_next_student()
                     continue
 
                 consecutive_dup = 0
-                prev_id = dedup_key
+                prev_id = sid
 
-                if dedup_key and dedup_key in seen_ids:
-                    self.log(f"  🔁 이미 스캔됨: {entry.label()} — 스캔 종료")
+                if sid in seen_ids:
+                    self.log(f"  🔁 이미 스캔됨: {sid} — 종료")
                     break
+                seen_ids.add(sid)
 
-                if dedup_key:
-                    seen_ids.add(dedup_key)
+                # ── 만렙 스킵 판정 ────────────────────────
+                if self._should_skip(sid):
+                    entry = self._make_skipped_entry(sid)
+                    results.append(entry)
+                    skipped_count += 1
+                    self.log(
+                        f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵 "
+                        f"(누계 스킵:{skipped_count})"
+                    )
+                    # 스킵 시에도 next 버튼은 눌러야 함
+                    self._restore_basic_info_tab()
+                    self._move_to_next_student()
+                    continue
+
+                # ── 세부 스캔 ─────────────────────────────
+                entry = StudentEntry(
+                    student_id=sid,
+                    display_name=student_names.display_name(sid),
+                )
+                self._read_skills_into(entry)
+                self._read_weapon_into(entry)
+                self._read_equipment_into(entry)
+                self._read_level_into(entry)
+                self._read_student_star_into(entry)
+                self._read_stats_into(entry)
+
                 results.append(entry)
+                scanned_count += 1
                 self._log_student(entry, len(results) - 1)
 
                 self._restore_basic_info_tab()
@@ -438,31 +521,14 @@ class Scanner:
         finally:
             self._return_lobby()
 
-        self.log(f"━━━ 👩 학생 스캔 완료: {len(results)}명 ━━━")
+        self.log(
+            f"━━━ 👩 학생 스캔 완료: 총 {len(results)}명 "
+            f"(스캔:{scanned_count} / 스킵:{skipped_count}) ━━━"
+        )
         return results
 
     def scan_students(self) -> list[StudentEntry]:
         return self.scan_students_v5()
-
-    # ── 학생 1명 전체 스캔 ───────────────────────────────
-    def scan_one_student_v5(self, idx: int = 0) -> StudentEntry | None:
-        # 1. 식별
-        sid = self._identify_student(idx)
-        if sid is None:
-            return None
-
-        entry = StudentEntry(
-            student_id   = sid,
-            display_name = student_names.display_name(sid),
-        )
-
-        self._read_skills_into(entry)       # 2. 스킬
-        self._read_weapon_into(entry)       # 3. 무기
-        self._read_equipment_into(entry)    # 4. 장비
-        self._read_level_into(entry)        # 5. 레벨
-        self._read_student_star_into(entry) # 6. 성작
-        self._read_stats_into(entry)        # 7. 스탯 (레벨90 + 5성 이상 조건)
-        return entry
 
     # ─────────────────────────────────────────────────────────
     # 1. 학생 식별
@@ -546,7 +612,7 @@ class Scanner:
         time.sleep(0.3)
 
     # ─────────────────────────────────────────────────────────
-    # 3. 무기 상태 판정 + 레벨/성작
+    # 3. 무기 상태 판정
     # ─────────────────────────────────────────────────────────
     def _read_weapon_into(self, entry: StudentEntry) -> None:
         img = capture_window()
@@ -574,7 +640,6 @@ class Scanner:
             self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
             return
 
-        # WEAPON_EQUIPPED
         rect = get_window_rect()
         if not rect:
             return
@@ -652,6 +717,8 @@ class Scanner:
                     self._close_equipment_menu()
                     return
 
+        sid = entry.student_id or ""
+
         self._scan_equip_slot(entry, img, sr, 1,
                               skip_flags={EquipSlotFlag.EMPTY},
                               scan_level=True)
@@ -661,11 +728,16 @@ class Scanner:
         self._scan_equip_slot(entry, img, sr, 3,
                               skip_flags={EquipSlotFlag.EMPTY, EquipSlotFlag.LEVEL_LOCKED},
                               scan_level=True)
-        self._scan_equip_slot(entry, img, sr, 4,
-                              skip_flags={EquipSlotFlag.EMPTY,
-                                          EquipSlotFlag.LOVE_LOCKED,
-                                          EquipSlotFlag.NULL},
-                              scan_level=False)
+
+        # equip4: 해당 학생만 스캔, 그 외 스킵
+        if has_equip4(sid):
+            self._scan_equip_slot(entry, img, sr, 4,
+                                  skip_flags={EquipSlotFlag.EMPTY,
+                                              EquipSlotFlag.LOVE_LOCKED,
+                                              EquipSlotFlag.NULL},
+                                  scan_level=False)
+        else:
+            self.log(f"  🎒 장비4: {sid} 는 equip4 없음 — 스킵")
 
         self._close_equipment_menu()
 
@@ -770,18 +842,16 @@ class Scanner:
             self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
 
     # ─────────────────────────────────────────────────────────
-    # 7. 스탯 스캔 (레벨 90 + 성작 5 이상 조건)
+    # 7. 스탯 스캔 (Lv90 + 5★ 조건)
     # ─────────────────────────────────────────────────────────
     def _read_stats_into(self, entry: StudentEntry) -> None:
-        # 스탯 메뉴는 레벨 90 + 성작 5 이상인 경우에만 해금
         level_ok = entry.level is not None and entry.level >= STAT_UNLOCK_LEVEL
         star_ok  = entry.student_star is not None and entry.student_star >= STAT_UNLOCK_STAR
 
         if not level_ok or not star_ok:
             self.log(
                 f"  ⏭ 스탯 스캔 생략: {entry.label()} "
-                f"(Lv.{entry.level} / {entry.student_star}★ — "
-                f"조건: Lv.{STAT_UNLOCK_LEVEL} + {STAT_UNLOCK_STAR}★ 이상)"
+                f"(Lv.{entry.level} / {entry.student_star}★)"
             )
             return
 

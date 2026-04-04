@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BA Student Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #080c14;
+    --surface:  #0e1520;
+    --card:     #111927;
+    --card-h:   #16202e;
+    --border:   rgba(90,160,220,0.13);
+    --border-h: rgba(100,180,255,0.28);
+    --accent:   #4aa8e0;
+    --accent2:  #6ec6ff;
+    --gold:     #f0c040;
+    --gold2:    #ffd966;
+    --green:    #3dbf7a;
+    --red:      #e85a5a;
+    --purple:   #b388ff;
+    --text:     #d6eaf8;
+    --sub:      #5c8aaa;
+    --dim:      #2a3d52;
+    --pill-r:   999px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 14px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(74,168,224,0.07) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(90,160,220,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(90,160,220,0.03) 40px);
+  }
+
+  /* ── 헤더 ── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,12,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .header-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent2);
+    white-space: nowrap;
+    text-shadow: 0 0 20px rgba(110,198,255,0.4);
+  }
+  .header-title span { color: var(--gold); }
+
+  .header-stats {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    background: rgba(74,168,224,0.1);
+    border: 1px solid var(--border);
+    border-radius: var(--pill-r);
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    color: var(--sub);
+    white-space: nowrap;
+  }
+  .stat-pill strong { color: var(--accent2); }
+
+  /* ── 필터 바 ── */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .search-box {
+    position: relative;
+  }
+  .search-box input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--pill-r);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.82rem;
+    padding: 5px 14px 5px 32px;
+    width: 180px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(74,168,224,0.15);
+  }
+  .search-box::before {
+    content: '🔍';
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    pointer-events: none;
+  }
+
+  .filter-group {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--pill-r);
+    padding: 3px;
+  }
+  .filter-btn {
+    background: transparent;
+    border: none;
+    border-radius: var(--pill-r);
+    color: var(--sub);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .filter-btn:hover { background: rgba(74,168,224,0.1); color: var(--text); }
+  .filter-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .sort-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--pill-r);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.75rem;
+    outline: none;
+    padding: 5px 10px;
+  }
+
+  /* ── 메인 ── */
+  main {
+    padding: 20px 20px 60px;
+    max-width: 1800px;
+    margin: 0 auto;
+  }
+
+  .count-bar {
+    color: var(--sub);
+    font-size: 0.8rem;
+    margin-bottom: 14px;
+  }
+  .count-bar strong { color: var(--accent2); }
+
+  /* ── 그리드 ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 12px;
+  }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.18s;
+  }
+  .card:hover {
+    border-color: var(--border-h);
+    box-shadow: 0 0 0 1px var(--border-h), 0 8px 24px rgba(0,0,0,0.5);
+    transform: translateY(-2px);
+  }
+
+  /* 성작별 상단 컬러라인 */
+  .card::before {
+    content: '';
+    display: block;
+    height: 3px;
+    width: 100%;
+  }
+  .card[data-star="5"]::before { background: linear-gradient(90deg, #f0c040, #ffd966, #f0c040); }
+  .card[data-star="4"]::before { background: linear-gradient(90deg, #b388ff, #ce93d8); }
+  .card[data-star="3"]::before { background: linear-gradient(90deg, #4aa8e0, #6ec6ff); }
+  .card[data-star="2"]::before { background: linear-gradient(90deg, #3dbf7a, #69e6a0); }
+
+  /* ── 사진 영역 ── */
+  .photo-wrap {
+    aspect-ratio: 1 / 1;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .photo-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+  }
+  .photo-placeholder {
+    align-items: center;
+    color: var(--dim);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.65rem;
+    gap: 4px;
+    height: 100%;
+    justify-content: center;
+    width: 100%;
+  }
+  .photo-placeholder .icon { font-size: 2rem; opacity: 0.4; }
+  .photo-placeholder .sid {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-align: center;
+    padding: 0 6px;
+    word-break: break-all;
+  }
+
+  /* 레벨 뱃지 */
+  .lv-badge {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    background: rgba(8,12,20,0.82);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 1px 6px;
+    color: var(--accent2);
+    letter-spacing: 0.04em;
+  }
+
+  /* 무기 뱃지 */
+  .weapon-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(8,12,20,0.82);
+    border-radius: 4px;
+    font-size: 0.62rem;
+    padding: 2px 5px;
+    line-height: 1;
+  }
+  .weapon-badge.equipped { border: 1px solid rgba(240,192,64,0.5); color: var(--gold); }
+  .weapon-badge.unlocked { border: 1px solid rgba(74,168,224,0.4); color: var(--accent); }
+  .weapon-badge.none     { display: none; }
+
+  /* ── 카드 바디 ── */
+  .card-body {
+    padding: 8px 9px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+  }
+
+  .card-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+    word-break: keep-all;
+  }
+
+  /* 별 */
+  .stars {
+    display: flex;
+    gap: 1px;
+    align-items: center;
+  }
+  .star { font-size: 0.7rem; line-height: 1; }
+  .star.on  { color: var(--gold); }
+  .star.off { color: var(--dim); }
+
+  /* 스킬 행 */
+  .skill-row {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .skill-chip {
+    background: rgba(74,168,224,0.1);
+    border: 1px solid rgba(74,168,224,0.2);
+    border-radius: 3px;
+    color: var(--sub);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .skill-chip .val { color: var(--accent2); }
+
+  /* 장비 행 */
+  .equip-row {
+    display: flex;
+    gap: 3px;
+  }
+  .equip-slot {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--dim);
+    border-radius: 3px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 3px;
+    text-align: center;
+    color: var(--dim);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .equip-slot.t1  { border-color: rgba(120,180,120,0.4); color: #90c090; }
+  .equip-slot.t2  { border-color: rgba(74,168,224,0.4); color: var(--accent); }
+  .equip-slot.t3  { border-color: rgba(179,136,255,0.5); color: var(--purple); }
+  .equip-slot.t4  { border-color: rgba(240,192,64,0.5);  color: var(--gold); }
+  .equip-slot.t5  { border-color: rgba(240,100,80,0.5);  color: #f07060; }
+  .equip-slot.t6  { border-color: rgba(240,160,40,0.5);  color: #f0a040; }
+  .equip-slot.t7  { border-color: rgba(100,220,200,0.5); color: #64dccc; }
+  .equip-slot.t8  { border-color: rgba(255,160,200,0.5); color: #ffa0c8; }
+  .equip-slot.t9  { border-color: rgba(255,220,100,0.6); color: #ffdc64; }
+  .equip-slot.t10 { border-color: rgba(240,240,255,0.7); color: #f0f0ff; }
+  .equip-slot.locked { opacity: 0.35; }
+  .equip-slot.empty  { opacity: 0.25; }
+
+  /* ── 모달 ── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-backdrop.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border-h);
+    border-radius: 14px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+    overflow: hidden;
+    transform: translateY(16px) scale(0.97);
+    transition: transform 0.2s;
+  }
+  .modal-backdrop.open .modal {
+    transform: translateY(0) scale(1);
+  }
+
+  .modal-photo {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .modal-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+  }
+  .modal-photo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--dim);
+  }
+  .modal-photo-placeholder .big-icon { font-size: 4rem; opacity: 0.3; }
+
+  /* 모달 내 별 / 레벨 오버레이 */
+  .modal-overlay-info {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .modal-lv {
+    background: rgba(8,12,20,0.85);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent2);
+    padding: 2px 10px;
+  }
+  .modal-stars { display: flex; gap: 2px; }
+  .modal-stars .star { font-size: 1rem; }
+
+  .modal-body {
+    padding: 16px 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-name-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .modal-name {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .modal-close {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--sub);
+    cursor: pointer;
+    font-size: 0.9rem;
+    height: 28px;
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .modal-close:hover { background: var(--red); color: #fff; }
+
+  .modal-sid {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.72rem;
+    color: var(--dim);
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  .modal-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--sub);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  /* 스킬 테이블 */
+  .skill-table {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .skill-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    text-align: center;
+  }
+  .skill-cell .key {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--sub);
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .skill-cell .num {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent2);
+  }
+  .skill-cell .num.null { color: var(--dim); font-size: 0.9rem; }
+
+  /* 무기 박스 */
+  .weapon-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .weapon-icon { font-size: 1.6rem; }
+  .weapon-info { flex: 1; }
+  .weapon-info .wstate {
+    font-size: 0.75rem;
+    color: var(--sub);
+    font-weight: 500;
+  }
+  .weapon-info .wstate.equipped { color: var(--gold); }
+  .weapon-info .wstate.unlocked { color: var(--accent); }
+  .weapon-stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .weapon-stats span {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* 장비 그리드 */
+  .equip-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .equip-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 6px;
+    text-align: center;
+  }
+  .equip-cell .slot-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.62rem;
+    color: var(--sub);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .equip-cell .tier {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .equip-cell .elv {
+    font-size: 0.62rem;
+    color: var(--sub);
+    margin-top: 1px;
+  }
+
+  /* ── 빈 상태 ── */
+  .empty-state {
+    color: var(--sub);
+    font-size: 0.9rem;
+    padding: 60px 0;
+    text-align: center;
+  }
+
+  /* ── 스크롤바 ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+  /* ── 반응형 ── */
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .header-title { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">BA <span>Student</span> Viewer</div>
+  <div class="header-stats" id="headerStats"></div>
+  <div class="filter-bar">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="이름 검색...">
+    </div>
+    <div class="filter-group" id="starFilter">
+      <button class="filter-btn active" data-val="all">전체</button>
+      <button class="filter-btn" data-val="5">⭐5</button>
+      <button class="filter-btn" data-val="4">⭐4</button>
+      <button class="filter-btn" data-val="3">⭐3</button>
+      <button class="filter-btn" data-val="2">⭐2</button>
+    </div>
+    <div class="filter-group" id="weaponFilter">
+      <button class="filter-btn active" data-val="all">무기 전체</button>
+      <button class="filter-btn" data-val="weapon_equipped">장착</button>
+      <button class="filter-btn" data-val="no_weapon_system">없음</button>
+    </div>
+    <select class="sort-select" id="sortSelect">
+      <option value="star_desc">성작 높은순</option>
+      <option value="star_asc">성작 낮은순</option>
+      <option value="level_desc">레벨 높은순</option>
+      <option value="level_asc">레벨 낮은순</option>
+      <option value="name_asc">이름순</option>
+    </select>
+  </div>
+</header>
+
+<main>
+  <div class="count-bar" id="countBar"></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty-state" id="emptyState" style="display:none">조건에 맞는 학생이 없어...</div>
+</main>
+
+<!-- 모달 -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modal">
+    <div class="modal-photo" id="modalPhoto">
+      <div class="modal-photo-placeholder">
+        <div class="big-icon">🎓</div>
+        <div>사진 없음</div>
+      </div>
+      <div class="modal-overlay-info">
+        <div class="modal-lv" id="modalLv">Lv.—</div>
+        <div class="modal-stars" id="modalStars"></div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-name-row">
+        <div>
+          <div class="modal-name" id="modalName">—</div>
+          <div class="modal-sid" id="modalSid"></div>
+        </div>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <!-- 스킬 -->
+      <div>
+        <div class="modal-section-title">스킬 레벨</div>
+        <div class="skill-table" id="modalSkills"></div>
+      </div>
+      <!-- 무기 -->
+      <div>
+        <div class="modal-section-title">무기</div>
+        <div id="modalWeapon"></div>
+      </div>
+      <!-- 장비 -->
+      <div>
+        <div class="modal-section-title">장비 슬롯</div>
+        <div class="equip-grid" id="modalEquip"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 데이터 ──────────────────────────────────────────────
+const RAW_DATA = {"scanned_at":"20260404_132337","resources":{},"items":[],"equipment":[],"students":[{"student_id":"izumi_swimsuit","display_name":"이즈미(수영복)","level":1,"student_star":2,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":null,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"nodoka","display_name":"노도카","level":1,"student_star":2,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":null,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"renge_swimsuit","display_name":"렌게(수영복)","level":1,"student_star":2,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":null,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"misaki_swimsuit","display_name":"미사키(수영복)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"momoi_maid","display_name":"모모이(메이드)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"maki_camping","display_name":"마키(캠핑)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"fubuki_swimsuit","display_name":"후부키(수영복)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"izumi_new_year","display_name":"이즈미(새해)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"tomoe_qipao","display_name":"토모에(치파오)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hanae_christmas","display_name":"하나에(크리스마스)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"koyuki_pajama","display_name":"코유키(파자마)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kotama_camping","display_name":"코타마(캠핑)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kirara","display_name":"키라라","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"natsu_band","display_name":"나츠(밴드)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mine_idol","display_name":"미네(아이돌)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"airi_band","display_name":"아이리(밴드)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yoshimi_band","display_name":"요시미(밴드)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"miyo","display_name":"미요","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"eri","display_name":"에리","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"rena","display_name":"레나","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kanoe","display_name":"카노에","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"fuyu","display_name":"후유","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"ritsu","display_name":"리츠","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"reijo","display_name":"레이죠","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"rumi","display_name":"루미","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mina","display_name":"미나","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kokona","display_name":"코코나","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kisaki","display_name":"키사키","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"rabu","display_name":"라브","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hibiki_cheerleader","display_name":"히비키(치어리더)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kotori_cheerleader","display_name":"코토리(치어리더)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"utaha_cheerleader","display_name":"우타하(치어리더)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"serina_christmas","display_name":"세리나(크리스마스)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"sakurako_idol","display_name":"사쿠라코(아이돌)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mari_idol","display_name":"마리(아이돌)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"sumire_part_timer","display_name":"스미레(아르바이트)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"juri_part_timer","display_name":"주리(아르바이트)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"sena_casual","display_name":"세나(사복)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"saya_casual","display_name":"사야(사복)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"marina_qipao","display_name":"마리나(치파오)","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"misaka_mikoto","display_name":"미사카 미코토","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shoukouhou_misaki","display_name":"쇼쿠호 미사키","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"saten_ruiko","display_name":"사텐 루이코","level":1,"student_star":3,"weapon_state":"no_weapon_system","weapon_star":null,"weapon_level":null,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kaede","display_name":"카에데","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":"T1","equip2":"level_locked","equip3":"level_locked","equip4":"love_locked","equip1_level":1,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"ichika_swimsuit","display_name":"이치카(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shun_kid","display_name":"슌(어린이)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":"empty","equip2":"level_locked","equip3":"level_locked","equip4":"T2","equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aris_maid","display_name":"아리스(메이드)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hatsune_miku","display_name":"하츠네 미쿠","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":4,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"akane_bunny_girl","display_name":"아카네(바니걸)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"karin_bunny_girl","display_name":"카린(바니걸)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"neru_bunny_girl","display_name":"네루(바니걸)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"asuna_bunny_girl","display_name":"아스나(바니걸)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"toki_bunny_girl","display_name":"토키(바니걸)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"noa_pajama","display_name":"노아(파자마)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"karin_school_uniform","display_name":"카린(교복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"asuna_school_uniform","display_name":"아스나(교복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"neru_school_uniform","display_name":"네루(교복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"akane_school_uniform","display_name":"아카네(교복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yuuka_pajama","display_name":"유우카(파자마)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yuuka_sportswear","display_name":"유우카(체육복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mari_sportswear","display_name":"마리(체육복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hasumi_sportswear","display_name":"하스미(체육복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"haruna_sportswear","display_name":"하루나(체육복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"haruka_new_year","display_name":"하루카(새해)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mutsuki_new_year","display_name":"무츠키(새해)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aru_new_year","display_name":"아루(새해)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kayoko_new_year","display_name":"카요코(새해)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"izumi_swimsuit","display_name":"이즈미(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hina_swimsuit","display_name":"히나(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"iori_swimsuit","display_name":"이오리(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"nonomi_swimsuit","display_name":"노노미(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"miyako_swimsuit","display_name":"미야코(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"saki_swimsuit","display_name":"사키(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"azusa_swimsuit","display_name":"아즈사(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shiroko_swimsuit","display_name":"시로코(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hoshino_swimsuit","display_name":"호시노(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"serika_swimsuit","display_name":"세리카(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"ayane_swimsuit","display_name":"아야네(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"chise_swimsuit","display_name":"치세(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"izuna_swimsuit","display_name":"이즈나(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"wakamo_swimsuit","display_name":"와카모(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hifumi_swimsuit","display_name":"히후미(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hasumi_swimsuit","display_name":"하스미(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hanako_swimsuit","display_name":"하나코(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hinata_swimsuit","display_name":"히나타(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"koharu_swimsuit","display_name":"코하루(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"nagisa_swimsuit","display_name":"나기사(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mashiro_swimsuit","display_name":"마시로(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"tsurugi_swimsuit","display_name":"츠루기(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"ui_swimsuit","display_name":"우이(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"seia_swimsuit","display_name":"세이아(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"moe_swimsuit","display_name":"모에(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"miyu_swimsuit","display_name":"미유(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kanna_swimsuit","display_name":"칸나(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"fubuki_swimsuit","display_name":"후부키(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yukari_swimsuit","display_name":"유카리(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"renge_swimsuit","display_name":"렌게(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mimori_swimsuit","display_name":"미모리(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kikyou_swimsuit","display_name":"키쿄(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shizuko_swimsuit","display_name":"시즈코(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"atsuko_swimsuit","display_name":"아츠코(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hiyori_swimsuit","display_name":"히요리(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"saori_swimsuit","display_name":"사오리(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"eimi_swimsuit","display_name":"에이미(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"misaki_swimsuit","display_name":"미사키(수영복)","level":1,"student_star":4,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kirino_swimsuit","display_name":"키리노(수영복)","level":1,"student_star":4,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mika_swimsuit","display_name":"미카(수영복)","level":1,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":2,"weapon_level":30,"ex_skill":1,"skill1":1,"skill2":1,"skill3":1,"equip1":null,"equip2":null,"equip3":null,"equip4":null,"equip1_level":null,"equip2_level":null,"equip3_level":null,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"nodoka_hot_springs","display_name":"노도카(온천)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"cherino_hot_springs","display_name":"체리노(온천)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shigure_hot_springs","display_name":"시구레(온천)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"chinatsu_hot_springs","display_name":"치나츠(온천)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hare_camping","display_name":"하레(캠핑)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"reisa_magical","display_name":"레이사(매지컬)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"suzumi_magical","display_name":"스즈미(매지컬)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"midori_maid","display_name":"미도리(메이드)","level":88,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T8","equip2":"T8","equip3":"T8","equip4":"T4","equip1_level":35,"equip2_level":35,"equip3_level":35,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"momoi_maid","display_name":"모모이(메이드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aris_battle","display_name":"아리스(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"eimi_battle","display_name":"에이미(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"himari_battle","display_name":"히마리(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"toki_battle","display_name":"토키(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yuzu_battle","display_name":"유즈(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"rio_battle","display_name":"리오(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hoshino_battle","display_name":"호시노(무장)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shiroko_terror","display_name":"시로코*테러","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":4,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"shiroko_riding","display_name":"시로코(라이딩)","level":70,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T7","equip2":"T7","equip3":"T7","equip4":"T4","equip1_level":35,"equip2_level":35,"equip3_level":35,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"hina_dress","display_name":"히나(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aru_dress","display_name":"아루(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kayoko_dress","display_name":"카요코(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"ako_dress","display_name":"아코(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"saori_dress","display_name":"사오리(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"michiru_dress","display_name":"미치루(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"tsukuyo_dress","display_name":"츠쿠요(드레스)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"yuzu_maid","display_name":"유즈(메이드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aris_maid","display_name":"아리스(메이드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"serika_new_year","display_name":"세리카(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"pina_guide","display_name":"피나(가이드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"tsubaki_guide","display_name":"츠바키(가이드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kazusa_band","display_name":"카즈사(밴드)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"fuuka_new_year","display_name":"후우카(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"zunko_new_year","display_name":"준코(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"akari_new_year","display_name":"아카리(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"haruna_new_year","display_name":"하루나(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"izumi_new_year","display_name":"이즈미(새해)","level":31,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T3","equip2":"T3","equip3":"T3","equip4":"T1","equip1_level":15,"equip2_level":15,"equip3_level":15,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"mutsuki_new_year","display_name":"무츠키(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kayoko_new_year","display_name":"카요코(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"aru_new_year","display_name":"아루(새해)","level":90,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"haruka_new_year","display_name":"하루카(새해)","level":11,"student_star":5,"weapon_state":"weapon_equipped","weapon_star":3,"weapon_level":50,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T1","equip2":"T1","equip3":"T1","equip4":"T1","equip1_level":5,"equip2_level":5,"equip3_level":5,"stat_hp":null,"stat_atk":null,"stat_heal":null},{"student_id":"kirino_swimsuit","display_name":"키리노(수영복)","level":90,"student_star":4,"weapon_state":"weapon_unlocked_not_equipped","weapon_star":null,"weapon_level":null,"ex_skill":5,"skill1":10,"skill2":10,"skill3":10,"equip1":"T9","equip2":"T9","equip3":"T9","equip4":"T4","equip1_level":50,"equip2_level":50,"equip3_level":50,"stat_hp":null,"stat_atk":null,"stat_heal":null}]};
+
+const students = RAW_DATA.students;
+
+// ── 상태 ──────────────────────────────────────────────────
+let filterStar   = 'all';
+let filterWeapon = 'all';
+let sortMode     = 'star_desc';
+let searchQ      = '';
+let selectedStudent = null;
+
+// ── 렌더링 ────────────────────────────────────────────────
+
+function starHTML(n, max=5, size='star') {
+  return Array.from({length: max}, (_, i) =>
+    `<span class="${size} ${i < n ? 'on' : 'off'}">★</span>`
+  ).join('');
+}
+
+function tierClass(t) {
+  if (!t || t === 'empty' || t === 'null') return 'empty';
+  if (t === 'level_locked' || t === 'love_locked') return 'locked';
+  const m = t.match(/T(\d+)/);
+  return m ? `t${m[1]}` : '';
+}
+
+function tierLabel(t) {
+  if (!t) return '—';
+  if (t === 'empty') return '빈칸';
+  if (t === 'level_locked') return 'LvLock';
+  if (t === 'love_locked') return '♡Lock';
+  if (t === 'null') return '없음';
+  return t;
+}
+
+function weaponStateLabel(ws) {
+  if (ws === 'weapon_equipped') return '🗡 장착';
+  if (ws === 'weapon_unlocked_not_equipped') return '🔓 미장착';
+  return '— 없음';
+}
+
+function skillVal(v) {
+  return v != null ? v : '?';
+}
+
+function filtered() {
+  let arr = [...students];
+  if (filterStar !== 'all')
+    arr = arr.filter(s => s.student_star == filterStar);
+  if (filterWeapon !== 'all')
+    arr = arr.filter(s => s.weapon_state === filterWeapon);
+  if (searchQ)
+    arr = arr.filter(s => s.display_name.includes(searchQ) || s.student_id.includes(searchQ));
+
+  arr.sort((a, b) => {
+    switch (sortMode) {
+      case 'star_desc':  return (b.student_star||0) - (a.student_star||0) || (b.level||0)-(a.level||0);
+      case 'star_asc':   return (a.student_star||0) - (b.student_star||0) || (a.level||0)-(b.level||0);
+      case 'level_desc': return (b.level||0) - (a.level||0);
+      case 'level_asc':  return (a.level||0) - (b.level||0);
+      case 'name_asc':   return a.display_name.localeCompare(b.display_name, 'ko');
+    }
+    return 0;
+  });
+  return arr;
+}
+
+function renderCard(s) {
+  const wstate = s.weapon_state;
+  const wBadgeClass = wstate === 'weapon_equipped' ? 'equipped'
+                    : wstate === 'weapon_unlocked_not_equipped' ? 'unlocked' : 'none';
+  const wBadgeText  = wstate === 'weapon_equipped' ? `⚔ ${s.weapon_star||'?'}★`
+                    : wstate === 'weapon_unlocked_not_equipped' ? '🔓' : '';
+
+  // 장비 슬롯 4개
+  const slots = [1,2,3,4].map(i => {
+    const t = s[`equip${i}`];
+    const lv = s[`equip${i}_level`];
+    const cls = tierClass(t);
+    const lbl = tierLabel(t);
+    const lvTxt = (i < 4 && lv != null) ? `<br><span style="font-size:0.5rem;color:var(--sub)">Lv${lv}</span>` : '';
+    return `<div class="equip-slot ${cls}">${lbl}${lvTxt}</div>`;
+  }).join('');
+
+  return `
+<div class="card" data-star="${s.student_star}" data-sid="${s.student_id}" onclick="openModal('${s.student_id}', ${JSON.stringify(s.display_name)})">
+  <div class="photo-wrap">
+    <div class="photo-placeholder">
+      <div class="icon">🎓</div>
+      <div class="sid">${s.student_id}</div>
+    </div>
+    ${wBadgeText ? `<div class="weapon-badge ${wBadgeClass}">${wBadgeText}</div>` : ''}
+    <div class="lv-badge">Lv.${s.level ?? '?'}</div>
+  </div>
+  <div class="card-body">
+    <div class="card-name">${s.display_name}</div>
+    <div class="stars">${starHTML(s.student_star||0)}</div>
+    <div class="skill-row">
+      <div class="skill-chip">EX<span class="val"> ${skillVal(s.ex_skill)}</span></div>
+      <div class="skill-chip">S1<span class="val"> ${skillVal(s.skill1)}</span></div>
+      <div class="skill-chip">S2<span class="val"> ${skillVal(s.skill2)}</span></div>
+      ${s.skill3 != null ? `<div class="skill-chip">S3<span class="val"> ${skillVal(s.skill3)}</span></div>` : ''}
+    </div>
+    <div class="equip-row">${slots}</div>
+  </div>
+</div>`;
+}
+
+function render() {
+  const arr = filtered();
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+  const countBar = document.getElementById('countBar');
+
+  countBar.innerHTML = `<strong>${arr.length}</strong>명 표시 중 / 전체 ${students.length}명`;
+
+  if (arr.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    grid.innerHTML = arr.map(renderCard).join('');
+  }
+}
+
+// ── 헤더 통계 ────────────────────────────────────────────
+function renderHeaderStats() {
+  const total = students.length;
+  const lv90  = students.filter(s => s.level === 90).length;
+  const ws5   = students.filter(s => s.student_star === 5).length;
+  const weap  = students.filter(s => s.weapon_state === 'weapon_equipped').length;
+
+  document.getElementById('headerStats').innerHTML = `
+    <div class="stat-pill">총 <strong>${total}</strong>명</div>
+    <div class="stat-pill">Lv.90 <strong>${lv90}</strong></div>
+    <div class="stat-pill">5★ <strong>${ws5}</strong></div>
+    <div class="stat-pill">무기장착 <strong>${weap}</strong></div>
+  `;
+}
+
+// ── 모달 ─────────────────────────────────────────────────
+function openModal(sid, name) {
+  const s = students.find(x => x.student_id === sid && x.display_name === name)
+         || students.find(x => x.student_id === sid);
+  if (!s) return;
+
+  document.getElementById('modalName').textContent = s.display_name;
+  document.getElementById('modalSid').textContent  = s.student_id;
+  document.getElementById('modalLv').textContent   = `Lv.${s.level ?? '?'}`;
+  document.getElementById('modalStars').innerHTML  = starHTML(s.student_star||0, 5, 'star');
+
+  // 스킬
+  const skills = [
+    ['EX', s.ex_skill], ['S1', s.skill1], ['S2', s.skill2], ['S3', s.skill3]
+  ];
+  document.getElementById('modalSkills').innerHTML = skills.map(([k, v]) =>
+    `<div class="skill-cell">
+      <span class="key">${k}</span>
+      <span class="num ${v==null?'null':''}">${v ?? '—'}</span>
+    </div>`
+  ).join('');
+
+  // 무기
+  const ws = s.weapon_state;
+  let weaponHTML;
+  if (ws === 'weapon_equipped') {
+    weaponHTML = `<div class="weapon-box">
+      <div class="weapon-icon">⚔️</div>
+      <div class="weapon-info">
+        <div class="wstate equipped">무기 장착</div>
+        <div class="weapon-stats">
+          <span>${s.weapon_star ?? '?'}★</span>
+          <span>Lv.${s.weapon_level ?? '?'}</span>
+        </div>
+      </div>
+    </div>`;
+  } else if (ws === 'weapon_unlocked_not_equipped') {
+    weaponHTML = `<div class="weapon-box">
+      <div class="weapon-icon">🔓</div>
+      <div class="weapon-info">
+        <div class="wstate unlocked">미장착</div>
+      </div>
+    </div>`;
+  } else {
+    weaponHTML = `<div class="weapon-box">
+      <div class="weapon-icon" style="opacity:0.3">🗡️</div>
+      <div class="weapon-info">
+        <div class="wstate">무기 시스템 없음</div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('modalWeapon').innerHTML = weaponHTML;
+
+  // 장비
+  const equips = [1,2,3,4].map(i => {
+    const t  = s[`equip${i}`];
+    const lv = s[`equip${i}_level`];
+    const cls = tierClass(t);
+    const lbl = tierLabel(t);
+    const lvTxt = (i < 4 && lv != null) ? `<div class="elv">Lv.${lv}</div>` : '';
+    return `<div class="equip-cell">
+      <span class="slot-label">SLOT ${i}</span>
+      <div class="tier ${cls}">${lbl}</div>
+      ${lvTxt}
+    </div>`;
+  }).join('');
+  document.getElementById('modalEquip').innerHTML = equips;
+
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+}
+
+// ── 이벤트 ──────────────────────────────────────────────
+document.getElementById('modalClose').onclick = closeModal;
+document.getElementById('modalBackdrop').onclick = function(e) {
+  if (e.target === this) closeModal();
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// 별 필터
+document.getElementById('starFilter').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('#starFilter .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterStar = btn.dataset.val;
+  render();
+});
+
+// 무기 필터
+document.getElementById('weaponFilter').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('#weaponFilter .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterWeapon = btn.dataset.val;
+  render();
+});
+
+// 정렬
+document.getElementById('sortSelect').onchange = e => {
+  sortMode = e.target.value;
+  render();
+};
+
+// 검색
+document.getElementById('searchInput').oninput = e => {
+  searchQ = e.target.value.trim();
+  render();
+};
+
+// ── 초기화 ──────────────────────────────────────────────
+renderHeaderStats();
+render();
+</script>
+</body>
+</html>
