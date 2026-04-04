@@ -34,6 +34,7 @@ from core.analyzer      import analyze_scan_summary, is_student_maxed
 import core.student_names as student_names
 from gui.floating       import FloatingOverlay
 from gui.window_picker  import WindowPicker
+from gui.student_viewer import open_viewer
 
 
 class App(tk.Tk):
@@ -57,6 +58,7 @@ class App(tk.Tk):
             on_scan_all=       lambda: self._scan("all"),
             on_stop=           self._stop_scan,
             on_settings=       self._open_settings,
+            on_view_students=  lambda: open_viewer(self),
         )
 
         clear_target()

@@ -25,7 +25,7 @@ except ImportError:
 
 # ── 경로 ──────────────────────────────────────────────────
 BASE_DIR      = Path(__file__).parent.parent
-TEMPLATE_DIR  = BASE_DIR / "templates" / "students"
+TEMPLATE_DIR  = BASE_DIR / "templates" / "students_portraits"
 CURRENT_JSON  = BASE_DIR / "data" / "current" / "students.json"
 DB_PATH       = BASE_DIR / "ba_planner.db"
 
@@ -253,8 +253,8 @@ def draw_card_on_canvas(canvas: tk.Canvas, s: dict, w: int, h: int, hover: bool)
     lv = s.get("level")
     lv_txt = f"Lv.{lv}" if lv else "Lv.?"
     canvas.create_rectangle(4, 3 + photo_h - 18, 4 + 38, 3 + photo_h - 3,
-                             fill="#080c14cc" if hover else "#080c14bb",
-                             outline=C["border"], stipple="")
+                             fill="#0a0f1a",
+                             outline=C["border"])
     canvas.create_text(23, 3 + photo_h - 10,
                        text=lv_txt, font=("Consolas", 7, "bold"),
                        fill=C["accent2"])
@@ -265,13 +265,12 @@ def draw_card_on_canvas(canvas: tk.Canvas, s: dict, w: int, h: int, hover: bool)
         wstar = s.get("weapon_star") or "?"
         wlbl = f"⚔{wstar}★"
         canvas.create_rectangle(w - 40, 6, w - 3, 20,
-                                 fill="#080c14bb", outline=C["gold"],
-                                 stipple="")
+                                 fill="#0a0f1a", outline=C["gold"])
         canvas.create_text(w - 21, 13, text=wlbl,
                            font=("Malgun Gothic", 6, "bold"), fill=C["gold"])
     elif ws == "weapon_unlocked_not_equipped":
         canvas.create_rectangle(w - 26, 6, w - 3, 20,
-                                 fill="#080c14bb", outline=C["accent"], stipple="")
+                                 fill="#0a0f1a", outline=C["accent"])
         canvas.create_text(w - 14, 13, text="🔓",
                            font=("Segoe UI Emoji", 7), fill=C["accent"])
 
@@ -384,7 +383,7 @@ class StudentModal(tk.Toplevel):
         lv = self.s.get("level")
         star_n = self.s.get("student_star") or 0
         photo_canvas.create_rectangle(8, ph - 26, 80, ph - 4,
-                                       fill="#080c14cc", outline=C["border"])
+                                       fill="#0a0f1a", outline=C["border"])
         photo_canvas.create_text(44, ph - 15,
                                   text=f"Lv.{lv or '?'}",
                                   font=("Consolas", 11, "bold"), fill=C["accent2"])
@@ -532,9 +531,10 @@ class StudentViewer(tk.Toplevel):
         self._filter_weapon = tk.StringVar(value="all")
         self._sort_mode     = tk.StringVar(value="star_desc")
         self._search_var    = tk.StringVar(value="")
-        self._search_var.trace_add("write", self._on_filter_change)
 
         self._build_ui()
+        # _build_ui() 완료 후 trace 등록 (_count_bar 등 위젯 생성 보장)
+        self._search_var.trace_add("write", self._on_filter_change)
         self.bind("<Configure>", self._on_resize)
         self.after(100, self._load_data_async)
 

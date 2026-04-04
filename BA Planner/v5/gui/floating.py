@@ -36,7 +36,8 @@ class FloatingOverlay(tk.Toplevel):
                  on_scan_students:  Callable,
                  on_scan_all:       Callable,
                  on_stop:           Callable,
-                 on_settings:       Callable):
+                 on_settings:       Callable,
+                 on_view_students=None):
         super().__init__(master)
 
         self._cbs = {
@@ -46,6 +47,7 @@ class FloatingOverlay(tk.Toplevel):
             "all":       on_scan_all,
             "stop":      on_stop,
             "settings":  on_settings,
+            "view_students": on_view_students or (lambda: None),
         }
         self._expanded   = False
         self._scanning   = False
@@ -136,6 +138,7 @@ class FloatingOverlay(tk.Toplevel):
                 ("🔧  장비 스캔",      PURPLE, "equipment"),
                 ("👩  학생 스캔",      GREEN,  "students"),
                 ("🔄  전체 스캔",      ORANGE, "all"),
+                ("📋  학생 뷰어",      YELLOW, "view_students"),
             ]
             for label, color, key in btns:
                 tk.Button(frame, text=label,
