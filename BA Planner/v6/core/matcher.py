@@ -36,6 +36,107 @@ from core.preprocess import (
 from core.template_cache import get_cache, TemplateEntry
 
 
+# ══════════════════════════════════════════════════════════
+# 인식 결과 메타정보 타입
+# ══════════════════════════════════════════════════════════
+
+from dataclasses import dataclass, field as dc_field
+from enum import Enum as _Enum
+
+
+class RecogSource(_Enum):
+    """인식 방법 태그 — 디버그 추적용."""
+    TEMPLATE_RESIZED = "template_resized"   # match_score_resized
+    TEMPLATE_MASKED  = "template_masked"    # match_masked_icon
+    TEMPLATE_TEXT    = "template_text"      # match_score_textonly
+    TEMPLATE_RAW     = "template_raw"       # match_score (원본 크기)
+    COLOR_HIST       = "color_hist"         # _color_hist_score
+    COMBINED         = "combined"           # 여러 방법 혼합
+    OCR              = "ocr"                # EasyOCR
+    SKIPPED          = "skipped"            # 조건 미충족으로 스킵
+    FALLBACK         = "fallback"           # 기본값 사용
+
+
+@dataclass
+class RecognitionResult:
+    """
+    인식 결과 + 신뢰도 메타정보.
+
+    Attributes
+    ----------
+    value      : 인식된 값 (int / str / None)
+    score      : 유사도 점수 0.0~1.0 (높을수록 확실)
+    source     : 어떤 방법으로 인식했는지
+    uncertain  : True 이면 score 가 UNCERTAIN 구간 (재검토 권장)
+    label      : 로그용 짧은 설명 (자동 생성)
+
+    사용 예
+    -------
+    r = read_skill_result(crop, "EX_Skill")
+    if r.uncertain:
+        log(f"[경고] EX 스킬 인식 불확실: {r.value} ({r.score:.3f})")
+    entry.ex_skill = r.value
+    """
+    value:    Optional[int | str]
+    score:    float
+    source:   RecogSource       = RecogSource.TEMPLATE_RESIZED
+    uncertain: bool             = False
+    label:    str               = ""
+
+    def __post_init__(self):
+        if not self.label:
+            self.label = f"{self.source.value}:{self.value}({self.score:.3f})"
+
+    @classmethod
+    def skipped(cls, reason: str = "") -> "RecognitionResult":
+        """조건 미충족으로 스킵된 결과."""
+        return cls(value=None, score=0.0,
+                   source=RecogSource.SKIPPED, label=f"skipped:{reason}")
+
+    @classmethod
+    def fallback(cls, value, reason: str = "") -> "RecognitionResult":
+        """기본값으로 대체된 결과."""
+        return cls(value=value, score=0.0,
+                   source=RecogSource.FALLBACK, label=f"fallback:{reason}")
+
+
+# ── 신뢰도 구간 상수 ──────────────────────────────────────
+# score 가 이 두 임계값 사이(SCORE_UNCERTAIN ~ SCORE_CONFIDENT)면
+# uncertain=True 로 마킹
+SCORE_CONFIDENT  = 0.75   # 이상이면 확실
+SCORE_UNCERTAIN  = 0.55   # 이상 CONFIDENT 미만이면 불확실
+                           # 미만이면 실패(value=None 처리)
+
+
+def _make_result(
+    value:    Optional[int | str],
+    score:    float,
+    source:   RecogSource,
+    *,
+    confident_thresh:  float = SCORE_CONFIDENT,
+    uncertain_thresh:  float = SCORE_UNCERTAIN,
+) -> RecognitionResult:
+    """
+    score 구간에 따라 uncertain 플래그를 자동 설정하는 팩토리.
+
+    score >= confident_thresh → uncertain=False
+    score >= uncertain_thresh → uncertain=True  (애매한 결과지만 반환)
+    score <  uncertain_thresh → value=None, uncertain=True (실패)
+    """
+    if value is None:
+        return RecognitionResult(value=None, score=score,
+                                 source=source, uncertain=True)
+    if score >= confident_thresh:
+        return RecognitionResult(value=value, score=score,
+                                 source=source, uncertain=False)
+    if score >= uncertain_thresh:
+        return RecognitionResult(value=value, score=score,
+                                 source=source, uncertain=True)
+    # score 미달 → 실패
+    return RecognitionResult(value=None, score=score,
+                             source=source, uncertain=True)
+
+
 # ── 템플릿 접근 헬퍼 ──────────────────────────────────────
 
 def _tmpl(path: str) -> Optional[TemplateEntry]:
@@ -285,6 +386,193 @@ def _ncc_diff_score(a: np.ndarray, b: np.ndarray) -> float:
         return 0.0
 
 
+# ══════════════════════════════════════════════════════════
+# 마스크 매칭 표준화 레이어
+# ══════════════════════════════════════════════════════════
+#
+# 규칙:
+#   - RGBA 템플릿  → 알파 채널을 마스크로 사용  (has_alpha=True)
+#   - RGB 템플릿   → 마스크 없음, 전체 픽셀 비교
+#   - 알파 threshold: ALPHA_THRESH (기본 30) 이상인 픽셀만 유효
+#   - 호출 지점 구분:
+#       별 / 무기별 / 아이콘  → match_masked_icon()   사용
+#       일반 UI 템플릿        → match_score_resized()  사용
+#       텍스트/숫자           → match_score_textonly() 사용
+#   - 두 경로를 섞어 쓰지 않도록 read_star / read_weapon_star 등에서
+#     반드시 match_masked_icon() 만 호출할 것
+#
+# ══════════════════════════════════════════════════════════
+
+# 알파 유효 픽셀 최소값 (0~255). 이 값 미만은 배경으로 간주.
+ALPHA_THRESH: int = 30
+
+# 마스크 매칭 점수 가중치
+_MASK_W_CORR = 0.50
+_MASK_W_DIFF = 0.30
+_MASK_W_EDGE = 0.20
+
+
+def _build_alpha_mask(
+    alpha: Optional[np.ndarray],
+    target_h: int,
+    target_w: int,
+    thresh: int = ALPHA_THRESH,
+) -> np.ndarray:
+    """
+    알파 채널 → boolean 마스크 (유효 픽셀 = True).
+
+    Parameters
+    ----------
+    alpha    : 템플릿 알파 채널 (H×W uint8). None 이면 전체 유효.
+    target_h : 리사이즈 목표 높이
+    target_w : 리사이즈 목표 너비
+    thresh   : 유효 픽셀 최소 알파값
+
+    Returns
+    -------
+    bool ndarray (target_h × target_w)
+    """
+    if alpha is None:
+        return np.ones((target_h, target_w), dtype=bool)
+
+    resized = cv2.resize(alpha, (target_w, target_h),
+                         interpolation=cv2.INTER_NEAREST)
+    return resized >= thresh
+
+
+def _masked_score(
+    crop_g: np.ndarray,
+    tmpl_g: np.ndarray,
+    mask:   np.ndarray,
+) -> float:
+    """
+    마스크 영역만 비교하는 점수 계산.
+    corr 0.50 + diff 0.30 + edge 0.20
+
+    Parameters
+    ----------
+    crop_g : 전처리된 crop grayscale (H×W uint8)
+    tmpl_g : 전처리된 template grayscale (H×W uint8)
+    mask   : 유효 픽셀 boolean mask (H×W)
+
+    Returns
+    -------
+    float 0.0 ~ 1.0
+    """
+    if not np.any(mask):
+        return 0.0
+
+    cf = crop_g.astype(np.float32)
+    tf = tmpl_g.astype(np.float32)
+
+    # ── diff score ────────────────────────────────────────
+    diff_score = 1.0 - float(np.abs(cf - tf)[mask].mean() / 255.0)
+
+    # ── correlation score ─────────────────────────────────
+    cv_ = cf[mask] - cf[mask].mean()
+    tv_ = tf[mask] - tf[mask].mean()
+    dnom = np.linalg.norm(cv_) * np.linalg.norm(tv_)
+    corr_raw = 0.0 if dnom < 1e-6 else float(np.dot(cv_, tv_) / dnom)
+    corr = max(0.0, min(1.0, (corr_raw + 1.0) / 2.0))
+
+    # ── edge score ────────────────────────────────────────
+    # Canny 는 uint8 배열 필요
+    crop_u8 = crop_g
+    tmpl_u8 = tmpl_g
+    crop_edge = cv2.Canny(crop_u8, 50, 150)
+    tmpl_edge = cv2.Canny(tmpl_u8, 50, 150)
+    edge_score = 1.0 - float(
+        np.abs(crop_edge.astype(np.float32)
+               - tmpl_edge.astype(np.float32))[mask].mean() / 255.0
+    )
+
+    return (_MASK_W_CORR * corr
+            + _MASK_W_DIFF * diff_score
+            + _MASK_W_EDGE * edge_score)
+
+
+def match_masked_icon(
+    crop:      Image.Image,
+    tmpl_path: str,
+    *,
+    target_size: Optional[tuple[int, int]] = None,
+    thresh:      int = ALPHA_THRESH,
+) -> float:
+    """
+    아이콘/별/무기별 전용 마스크 매칭 함수.
+
+    - RGBA 템플릿이면 알파를 마스크로 사용 → 배경 완전 무시
+    - RGB  템플릿이면 전체 픽셀 비교 (하위 호환)
+    - 항상 캐시에서 템플릿 읽음 (파일 I/O 없음)
+
+    Parameters
+    ----------
+    crop        : 비교 대상 PIL Image (이미 crop 된 ROI)
+    tmpl_path   : 템플릿 파일 절대 경로
+    target_size : (w, h) 리사이즈 목표. None 이면 템플릿 원본 크기 사용.
+    thresh      : 유효 픽셀 최소 알파값 (ALPHA_THRESH)
+
+    Returns
+    -------
+    float 0.0 ~ 1.0
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+
+    # 목표 크기 결정
+    if target_size is not None:
+        w_t, h_t = target_size
+    else:
+        h_t, w_t = entry.gray.shape[:2]
+
+    if h_t < 2 or w_t < 2:
+        return 0.0
+
+    # crop 전처리 (gray + normalize + binarize)
+    crop_proc = preprocess_for_template(crop, w_t, h_t)
+
+    # 템플릿 전처리 (캐시된 gray 재사용)
+    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t)
+
+    # 마스크 생성
+    mask = _build_alpha_mask(entry.alpha, h_t, w_t, thresh=thresh)
+
+    return _masked_score(crop_proc, tmpl_proc, mask)
+
+
+def best_match_masked_icons(
+    crop:       Image.Image,
+    candidates: dict[str, str],
+    threshold:  float = 0.68,
+    thresh:     int   = ALPHA_THRESH,
+) -> tuple[Optional[str], float]:
+    """
+    후보 아이콘 집합에서 마스크 매칭으로 최고 점수 라벨 반환.
+
+    Parameters
+    ----------
+    crop       : 비교 대상 PIL Image
+    candidates : {label: tmpl_path} 매핑
+    threshold  : 최소 점수 (이 이상일 때만 반환)
+    thresh     : 유효 픽셀 최소 알파값
+
+    Returns
+    -------
+    (best_label, best_score)  점수 미달 시 (None, best_score)
+    """
+    best_lbl:  Optional[str] = None
+    best_scr:  float         = threshold
+
+    for lbl, path in candidates.items():
+        s = match_masked_icon(crop, path, thresh=thresh)
+        if s > best_scr:
+            best_scr = s
+            best_lbl = lbl
+
+    return best_lbl, best_scr
+
+
 def best_match(
     crop: Image.Image,
     candidates: dict[str, str],
@@ -293,14 +581,22 @@ def best_match(
     focus_center: bool = False,
     masked: bool = False,
 ) -> tuple[Optional[str], float]:
+    """
+    후보 집합에서 최고 점수 라벨 반환.
+
+    Parameters
+    ----------
+    masked : True 이면 match_masked_icon() 으로 위임.
+             별/아이콘 인식은 best_match_masked_icons() 를 직접 호출할 것.
+             이 파라미터는 하위 호환을 위해 유지하되 내부에서 표준 경로로 위임.
+    """
+    if masked:
+        return best_match_masked_icons(crop, candidates, threshold=threshold)
+
     best_lbl, best_scr = None, threshold
     for lbl, path in candidates.items():
-        if masked:
-            s = match_score_resized_masked(crop, path, focus_center=focus_center)
-        elif resized:
-            s = match_score_resized(crop, path, focus_center=focus_center)
-        else:
-            s = match_score(crop, path)
+        s = (match_score_resized(crop, path, focus_center=focus_center)
+             if resized else match_score(crop, path))
         if s > best_scr:
             best_scr, best_lbl = s, lbl
     return best_lbl, best_scr
@@ -545,6 +841,31 @@ def read_stat_value(crop: Image.Image, stat_key: str) -> Optional[int]:
     return int(lbl)
 
 
+def read_stat_value_result(crop: Image.Image, stat_key: str) -> RecognitionResult:
+    """
+    read_stat_value() 의 RecognitionResult 반환 버전.
+    """
+    folder = STAT_DIRS.get(stat_key)
+    if not folder:
+        return RecognitionResult.skipped(f"no_stat_dir:{stat_key}")
+    d = TEMPLATE_DIR / folder
+    if not d.exists():
+        return RecognitionResult.skipped(f"dir_missing:{folder}")
+    cands = {
+        str(i): str(d / f"{i}.png")
+        for i in range(26)
+        if (d / f"{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.skipped("no_templates")
+
+    lbl, score = best_match(crop, cands, threshold=0.60,
+                             resized=True, focus_center=True)
+    print(f"[Matcher] stat_{stat_key}_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_RESIZED)
+
+
 # ══════════════════════════════════════════════════════════
 # Digit 폴더 읽기 (장비 레벨 / 무기 레벨 / 학생 레벨 공통)
 # ══════════════════════════════════════════════════════════
@@ -620,15 +941,44 @@ def read_weapon_level(
 # ══════════════════════════════════════════════════════════
 
 def read_star(crop: Image.Image, folder: str, max_n: int) -> int:
+    """
+    별 등급 인식.
+    RGBA 템플릿의 알파를 마스크로 사용 → 배경 색상 변화에 강건.
+    match_masked_icon() 경로로만 처리. best_match(masked=True) 혼용 금지.
+    """
     d = TEMPLATE_DIR / folder
     cands = {
         str(i): str(d / f"star_{i}.png")
         for i in range(max_n, 0, -1)
         if (d / f"star_{i}.png").exists()
     }
-    lbl, score = best_match(crop, cands, threshold=0.68, masked=True)
+    if not cands:
+        print(f"[Matcher] {folder}: 템플릿 없음 → 1")
+        return 1
+
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.68)
     print(f"[Matcher] {folder} star: {lbl} ({score:.3f})")
     return int(lbl) if lbl else 1
+
+
+def read_star_result(crop: Image.Image, folder: str, max_n: int) -> RecognitionResult:
+    """
+    read_star() 의 RecognitionResult 반환 버전.
+    별 개수 + score + source + uncertain 플래그 포함.
+    """
+    d = TEMPLATE_DIR / folder
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(max_n, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(1, "no_templates")
+
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    print(f"[Matcher] {folder} star_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
 
 
 def read_student_star(crop: Image.Image) -> int:
@@ -733,6 +1083,62 @@ def read_skill(crop: Image.Image, skill_key: str) -> str:
     return best_lbl if best_score >= 0.60 else "unknown"
 
 
+def read_skill_result(crop: Image.Image, skill_key: str) -> RecognitionResult:
+    """
+    read_skill() 의 RecognitionResult 반환 버전.
+    score 와 uncertain 플래그가 함께 반환됨.
+    """
+    d = TEMPLATE_DIR / skill_key
+    max_lv = 5 if skill_key == "EX_Skill" else 10
+    cands: dict[str, str] = {}
+
+    if skill_key == "EX_Skill":
+        for i in range(max_lv, 0, -1):
+            p = d / f"EX_Skill_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+    else:
+        prefix = skill_key.replace("Skill", "Skill_")
+        locked = d / f"{prefix}_locked.png"
+        if locked.exists():
+            cands["locked"] = str(locked)
+        for i in range(max_lv, 0, -1):
+            p = d / f"{prefix}_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+
+    if not cands:
+        return RecognitionResult.fallback("unknown", "no_templates")
+
+    scores: dict[str, tuple[float, float, float]] = {}
+    for lbl, path in cands.items():
+        ui   = match_score_resized(crop, path, focus_center=True)
+        text = match_score_textonly(crop, path) if lbl != "locked" else 0.0
+        final = ui if lbl == "locked" else (0.55 * ui + 0.45 * text)
+        scores[lbl] = (final, ui, text)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+    best_lbl, (best_score, best_ui, best_text) = ranked[0]
+
+    if len(ranked) >= 2:
+        second_lbl, (second_score, _, _) = ranked[1]
+        if {best_lbl, second_lbl} == {"1", "2"} and abs(best_score - second_score) <= 0.035:
+            chosen   = "1" if scores["1"][2] >= scores["2"][2] else "2"
+            best_lbl = chosen
+            best_score, best_ui, best_text = scores[chosen]
+
+    print(f"[Matcher] {skill_key}: {best_lbl} "
+          f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})")
+
+    value = best_lbl if best_score >= 0.60 else None
+    try:
+        int_val = int(value) if value and value != "locked" else value
+    except (TypeError, ValueError):
+        int_val = value
+
+    return _make_result(int_val, best_score, RecogSource.COMBINED)
+
+
 # ══════════════════════════════════════════════════════════
 # 장비 티어
 # ══════════════════════════════════════════════════════════
@@ -772,6 +1178,10 @@ def read_equip_tier(crop: Image.Image, slot: int) -> str:
 # ══════════════════════════════════════════════════════════
 
 def read_student_star_v5(crop: Image.Image) -> Optional[int]:
+    """
+    학생 성작 인식 (v5 호환 인터페이스).
+    내부적으로 match_masked_icon() 경로 사용.
+    """
     d = TEMPLATE_DIR / "star"
     cands = {
         str(i): str(d / f"star_{i}.png")
@@ -780,12 +1190,32 @@ def read_student_star_v5(crop: Image.Image) -> Optional[int]:
     }
     if not cands:
         return None
-    lbl, score = best_match(crop, cands, threshold=0.65, masked=True)
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
     print(f"[Matcher] student_star_v5: {lbl} ({score:.3f})")
     return int(lbl) if lbl is not None else None
 
 
+def read_student_star_v5_result(crop: Image.Image) -> RecognitionResult:
+    """학생 성작 인식 — RecognitionResult 반환."""
+    d = TEMPLATE_DIR / "star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(5, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(None, "no_templates")
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    print(f"[Matcher] student_star_v5_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
+
+
 def read_weapon_star_v5(crop: Image.Image) -> Optional[int]:
+    """
+    무기 성작 인식 (v5 호환 인터페이스).
+    내부적으로 match_masked_icon() 경로 사용.
+    """
     d = TEMPLATE_DIR / "weapon_star"
     cands = {
         str(i): str(d / f"star_{i}.png")
@@ -794,9 +1224,25 @@ def read_weapon_star_v5(crop: Image.Image) -> Optional[int]:
     }
     if not cands:
         return None
-    lbl, score = best_match(crop, cands, threshold=0.65, masked=True)
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
     print(f"[Matcher] weapon_star_v5: {lbl} ({score:.3f})")
     return int(lbl) if lbl is not None else None
+
+
+def read_weapon_star_v5_result(crop: Image.Image) -> RecognitionResult:
+    """무기 성작 인식 — RecognitionResult 반환."""
+    d = TEMPLATE_DIR / "weapon_star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(4, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(None, "no_templates")
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    print(f"[Matcher] weapon_star_v5_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
 
 
 def read_student_level_v5(

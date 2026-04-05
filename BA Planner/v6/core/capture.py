@@ -171,7 +171,8 @@ def get_window_rect() -> Optional[tuple[int, int, int, int]]:
 def capture_window_background(
     hwnd: Optional[int] = None,
     *,
-    retry: int = 1,
+    retry:     int  = 1,
+    normalize: bool = True,
 ) -> Optional[Image.Image]:
     """
     PrintWindow(PW_RENDERFULLCONTENT) 기반 백그라운드 캡처.
@@ -180,8 +181,11 @@ def capture_window_background(
 
     Parameters
     ----------
-    hwnd  : 캡처 대상 HWND. None 이면 등록된 타겟 사용.
-    retry : 실패 시 재시도 횟수 (기본 1회)
+    hwnd      : 캡처 대상 HWND. None 이면 등록된 타겟 사용.
+    retry     : 실패 시 재시도 횟수 (기본 1회)
+    normalize : True 이면 캡처 직후 기준 해상도로 정규화 (기본 True)
+                ROI 는 비율 좌표라 스케일 무관하게 항상 유효.
+                matcher 는 QHD 기준 템플릿을 사용하므로 정규화 권장.
 
     Returns
     -------
@@ -195,6 +199,9 @@ def capture_window_background(
     for attempt in range(retry + 1):
         img = _print_window(hwnd)
         if img is not None:
+            if normalize:
+                from core.preprocess import normalize_frame
+                img = normalize_frame(img)
             return img
         if attempt < retry:
             time.sleep(0.05)

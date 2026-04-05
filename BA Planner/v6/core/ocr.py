@@ -196,3 +196,54 @@ def read_weapon_level(img: Image.Image) -> str:
         return m.group(1)
     nums = re.findall(r"\d+", text)
     return nums[0] if nums else "1"
+
+
+# ══════════════════════════════════════════════════════════
+# RecognitionResult 반환 버전 (메타정보 포함)
+# ══════════════════════════════════════════════════════════
+
+def _ocr_result(
+    text: str,
+    source_fn: str,
+) -> "RecognitionResult":
+    """
+    OCR 결과 문자열 → RecognitionResult.
+    easyocr 는 자체 confidence 를 반환하지 않으므로
+    결과 존재 여부와 길이로 추정 신뢰도를 산출.
+    """
+    from core.matcher import RecognitionResult, RecogSource, _make_result
+
+    if not text or text in ("0", "1", "unknown", ""):
+        score = 0.3
+    elif len(text) >= 2:
+        score = 0.80   # 글자가 2자 이상이면 비교적 신뢰
+    else:
+        score = 0.60
+
+    return _make_result(text, score, RecogSource.OCR)
+
+
+def read_item_name_result(img: Image.Image) -> "RecognitionResult":
+    """
+    아이템 이름 인식 — RecognitionResult 반환.
+    value=str, source=OCR, uncertain 플래그 포함.
+    """
+    text = read_item_name(img)
+    return _ocr_result(text, "read_item_name")
+
+
+def read_item_count_result(img: Image.Image) -> "RecognitionResult":
+    """
+    아이템 수량 인식 — RecognitionResult 반환.
+    value=str (숫자 문자열), source=OCR.
+    """
+    text = read_item_count(img)
+    return _ocr_result(text, "read_item_count")
+
+
+def read_level_result(img: Image.Image) -> "RecognitionResult":
+    """
+    레벨 인식 — RecognitionResult 반환.
+    """
+    text = read_level(img)
+    return _ocr_result(text, "read_level")

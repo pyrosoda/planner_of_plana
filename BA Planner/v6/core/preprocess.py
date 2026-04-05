@@ -10,6 +10,11 @@ core/preprocess.py — BA Analyzer v6
     직접 호출하지 않고 여기 함수만 호출
 
 공개 인터페이스 (용도별):
+  ── 해상도 정규화 ─────────────────────────────────────────
+  normalize_frame(frame)                → PIL.Image  (기준 해상도로 정규화)
+  get_frame_scale(frame)                → (sx, sy)   (현재 → 기준 스케일 비율)
+  scale_region(region, sx, sy)          → dict        (비율 좌표는 항상 1:1)
+
   ── OCR 전처리 ───────────────────────────────────────────
   preprocess_for_name_ocr(img)          → np.ndarray (gray)
   preprocess_for_digit_ocr(img)         → np.ndarray (gray)
@@ -38,6 +43,16 @@ from typing import Optional
 # ══════════════════════════════════════════════════════════
 # 튜닝 상수 — 여기만 수정하면 전체에 반영됨
 # ══════════════════════════════════════════════════════════
+
+# ── 내부 기준 해상도 (QHD 기준 16:9) ────────────────────
+#   템플릿은 이 해상도에서 촬영·저장한 것을 기준으로 함.
+#   캡처 이미지는 normalize_frame() 에서 이 크기로 리사이즈.
+#   ROI 는 비율 좌표(0.0~1.0) 이므로 별도 변환 불필요.
+REF_WIDTH:  int = 2560
+REF_HEIGHT: int = 1440
+
+# 정규화 적용 최소 크기 — 이보다 작으면 업스케일 생략
+_NORM_MIN_SIDE: int = 320
 
 # ── OCR 전처리 ────────────────────────────────────────────
 OCR_SCALE        = 2.0    # 업스케일 배율 (easyocr 인식률 향상)
@@ -70,6 +85,123 @@ TEXT_MASK_H = 30
 HIST_RESIZE  = 64    # 히스토그램 계산 전 리사이즈 크기
 HIST_H_BINS  = 50    # Hue 빈 수
 HIST_S_BINS  = 32    # Saturation 빈 수
+
+
+# ══════════════════════════════════════════════════════════
+# 해상도 정규화
+# ══════════════════════════════════════════════════════════
+
+def get_frame_scale(frame: Image.Image) -> tuple[float, float]:
+    """
+    현재 frame 크기 → 기준 해상도 스케일 비율 반환.
+
+    Returns
+    -------
+    (scale_x, scale_y)
+      - scale > 1.0 : frame 이 기준보다 작음 → 업스케일
+      - scale < 1.0 : frame 이 기준보다 큼   → 다운스케일
+      - scale = 1.0 : 기준 해상도와 동일
+    """
+    w, h = frame.size
+    return REF_WIDTH / max(w, 1), REF_HEIGHT / max(h, 1)
+
+
+def normalize_frame(
+    frame:    Image.Image,
+    *,
+    verbose:  bool = False,
+) -> Image.Image:
+    """
+    캡처 이미지를 내부 기준 해상도(REF_WIDTH × REF_HEIGHT)로 정규화.
+
+    규칙:
+      - 비율 유지 (letterbox 없음) — 16:9 비율이 맞지 않으면 가로 기준으로 높이 조정
+      - 이미 기준 해상도이면 복사 없이 원본 반환
+      - 너무 작은 이미지(_NORM_MIN_SIDE 미만)는 정규화 생략 후 경고
+
+    Parameters
+    ----------
+    frame   : PrintWindow 결과 PIL Image
+    verbose : True 이면 스케일 정보 로그 출력
+
+    Returns
+    -------
+    정규화된 PIL Image (RGB)
+
+    사용 예
+    -------
+    frame = capture_window_background()
+    frame = normalize_frame(frame)          # ← 캡처 직후 1회만
+    rf    = build_roi_frame(frame, table)   # 이후 crop 재사용
+    """
+    w, h = frame.size
+
+    # 너무 작으면 정규화 생략
+    if w < _NORM_MIN_SIDE or h < _NORM_MIN_SIDE:
+        print(f"[Preprocess] ⚠️ 프레임이 너무 작음({w}×{h}) — 정규화 생략")
+        return frame
+
+    # 이미 기준 해상도
+    if w == REF_WIDTH and h == REF_HEIGHT:
+        return frame
+
+    # 16:9 비율 기준으로 목표 크기 결정
+    # 가로를 REF_WIDTH 로 맞추고 비율에 따라 높이 결정
+    target_w = REF_WIDTH
+    target_h = round(h * REF_WIDTH / max(w, 1))
+
+    # 비율이 16:9 에서 크게 벗어나면 (예: 4:3) 높이 기준으로 재계산
+    if abs(target_h - REF_HEIGHT) > REF_HEIGHT * 0.1:
+        target_h = REF_HEIGHT
+        target_w = round(w * REF_HEIGHT / max(h, 1))
+
+    sx = target_w / max(w, 1)
+    sy = target_h / max(h, 1)
+
+    if verbose:
+        print(
+            f"[Preprocess] 해상도 정규화: {w}×{h} → {target_w}×{target_h} "
+            f"(sx={sx:.3f} sy={sy:.3f})"
+        )
+    elif (w, h) != (target_w, target_h):
+        # 해상도가 실제로 다를 때만 출력 (매 캡처마다 로그 방지)
+        _log_once(f"[Preprocess] 해상도 정규화: {w}×{h} → {target_w}×{target_h}")
+
+    if w == target_w and h == target_h:
+        return frame
+
+    return frame.resize((target_w, target_h), Image.LANCZOS)
+
+
+def scale_region(
+    region: dict,
+    sx: float,
+    sy: float,
+) -> dict:
+    """
+    비율 좌표 region 에 스케일 적용.
+
+    주의: 비율 좌표(0.0~1.0)는 해상도 무관하게 항상 유효하므로
+    이 함수는 실제로 region 을 변경하지 않음.
+    단, 절대 픽셀 좌표 region 을 쓰는 레거시 코드와의 인터페이스
+    통일을 위해 제공.
+
+    Returns
+    -------
+    region dict 그대로 반환 (비율 좌표는 스케일 불변)
+    """
+    # 비율 좌표는 스케일 무관 — 패스스루
+    return region
+
+
+# ── 중복 로그 억제 헬퍼 ───────────────────────────────────
+_logged_messages: set[str] = set()
+
+def _log_once(msg: str) -> None:
+    """동일 메시지는 프로세스 생애 1회만 출력."""
+    if msg not in _logged_messages:
+        _logged_messages.add(msg)
+        print(msg)
 
 
 # ══════════════════════════════════════════════════════════

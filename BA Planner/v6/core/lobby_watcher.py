@@ -237,10 +237,9 @@ class LobbyWatcher:
             self._on_move(*rect)
 
         # ── ROI 캡처 ──────────────────────────────────────
-        # 전체 화면 캡처 후 crop 하되,
-        # PrintWindow 는 전체 클라이언트를 가져오므로
-        # detect_flag 영역만 crop 해서 matcher 에 전달
-        img = capture_window_background(hwnd)
+        # 로비 감지는 2.5초 주기로 반복되므로 normalize=False 로 속도 우선.
+        # detect_flag ROI 는 비율 좌표라 해상도 무관하게 crop 가능.
+        img = capture_window_background(hwnd, normalize=False)
         if img is None:
             print("[LobbyWatcher] 캡처 실패")
             return
