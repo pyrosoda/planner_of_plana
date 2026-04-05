@@ -21,7 +21,9 @@ from core.preprocess import (
     preprocess_for_name_ocr,
     preprocess_for_digit_ocr,
 )
+from core.logger import get_logger, LOG_OCR
 
+_log = get_logger(LOG_OCR)
 _reader = None
 
 
@@ -32,10 +34,10 @@ _reader = None
 def load() -> None:
     global _reader
     if _reader is None:
-        print("[OCR] 모델 로딩 중...")
+        _log.info("모델 로딩 중...")
         import easyocr
         _reader = easyocr.Reader(["ko", "en"], gpu=False, verbose=False)
-        print("[OCR] 로딩 완료")
+        _log.info("로딩 완료")
 
 
 def unload() -> None:
@@ -43,7 +45,7 @@ def unload() -> None:
     if _reader is not None:
         _reader = None
         gc.collect()
-        print("[OCR] 언로드 완료")
+        _log.info("언로드 완료")
 
 
 def is_loaded() -> bool:

@@ -29,6 +29,11 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional
 from PIL import Image
 
+from core.logger import get_logger, log_section, LOG_SCANNER
+
+# 모듈 로거
+_log = get_logger(LOG_SCANNER)
+
 # ── 캡처 / 입력 ──────────────────────────────────────────
 from core.capture import (
     capture_window_background,
@@ -228,16 +233,43 @@ class Scanner:
         maxed_cache: Optional[dict[str, dict]] = None,
     ):
         self.r           = regions
-        self.log         = on_progress or print
-        self._stop       = False
-        self._maxed_ids  = frozenset(maxed_ids or [])
+        self._on_progress = on_progress   # UI 콜백 (FloatingOverlay.add_log)
+        self._stop        = False
+        self._maxed_ids   = frozenset(maxed_ids or [])
         self._maxed_cache: dict[str, dict] = maxed_cache or {}
 
         if self._maxed_ids:
-            self.log(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
+            self._info(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
 
     def stop(self) -> None:
         self._stop = True
+        _log.info("스캔 중지 요청")
+
+    # ── 로그 헬퍼 ─────────────────────────────────────────
+    # logger + UI 콜백을 동시에 처리
+
+    def _debug(self, msg: str) -> None:
+        _log.debug(msg)
+
+    def _info(self, msg: str) -> None:
+        _log.info(msg)
+        if self._on_progress:
+            self._on_progress(msg)
+
+    def _warn(self, msg: str) -> None:
+        _log.warning(msg)
+        if self._on_progress:
+            self._on_progress(f"⚠️ {msg}")
+
+    def _error(self, msg: str) -> None:
+        _log.error(msg)
+        if self._on_progress:
+            self._on_progress(f"❌ {msg}")
+
+    # 하위 호환: self.log(msg) 호출 지점 처리
+    @property
+    def log(self):
+        return self._info
 
     # ── 내부 유틸 ─────────────────────────────────────────
 
@@ -248,8 +280,9 @@ class Scanner:
             if img is not None:
                 return img
             if i < retry:
+                _log.debug(f"캡처 재시도 ({i+1}/{retry})")
                 time.sleep(0.1)
-        self.log("❌ 캡처 실패")
+        self._error("캡처 실패")
         return None
 
     def _rect(self) -> Optional[tuple[int, int, int, int]]:
@@ -536,7 +569,8 @@ class Scanner:
 
     def scan_students_v5(self) -> list[StudentEntry]:
         self._stop = False
-        self.log("━━━ 👩 학생 스캔 시작 (V6) ━━━")
+        log_section(_log, "학생 스캔 시작 (V6)")
+        self._info("━━━ 👩 학생 스캔 시작 (V6) ━━━")
         results:       list[StudentEntry] = []
         skipped_count  = 0
         scanned_count  = 0
@@ -553,20 +587,26 @@ class Scanner:
 
             for idx in range(500):
                 if self._stop:
+                    _log.info("스캔 중지 플래그 감지 → 루프 종료")
                     break
 
                 # ── 1. 학생 식별 ──────────────────────────
+                _log.debug(f"[{idx+1}] 학생 식별 시작")
                 sid = self.identify_student(idx)
                 if sid is None:
-                    self.log(f"  ⚠️ [{idx+1}] 식별 실패 → 스캔 종료")
+                    self._warn(f"[{idx+1}] 식별 실패 → 스캔 종료")
                     break
 
                 # ── 2. 중복 / 종료 판정 ───────────────────
                 if sid == prev_id:
                     consecutive_dup += 1
-                    self.log(f"  🔁 동일 학생: {sid} ({consecutive_dup}/{MAX_CONSECUTIVE_DUP})")
+                    _log.info(
+                        f"[{idx+1}] 동일 학생 연속: {sid} "
+                        f"({consecutive_dup}/{MAX_CONSECUTIVE_DUP})"
+                    )
                     if consecutive_dup >= MAX_CONSECUTIVE_DUP:
-                        self.log("  ✅ 연속 동일 → 마지막 학생, 종료")
+                        _log.info("연속 동일 → 마지막 학생 판정, 스캔 종료")
+                        self._info("  ✅ 연속 동일 → 마지막 학생, 종료")
                         break
                     self._restore_basic_tab()
                     self.go_next_student()
@@ -576,7 +616,8 @@ class Scanner:
                 prev_id = sid
 
                 if sid in seen_ids:
-                    self.log(f"  🔁 이미 스캔됨: {sid} — 종료")
+                    _log.info(f"[{idx+1}] 이미 스캔됨: {sid} → 종료")
+                    self._info(f"  🔁 이미 스캔됨: {sid} — 종료")
                     break
                 seen_ids.add(sid)
 
@@ -585,12 +626,14 @@ class Scanner:
                     entry = self._make_skipped_entry(sid)
                     results.append(entry)
                     skipped_count += 1
-                    self.log(f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵")
+                    _log.info(f"[{idx+1:>3}] {entry.label()} — 만렙 스킵")
+                    self._info(f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵")
                     self._restore_basic_tab()
                     self.go_next_student()
                     continue
 
                 # ── 4. 세부 스캔 ──────────────────────────
+                _log.info(f"[{idx+1:>3}] ▶ 스캔 시작: {sid}")
                 entry = StudentEntry(
                     student_id=sid,
                     display_name=student_names.display_name(sid),
@@ -607,20 +650,23 @@ class Scanner:
                 results.append(entry)
                 scanned_count += 1
                 self._log_student(entry, len(results) - 1)
+                _log.info(f"[{idx+1:>3}] ✓ 완료: {entry.label()}")
 
                 self._restore_basic_tab()
                 self.go_next_student()
 
         except Exception as e:
-            self.log(f"❌ 학생 스캔 오류: {e}")
-            import traceback; traceback.print_exc()
+            _log.exception(f"학생 스캔 중 예외 발생: {e}")
+            self._error(f"학생 스캔 오류: {e}")
         finally:
             self._return_lobby()
 
-        self.log(
-            f"━━━ 👩 학생 스캔 완료: 총 {len(results)}명 "
-            f"(스캔:{scanned_count} / 스킵:{skipped_count}) ━━━"
+        summary = (
+            f"학생 스캔 완료: 총 {len(results)}명 "
+            f"(스캔:{scanned_count} / 스킵:{skipped_count})"
         )
+        _log.info(summary)
+        self._info(f"━━━ 👩 {summary} ━━━")
         return results
 
     # ── 만렙 스킵 헬퍼 ───────────────────────────────────
@@ -678,7 +724,7 @@ class Scanner:
         sr        = self.r["student"]
         texture_r = sr.get("student_texture_region")
         if not texture_r:
-            self.log(f"  ⚠️ student_texture_region 미정의")
+            _log.warning("student_texture_region 미정의 — 식별 불가")
             return None
 
         def _try() -> Optional[str]:
@@ -688,9 +734,14 @@ class Scanner:
             crop = crop_region(img, texture_r)
             sid, score = match_student_texture(crop)
             if sid is not None:
-                self.log(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
+                _log.info(
+                    f"[{idx+1}] 식별 성공: {student_names.display_name(sid)} "
+                    f"(score={score:.3f})"
+                )
+                self._info(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
                 return sid
-            self.log(f"  ⚠️ [{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
+            _log.debug(f"[{idx+1}] 텍스처 식별 미달 (score={score:.3f})")
+            self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
             return None
 
         return self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별")

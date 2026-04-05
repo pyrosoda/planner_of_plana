@@ -26,6 +26,7 @@ import time
 from enum import Enum, auto
 from typing import Callable, Optional
 
+from core.logger import get_logger, LOG_WATCHER
 from core.capture import (
     capture_window_background,
     get_window_rect,
@@ -33,6 +34,8 @@ from core.capture import (
     find_target_hwnd,
 )
 from core.matcher import is_lobby
+
+_log = get_logger(LOG_WATCHER)
 
 
 # ── 상태 정의 ─────────────────────────────────────────────
@@ -128,7 +131,7 @@ class LobbyWatcher:
             daemon=True,
         )
         self._thread.start()
-        print("[LobbyWatcher] 시작")
+        _log.info("시작")
 
     def stop(self) -> None:
         """
@@ -146,12 +149,12 @@ class LobbyWatcher:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=self.JOIN_TIMEOUT)
             if self._thread.is_alive():
-                print("[LobbyWatcher] ⚠️ thread join 시간 초과 — 강제 종료 불가 (daemon)")
+                _log.warning("thread join 시간 초과 — 강제 종료 불가 (daemon)")
             else:
-                print("[LobbyWatcher] thread 종료 완료")
+                _log.info("thread 종료 완료")
 
         self._thread = None
-        print("[LobbyWatcher] 중지")
+        _log.info("중지")
 
     def pause(self) -> None:
         """
@@ -165,7 +168,7 @@ class LobbyWatcher:
             self._state = WatcherState.PAUSED
 
         self._resume_event.clear()
-        print("[LobbyWatcher] ⏸ 일시정지 (scanner 실행 중)")
+        _log.info("⏸ 일시정지 (scanner 실행 중)")
 
     def resume(self) -> None:
         """
@@ -178,7 +181,7 @@ class LobbyWatcher:
             self._state = WatcherState.RUNNING
 
         self._resume_event.set()
-        print("[LobbyWatcher] ▶ 재개")
+        _log.info("▶ 재개")
 
     # ── 내부 루프 ─────────────────────────────────────────
 
@@ -201,7 +204,7 @@ class LobbyWatcher:
             try:
                 self._check()
             except Exception as e:
-                print(f"[LobbyWatcher] ⚠️ 체크 오류: {e}")
+                _log.error(f"체크 오류: {e}", exc_info=True)
 
             # 다음 사이클까지 대기
             # Event.wait 로 구현 → stop() 시 즉시 깨어날 수 있음
@@ -221,7 +224,7 @@ class LobbyWatcher:
         hwnd = find_target_hwnd()
         if hwnd is None:
             if self._in_lobby:
-                print("[LobbyWatcher] 창 없음 → 로비 이탈 처리")
+                _log.info("창 없음 → 로비 이탈 처리")
                 self._in_lobby = False
                 self._on_leave()
             self._last_rect = None
@@ -241,7 +244,7 @@ class LobbyWatcher:
         # detect_flag ROI 는 비율 좌표라 해상도 무관하게 crop 가능.
         img = capture_window_background(hwnd, normalize=False)
         if img is None:
-            print("[LobbyWatcher] 캡처 실패")
+            _log.warning("캡처 실패")
             return
 
         roi = crop_region(img, self._region)
@@ -253,11 +256,11 @@ class LobbyWatcher:
         lobby = is_lobby(roi, _FULL_REGION)
 
         if lobby and not self._in_lobby:
-            print("[LobbyWatcher] ✅ 로비 진입")
+            _log.info("✅ 로비 진입")
             self._in_lobby = True
             self._on_enter()
 
         elif not lobby and self._in_lobby:
-            print("[LobbyWatcher] 🚪 로비 이탈")
+            _log.info("🚪 로비 이탈")
             self._in_lobby = False
             self._on_leave()

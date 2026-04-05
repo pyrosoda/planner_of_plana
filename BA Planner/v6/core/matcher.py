@@ -1,1258 +1,412 @@
 """
-core/matcher.py — BA Analyzer v6
-OpenCV 템플릿 매칭 엔진
+core/capture.py — BA Analyzer v6
+HWND 기반 백그라운드 캡처 + 포커스 튐 완전 제거
 
 변경점 (v5 → v6):
-  - 전처리 코드 제거 → core/preprocess.py 위임
-  - 파일 I/O 제거 → core/template_cache.py 위임
-    · _load_tmpl (lru_cache) 완전 제거
-    · 모든 템플릿 접근은 _tmpl(path) 헬퍼를 통해 캐시에서만 읽음
-  - 함수 내부에 Image.open / cv2.imread / lru_cache 없음
-  - 디버그 로그 포맷 통일: [Matcher] {함수명}: {결과} ({점수:.3f})
+  - win.activate() / SetForegroundWindow 완전 제거
+  - PrintWindow(PW_RENDERFULLCONTENT) 기반 백그라운드 캡처 도입
+    → 창이 가려지거나 최소화 상태에서도 캡처 가능
+  - pygetwindow 의존 최소화
+    → find_window() 는 HWND 정수 반환으로 변경
+    → _get_window_by_hwnd() / gw.getAllWindows() 반복 제거
+  - HWND 캐시 도입: _hwnd_valid_cache 로 IsWindow 결과 캐싱
+  - 공개 인터페이스:
+      find_target_hwnd()             → int | None
+      capture_window_background()    → Image | None   (메인 캡처)
+      capture_window()               → Image | None   (하위 호환 래퍼)
+      crop_region(img, region)       → Image           (≒ crop_ratio)
+      crop_ratio(img, region)        → Image           (하위 호환)
+      get_window_rect()              → tuple | None
+      safe_click / click_center / scroll_at / press_esc  그대로 유지
 """
 
-from __future__ import annotations
-
-import cv2
-import numpy as np
-from enum import Enum
-from pathlib import Path
-from PIL import Image
+import time
+import ctypes
+import ctypes.wintypes as wintypes
 from typing import Optional
+from PIL import Image
 
-from core.config import TEMPLATE_DIR, BASE_DIR
-from core.preprocess import (
-    to_gray,
-    to_bgr,
-    normalize_hist,
-    binarize,
-    focus_center_crop,
-    preprocess_for_template,
-    preprocess_for_masked_template,
-    preprocess_for_text_template,
-    preprocess_for_color_hist,
-    calc_color_hist,
-)
-from core.template_cache import get_cache, TemplateEntry
+from core.logger import get_logger, LOG_CAPTURE
+_log = get_logger(LOG_CAPTURE)
 
+try:
+    import pygetwindow as gw
+    HAS_GW = True
+except ImportError:
+    HAS_GW = False
 
-# ══════════════════════════════════════════════════════════
-# 인식 결과 메타정보 타입
-# ══════════════════════════════════════════════════════════
-
-from dataclasses import dataclass, field as dc_field
-from enum import Enum as _Enum
+try:
+    import pyautogui
+    HAS_PAG = True
+except ImportError:
+    HAS_PAG = False
 
 
-class RecogSource(_Enum):
-    """인식 방법 태그 — 디버그 추적용."""
-    TEMPLATE_RESIZED = "template_resized"   # match_score_resized
-    TEMPLATE_MASKED  = "template_masked"    # match_masked_icon
-    TEMPLATE_TEXT    = "template_text"      # match_score_textonly
-    TEMPLATE_RAW     = "template_raw"       # match_score (원본 크기)
-    COLOR_HIST       = "color_hist"         # _color_hist_score
-    COMBINED         = "combined"           # 여러 방법 혼합
-    OCR              = "ocr"                # EasyOCR
-    SKIPPED          = "skipped"            # 조건 미충족으로 스킵
-    FALLBACK         = "fallback"           # 기본값 사용
+# ── 금지 구역 (비율 좌표) ────────────────────────────────
+FORBIDDEN_ZONES: list[tuple[float, float, float, float]] = [
+    (0.53, 0.86, 1.00, 1.00),  # 사용/MIN/MAX 버튼
+]
+
+# ── Win32 상수 ────────────────────────────────────────────
+PW_RENDERFULLCONTENT = 0x00000002   # PrintWindow 전체 렌더 플래그
+GWL_STYLE            = -16
+WS_MINIMIZE          = 0x20000000
+
+# ── Win32 API ────────────────────────────────────────────
+_u32  = ctypes.windll.user32
+_gdi  = ctypes.windll.gdi32
+
+try:
+    _u32.SetProcessDPIAware()
+except Exception:
+    pass
 
 
-@dataclass
-class RecognitionResult:
+class _POINT(ctypes.Structure):
+    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left",   wintypes.LONG),
+        ("top",    wintypes.LONG),
+        ("right",  wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
+
+
+# ── 전역 상태 ─────────────────────────────────────────────
+_selected_hwnd:  int = 0
+_selected_title: str = ""
+
+# HWND 유효성 캐시: {hwnd: (timestamp, is_valid)}
+# IsWindow() 는 저렴하지만 gw.getAllWindows() 는 비싸므로 구분 캐싱
+_hwnd_valid_cache: dict[int, tuple[float, bool]] = {}
+_HWND_CACHE_TTL = 2.0   # 초
+
+
+# ── HWND 등록 / 조회 ──────────────────────────────────────
+
+def set_target_window(hwnd: int, title: str) -> None:
+    """사용자가 선택한 창 HWND 저장."""
+    global _selected_hwnd, _selected_title
+    _selected_hwnd  = hwnd
+    _selected_title = title
+    _hwnd_valid_cache.clear()
+    _log.info(f"타겟 설정: '{title}' (HWND={hwnd})")
+
+
+def get_target_info() -> tuple[int, str]:
+    return _selected_hwnd, _selected_title
+
+
+def clear_target() -> None:
+    global _selected_hwnd, _selected_title
+    _selected_hwnd  = 0
+    _selected_title = ""
+    _hwnd_valid_cache.clear()
+
+
+# ── HWND 유효성 확인 (캐시 적용) ─────────────────────────
+
+def _is_window_valid(hwnd: int) -> bool:
+    """IsWindow() 결과를 짧게 캐싱해 반복 호출 비용 절감."""
+    now = time.monotonic()
+    cached = _hwnd_valid_cache.get(hwnd)
+    if cached and now - cached[0] < _HWND_CACHE_TTL:
+        return cached[1]
+    result = bool(_u32.IsWindow(hwnd))
+    _hwnd_valid_cache[hwnd] = (now, result)
+    return result
+
+
+def _is_minimized(hwnd: int) -> bool:
+    style = _u32.GetWindowLongW(hwnd, GWL_STYLE)
+    return bool(style & WS_MINIMIZE)
+
+
+# ── Client Area ───────────────────────────────────────────
+
+def _get_client_rect_screen(hwnd: int) -> Optional[tuple[int, int, int, int]]:
     """
-    인식 결과 + 신뢰도 메타정보.
-
-    Attributes
-    ----------
-    value      : 인식된 값 (int / str / None)
-    score      : 유사도 점수 0.0~1.0 (높을수록 확실)
-    source     : 어떤 방법으로 인식했는지
-    uncertain  : True 이면 score 가 UNCERTAIN 구간 (재검토 권장)
-    label      : 로그용 짧은 설명 (자동 생성)
-
-    사용 예
-    -------
-    r = read_skill_result(crop, "EX_Skill")
-    if r.uncertain:
-        log(f"[경고] EX 스킬 인식 불확실: {r.value} ({r.score:.3f})")
-    entry.ex_skill = r.value
+    HWND의 client area를 화면 절대 좌표로 반환.
+    Returns: (left, top, width, height)  또는 None
     """
-    value:    Optional[int | str]
-    score:    float
-    source:   RecogSource       = RecogSource.TEMPLATE_RESIZED
-    uncertain: bool             = False
-    label:    str               = ""
-
-    def __post_init__(self):
-        if not self.label:
-            self.label = f"{self.source.value}:{self.value}({self.score:.3f})"
-
-    @classmethod
-    def skipped(cls, reason: str = "") -> "RecognitionResult":
-        """조건 미충족으로 스킵된 결과."""
-        return cls(value=None, score=0.0,
-                   source=RecogSource.SKIPPED, label=f"skipped:{reason}")
-
-    @classmethod
-    def fallback(cls, value, reason: str = "") -> "RecognitionResult":
-        """기본값으로 대체된 결과."""
-        return cls(value=value, score=0.0,
-                   source=RecogSource.FALLBACK, label=f"fallback:{reason}")
+    rect = _RECT()
+    if not _u32.GetClientRect(hwnd, ctypes.byref(rect)):
+        return None
+    w = rect.right  - rect.left
+    h = rect.bottom - rect.top
+    if w <= 0 or h <= 0:
+        return None
+    pt = _POINT(0, 0)
+    if not _u32.ClientToScreen(hwnd, ctypes.byref(pt)):
+        return None
+    return pt.x, pt.y, w, h
 
 
-# ── 신뢰도 구간 상수 ──────────────────────────────────────
-# score 가 이 두 임계값 사이(SCORE_UNCERTAIN ~ SCORE_CONFIDENT)면
-# uncertain=True 로 마킹
-SCORE_CONFIDENT  = 0.75   # 이상이면 확실
-SCORE_UNCERTAIN  = 0.55   # 이상 CONFIDENT 미만이면 불확실
-                           # 미만이면 실패(value=None 처리)
+# ── 메인 공개 API ─────────────────────────────────────────
+
+def find_target_hwnd() -> Optional[int]:
+    """
+    등록된 HWND가 유효하면 반환. 없으면 None.
+    pygetwindow 없이 Win32만 사용.
+    """
+    if not _selected_hwnd:
+        return None
+    if not _is_window_valid(_selected_hwnd):
+        _log.warning(f"HWND={_selected_hwnd} 유효하지 않음")
+        return None
+    return _selected_hwnd
 
 
-def _make_result(
-    value:    Optional[int | str],
-    score:    float,
-    source:   RecogSource,
+def get_window_rect() -> Optional[tuple[int, int, int, int]]:
+    """Client area (left, top, width, height) 반환."""
+    hwnd = find_target_hwnd()
+    if hwnd is None:
+        return None
+    r = _get_client_rect_screen(hwnd)
+    if r is None:
+        _log.warning("client rect 획득 실패")
+    return r
+
+
+def capture_window_background(
+    hwnd: Optional[int] = None,
     *,
-    confident_thresh:  float = SCORE_CONFIDENT,
-    uncertain_thresh:  float = SCORE_UNCERTAIN,
-) -> RecognitionResult:
+    retry:     int  = 1,
+    normalize: bool = True,
+) -> Optional[Image.Image]:
     """
-    score 구간에 따라 uncertain 플래그를 자동 설정하는 팩토리.
-
-    score >= confident_thresh → uncertain=False
-    score >= uncertain_thresh → uncertain=True  (애매한 결과지만 반환)
-    score <  uncertain_thresh → value=None, uncertain=True (실패)
-    """
-    if value is None:
-        return RecognitionResult(value=None, score=score,
-                                 source=source, uncertain=True)
-    if score >= confident_thresh:
-        return RecognitionResult(value=value, score=score,
-                                 source=source, uncertain=False)
-    if score >= uncertain_thresh:
-        return RecognitionResult(value=value, score=score,
-                                 source=source, uncertain=True)
-    # score 미달 → 실패
-    return RecognitionResult(value=None, score=score,
-                             source=source, uncertain=True)
-
-
-# ── 템플릿 접근 헬퍼 ──────────────────────────────────────
-
-def _tmpl(path: str) -> Optional[TemplateEntry]:
-    """
-    경로로 캐시에서 TemplateEntry 조회.
-    캐시 미스 시 on-demand 로드 후 반환.
-    파일 없으면 None.
-    """
-    cache = get_cache()
-    entry = cache.get_by_path(path)
-    if entry is not None:
-        return entry
-    # warmup 에 포함되지 않은 파일 — on-demand 로드
-    return cache.load(path)
-
-
-# ══════════════════════════════════════════════════════════
-# 매칭 임계값
-# ══════════════════════════════════════════════════════════
-
-THRESHOLD         = 0.80
-THRESHOLD_LOOSE   = 0.72
-THRESHOLD_LOBBY   = 0.75
-TEXTURE_THRESHOLD        = 0.60
-TEXTURE_MARGIN_REQUIRED  = 0.05
-
-
-# ══════════════════════════════════════════════════════════
-# 디렉터리 / 파일 상수
-# ══════════════════════════════════════════════════════════
-
-STUDENT_TEXTURE_DIR = "students"
-WEAPON_STATE_DIR    = "weapon_state"
-SKILL_CHECK_DIR     = "skillcheck"
-EQUIP_CHECK_DIR     = "equipcheck"
-
-WEAPON_STATE_FILES = {
-    "no_weapon":       "NO_WEAPON_SYSTEM.png",
-    "weapon_locked":   "WEAPON_UNLOCKED_NOT_EQUIPPED.png",
-    "weapon_unlocked": "WEAPON_EQUIPPED.png",
-}
-
-STAT_DIRS = {
-    "hp":   "stat_hp",
-    "atk":  "stat_atk",
-    "heal": "stat_heal",
-}
-
-
-# ══════════════════════════════════════════════════════════
-# Enum
-# ══════════════════════════════════════════════════════════
-
-class WeaponState(Enum):
-    NO_WEAPON_SYSTEM             = "no_weapon_system"
-    WEAPON_EQUIPPED              = "weapon_equipped"
-    WEAPON_UNLOCKED_NOT_EQUIPPED = "weapon_unlocked_not_equipped"
-
-WeaponStatus = WeaponState   # 하위 호환
-
-
-class CheckFlag(Enum):
-    TRUE       = "true"
-    FALSE      = "false"
-    IMPOSSIBLE = "impossible"
-
-
-class EquipSlotFlag(Enum):
-    NORMAL       = "normal"
-    EMPTY        = "empty"
-    LEVEL_LOCKED = "level_locked"
-    LOVE_LOCKED  = "love_locked"
-    NULL         = "null"
-
-
-# ── _load_tmpl 은 제거됨 → _tmpl() 헬퍼 사용 (파일 상단)
-
-
-# ══════════════════════════════════════════════════════════
-# 기본 매칭 함수
-# ══════════════════════════════════════════════════════════
-
-def match_score(crop: Image.Image, tmpl_path: str) -> float:
-    """
-    원본 해상도 TM_CCOEFF_NORMED 매칭 (알파 마스크 지원).
-    로비 감지처럼 크기가 고정된 경우에 사용.
-    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
-    """
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
-    bgr_c = to_bgr(crop)
-    if entry.bgr.shape[0] > bgr_c.shape[0] or entry.bgr.shape[1] > bgr_c.shape[1]:
-        return 0.0
-    try:
-        if entry.has_alpha and entry.alpha.max() > 0:
-            res = cv2.matchTemplate(bgr_c, entry.bgr, cv2.TM_CCORR_NORMED,
-                                    mask=entry.alpha)
-        else:
-            res = cv2.matchTemplate(bgr_c, entry.bgr, cv2.TM_CCOEFF_NORMED)
-        _, val, _, _ = cv2.minMaxLoc(res)
-        return float(val)
-    except cv2.error:
-        return 0.0
-
-
-def match_score_resized(
-    crop: Image.Image,
-    tmpl_path: str,
-    focus_center: bool = False,
-) -> float:
-    """
-    crop 을 템플릿 크기에 맞춰 리사이즈 후 이진화 비교.
-    전처리: preprocess_for_template()
-    점수: NCC 0.7 + pixel_diff 0.3
-    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
-    """
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
-
-    h_t, w_t = entry.gray.shape[:2]
-    if h_t < 2 or w_t < 2:
-        return 0.0
-
-    crop_proc = preprocess_for_template(crop, w_t, h_t, use_focus_crop=focus_center)
-    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t, use_focus_crop=focus_center)
-
-    return _ncc_diff_score(crop_proc, tmpl_proc)
-
-
-def match_score_resized_masked(
-    crop: Image.Image,
-    tmpl_path: str,
-    focus_center: bool = False,
-    binarize_flag: bool = True,
-) -> float:
-    """
-    알파 마스크 기반 리사이즈 매칭.
-    전처리: preprocess_for_masked_template()
-    점수: corr 0.50 + diff 0.30 + edge 0.20
-    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
-    """
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
-
-    h_t, w_t = entry.gray.shape[:2]
-    if h_t < 2 or w_t < 2:
-        return 0.0
-
-    crop_proc, alpha_r = preprocess_for_masked_template(
-        crop, w_t, h_t, entry.alpha,
-        use_focus_crop=focus_center,
-        do_binarize=binarize_flag,
-    )
-    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t,
-                                      use_focus_crop=focus_center,
-                                      do_binarize=binarize_flag)
-
-    # alpha_r 이 focus_crop 으로 잘렸을 수 있으니 크기 재확인
-    h_p, w_p = crop_proc.shape[:2]
-    if alpha_r is None:
-        alpha_r = np.full((h_p, w_p), 255, dtype=np.uint8)
-    else:
-        alpha_r = cv2.resize(alpha_r, (w_p, h_p), interpolation=cv2.INTER_NEAREST)
-
-    valid = alpha_r > 0
-    if not np.any(valid):
-        return 0.0
-
-    crop_f = crop_proc.astype(np.float32)
-    tmpl_f = tmpl_proc.astype(np.float32)
-
-    masked_diff = np.abs(crop_f - tmpl_f)[valid].mean() / 255.0
-    diff_score  = 1.0 - float(masked_diff)
-
-    cv_  = crop_f[valid] - crop_f[valid].mean()
-    tv_  = tmpl_f[valid] - tmpl_f[valid].mean()
-    dnom = np.linalg.norm(cv_) * np.linalg.norm(tv_)
-    corr = 0.0 if dnom < 1e-6 else float(np.dot(cv_, tv_) / dnom)
-    corr = max(0.0, min(1.0, (corr + 1.0) / 2.0))
-
-    crop_edge = cv2.Canny(crop_proc, 50, 150)
-    tmpl_edge = cv2.Canny(tmpl_proc, 50, 150)
-    edge_score = 1.0 - float(
-        np.abs(crop_edge.astype(np.float32) - tmpl_edge.astype(np.float32))[valid].mean() / 255.0
-    )
-
-    return 0.50 * corr + 0.30 * diff_score + 0.20 * edge_score
-
-
-def match_score_textonly(crop: Image.Image, tmpl_path: str) -> float:
-    """
-    텍스트(숫자) 픽셀만 추출해서 비교.
-    전처리: preprocess_for_text_template()
-    점수: NCC 0.7 + pixel_diff 0.3
-    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
-    """
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
-
-    h_t, w_t = entry.gray.shape[:2]
-    if h_t < 2 or w_t < 2:
-        return 0.0
-
-    crop_proc = preprocess_for_text_template(crop, w_t, h_t)
-    tmpl_proc = preprocess_for_text_template(
-        Image.fromarray(entry.gray), w_t, h_t
-    )
-    return _ncc_diff_score(crop_proc, tmpl_proc)
-
-
-# ── 내부 헬퍼 ─────────────────────────────────────────────
-
-def _preprocess_tmpl_gray(
-    tmpl_g: np.ndarray,
-    w: int,
-    h: int,
-    use_focus_crop: bool = False,
-    do_binarize: bool = True,
-) -> np.ndarray:
-    """
-    이미 로드된 템플릿 gray ndarray 를 동일 파이프라인으로 전처리.
-    (PIL Image 변환 없이 바로 처리해 속도 절감)
-    """
-    arr = cv2.resize(tmpl_g, (w, h), interpolation=cv2.INTER_AREA)
-    arr = normalize_hist(arr)
-    if do_binarize:
-        arr = binarize(arr)
-    if use_focus_crop:
-        arr, _ = focus_center_crop(arr)
-    return arr
-
-
-def _ncc_diff_score(a: np.ndarray, b: np.ndarray) -> float:
-    """NCC 0.7 + pixel_diff 0.3 점수."""
-    if a.shape != b.shape:
-        b = cv2.resize(b, (a.shape[1], a.shape[0]), interpolation=cv2.INTER_AREA)
-    try:
-        res = cv2.matchTemplate(a, b, cv2.TM_CCOEFF_NORMED)
-        _, ncc, _, _ = cv2.minMaxLoc(res)
-        diff = np.mean(np.abs(a.astype(np.float32) - b.astype(np.float32))) / 255.0
-        return 0.7 * float(ncc) + 0.3 * (1.0 - float(diff))
-    except cv2.error:
-        return 0.0
-
-
-# ══════════════════════════════════════════════════════════
-# 마스크 매칭 표준화 레이어
-# ══════════════════════════════════════════════════════════
-#
-# 규칙:
-#   - RGBA 템플릿  → 알파 채널을 마스크로 사용  (has_alpha=True)
-#   - RGB 템플릿   → 마스크 없음, 전체 픽셀 비교
-#   - 알파 threshold: ALPHA_THRESH (기본 30) 이상인 픽셀만 유효
-#   - 호출 지점 구분:
-#       별 / 무기별 / 아이콘  → match_masked_icon()   사용
-#       일반 UI 템플릿        → match_score_resized()  사용
-#       텍스트/숫자           → match_score_textonly() 사용
-#   - 두 경로를 섞어 쓰지 않도록 read_star / read_weapon_star 등에서
-#     반드시 match_masked_icon() 만 호출할 것
-#
-# ══════════════════════════════════════════════════════════
-
-# 알파 유효 픽셀 최소값 (0~255). 이 값 미만은 배경으로 간주.
-ALPHA_THRESH: int = 30
-
-# 마스크 매칭 점수 가중치
-_MASK_W_CORR = 0.50
-_MASK_W_DIFF = 0.30
-_MASK_W_EDGE = 0.20
-
-
-def _build_alpha_mask(
-    alpha: Optional[np.ndarray],
-    target_h: int,
-    target_w: int,
-    thresh: int = ALPHA_THRESH,
-) -> np.ndarray:
-    """
-    알파 채널 → boolean 마스크 (유효 픽셀 = True).
+    PrintWindow(PW_RENDERFULLCONTENT) 기반 백그라운드 캡처.
+    창이 다른 창에 가려지거나 최소화 상태에서도 동작.
+    포커스·활성화 일절 없음.
 
     Parameters
     ----------
-    alpha    : 템플릿 알파 채널 (H×W uint8). None 이면 전체 유효.
-    target_h : 리사이즈 목표 높이
-    target_w : 리사이즈 목표 너비
-    thresh   : 유효 픽셀 최소 알파값
+    hwnd      : 캡처 대상 HWND. None 이면 등록된 타겟 사용.
+    retry     : 실패 시 재시도 횟수 (기본 1회)
+    normalize : True 이면 캡처 직후 기준 해상도로 정규화 (기본 True)
+                ROI 는 비율 좌표라 스케일 무관하게 항상 유효.
+                matcher 는 QHD 기준 템플릿을 사용하므로 정규화 권장.
 
     Returns
     -------
-    bool ndarray (target_h × target_w)
+    PIL Image 또는 None (실패 시)
     """
-    if alpha is None:
-        return np.ones((target_h, target_w), dtype=bool)
+    if hwnd is None:
+        hwnd = find_target_hwnd()
+    if hwnd is None:
+        return None
 
-    resized = cv2.resize(alpha, (target_w, target_h),
-                         interpolation=cv2.INTER_NEAREST)
-    return resized >= thresh
+    for attempt in range(retry + 1):
+        img = _print_window(hwnd)
+        if img is not None:
+            if normalize:
+                from core.preprocess import normalize_frame
+                img = normalize_frame(img)
+            return img
+        if attempt < retry:
+            time.sleep(0.05)
+
+    _log.error(f"PrintWindow 실패 (HWND={hwnd}), {retry}회 재시도 후 포기")
+    return None
 
 
-def _masked_score(
-    crop_g: np.ndarray,
-    tmpl_g: np.ndarray,
-    mask:   np.ndarray,
-) -> float:
+def capture_window() -> Optional[Image.Image]:
     """
-    마스크 영역만 비교하는 점수 계산.
-    corr 0.50 + diff 0.30 + edge 0.20
-
-    Parameters
-    ----------
-    crop_g : 전처리된 crop grayscale (H×W uint8)
-    tmpl_g : 전처리된 template grayscale (H×W uint8)
-    mask   : 유효 픽셀 boolean mask (H×W)
-
-    Returns
-    -------
-    float 0.0 ~ 1.0
+    하위 호환 래퍼.
+    내부적으로 capture_window_background() 를 호출.
     """
-    if not np.any(mask):
-        return 0.0
-
-    cf = crop_g.astype(np.float32)
-    tf = tmpl_g.astype(np.float32)
-
-    # ── diff score ────────────────────────────────────────
-    diff_score = 1.0 - float(np.abs(cf - tf)[mask].mean() / 255.0)
-
-    # ── correlation score ─────────────────────────────────
-    cv_ = cf[mask] - cf[mask].mean()
-    tv_ = tf[mask] - tf[mask].mean()
-    dnom = np.linalg.norm(cv_) * np.linalg.norm(tv_)
-    corr_raw = 0.0 if dnom < 1e-6 else float(np.dot(cv_, tv_) / dnom)
-    corr = max(0.0, min(1.0, (corr_raw + 1.0) / 2.0))
-
-    # ── edge score ────────────────────────────────────────
-    # Canny 는 uint8 배열 필요
-    crop_u8 = crop_g
-    tmpl_u8 = tmpl_g
-    crop_edge = cv2.Canny(crop_u8, 50, 150)
-    tmpl_edge = cv2.Canny(tmpl_u8, 50, 150)
-    edge_score = 1.0 - float(
-        np.abs(crop_edge.astype(np.float32)
-               - tmpl_edge.astype(np.float32))[mask].mean() / 255.0
-    )
-
-    return (_MASK_W_CORR * corr
-            + _MASK_W_DIFF * diff_score
-            + _MASK_W_EDGE * edge_score)
+    return capture_window_background()
 
 
-def match_masked_icon(
-    crop:      Image.Image,
-    tmpl_path: str,
-    *,
-    target_size: Optional[tuple[int, int]] = None,
-    thresh:      int = ALPHA_THRESH,
-) -> float:
+# ── PrintWindow 구현 ──────────────────────────────────────
+
+def _print_window(hwnd: int) -> Optional[Image.Image]:
     """
-    아이콘/별/무기별 전용 마스크 매칭 함수.
-
-    - RGBA 템플릿이면 알파를 마스크로 사용 → 배경 완전 무시
-    - RGB  템플릿이면 전체 픽셀 비교 (하위 호환)
-    - 항상 캐시에서 템플릿 읽음 (파일 I/O 없음)
-
-    Parameters
-    ----------
-    crop        : 비교 대상 PIL Image (이미 crop 된 ROI)
-    tmpl_path   : 템플릿 파일 절대 경로
-    target_size : (w, h) 리사이즈 목표. None 이면 템플릿 원본 크기 사용.
-    thresh      : 유효 픽셀 최소 알파값 (ALPHA_THRESH)
-
-    Returns
-    -------
-    float 0.0 ~ 1.0
+    Win32 PrintWindow 로 HWND 내용을 비트맵으로 캡처.
+    최소화 상태이면 먼저 클라이언트 rect를 가져온 뒤
+    ShowWindow(SW_RESTORE) 없이 캡처를 시도.
     """
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
+    rect = _get_client_rect_screen(hwnd)
+    if rect is None:
+        # 최소화 상태일 수 있음: WindowRect 기반으로 fallback 시도
+        wr = _RECT()
+        if not _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
+            return None
+        w = wr.right  - wr.left
+        h = wr.bottom - wr.top
+        if w <= 0 or h <= 0:
+            return None
+        # 최소화 상태에서는 실제 픽셀 취득 불가 → None 반환
+        if _is_minimized(hwnd):
+            _log.warning("창이 최소화 상태 — 캡처 불가")
+            return None
+        return None
 
-    # 목표 크기 결정
-    if target_size is not None:
-        w_t, h_t = target_size
-    else:
-        h_t, w_t = entry.gray.shape[:2]
+    _, _, w, h = rect
 
-    if h_t < 2 or w_t < 2:
-        return 0.0
+    # GDI 비트맵 생성
+    hdc_screen = _u32.GetDC(0)
+    hdc_mem    = _gdi.CreateCompatibleDC(hdc_screen)
+    hbmp       = _gdi.CreateCompatibleBitmap(hdc_screen, w, h)
+    _gdi.SelectObject(hdc_mem, hbmp)
 
-    # crop 전처리 (gray + normalize + binarize)
-    crop_proc = preprocess_for_template(crop, w_t, h_t)
-
-    # 템플릿 전처리 (캐시된 gray 재사용)
-    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t)
-
-    # 마스크 생성
-    mask = _build_alpha_mask(entry.alpha, h_t, w_t, thresh=thresh)
-
-    return _masked_score(crop_proc, tmpl_proc, mask)
-
-
-def best_match_masked_icons(
-    crop:       Image.Image,
-    candidates: dict[str, str],
-    threshold:  float = 0.68,
-    thresh:     int   = ALPHA_THRESH,
-) -> tuple[Optional[str], float]:
-    """
-    후보 아이콘 집합에서 마스크 매칭으로 최고 점수 라벨 반환.
-
-    Parameters
-    ----------
-    crop       : 비교 대상 PIL Image
-    candidates : {label: tmpl_path} 매핑
-    threshold  : 최소 점수 (이 이상일 때만 반환)
-    thresh     : 유효 픽셀 최소 알파값
-
-    Returns
-    -------
-    (best_label, best_score)  점수 미달 시 (None, best_score)
-    """
-    best_lbl:  Optional[str] = None
-    best_scr:  float         = threshold
-
-    for lbl, path in candidates.items():
-        s = match_masked_icon(crop, path, thresh=thresh)
-        if s > best_scr:
-            best_scr = s
-            best_lbl = lbl
-
-    return best_lbl, best_scr
-
-
-def best_match(
-    crop: Image.Image,
-    candidates: dict[str, str],
-    threshold: float = THRESHOLD,
-    resized: bool = False,
-    focus_center: bool = False,
-    masked: bool = False,
-) -> tuple[Optional[str], float]:
-    """
-    후보 집합에서 최고 점수 라벨 반환.
-
-    Parameters
-    ----------
-    masked : True 이면 match_masked_icon() 으로 위임.
-             별/아이콘 인식은 best_match_masked_icons() 를 직접 호출할 것.
-             이 파라미터는 하위 호환을 위해 유지하되 내부에서 표준 경로로 위임.
-    """
-    if masked:
-        return best_match_masked_icons(crop, candidates, threshold=threshold)
-
-    best_lbl, best_scr = None, threshold
-    for lbl, path in candidates.items():
-        s = (match_score_resized(crop, path, focus_center=focus_center)
-             if resized else match_score(crop, path))
-        if s > best_scr:
-            best_scr, best_lbl = s, lbl
-    return best_lbl, best_scr
-
-
-# ══════════════════════════════════════════════════════════
-# 로비 감지
-# ══════════════════════════════════════════════════════════
-
-_LOBBY_TMPL = str(BASE_DIR / "lobby_template.png")
-
-
-def is_lobby(img: Image.Image, region: dict) -> bool:
-    from core.capture import crop_region
-    crop  = crop_region(img, region)
-    score = match_score(crop, _LOBBY_TMPL)
-    print(f"[Matcher] is_lobby: {score:.3f}")
-    return score >= THRESHOLD_LOBBY
-
-
-# ══════════════════════════════════════════════════════════
-# 학생 텍스처 매칭
-# ══════════════════════════════════════════════════════════
-
-def _color_hist_score(crop: Image.Image, tmpl_path: str) -> float:
-    """컬러 히스토그램 유사도. 파일 I/O 없음 — _tmpl() 캐시에서 읽음."""
-    entry = _tmpl(tmpl_path)
-    if entry is None:
-        return 0.0
     try:
-        hsv_c = preprocess_for_color_hist(crop)
-        tmpl_small = cv2.resize(entry.bgr, (64, 64), interpolation=cv2.INTER_AREA)
-        hsv_t = cv2.cvtColor(tmpl_small, cv2.COLOR_BGR2HSV)
-        hc = calc_color_hist(hsv_c)
-        ht = calc_color_hist(hsv_t)
-        return max(0.0, float(cv2.compareHist(hc, ht, cv2.HISTCMP_CORREL)))
-    except cv2.error:
-        return 0.0
+        # PW_RENDERFULLCONTENT: 하드웨어 가속 콘텐츠도 캡처
+        ok = _u32.PrintWindow(hwnd, hdc_mem, PW_RENDERFULLCONTENT)
+        if not ok:
+            # fallback: 플래그 없이 재시도
+            ok = _u32.PrintWindow(hwnd, hdc_mem, 0)
+        if not ok:
+            return None
+
+        # 비트맵 → PIL Image
+        import ctypes
+        class BITMAPINFOHEADER(ctypes.Structure):
+            _fields_ = [
+                ("biSize",          wintypes.DWORD),
+                ("biWidth",         wintypes.LONG),
+                ("biHeight",        wintypes.LONG),
+                ("biPlanes",        wintypes.WORD),
+                ("biBitCount",      wintypes.WORD),
+                ("biCompression",   wintypes.DWORD),
+                ("biSizeImage",     wintypes.DWORD),
+                ("biXPelsPerMeter", wintypes.LONG),
+                ("biYPelsPerMeter", wintypes.LONG),
+                ("biClrUsed",       wintypes.DWORD),
+                ("biClrImportant",  wintypes.DWORD),
+            ]
+
+        bmi = BITMAPINFOHEADER()
+        bmi.biSize        = ctypes.sizeof(BITMAPINFOHEADER)
+        bmi.biWidth       = w
+        bmi.biHeight      = -h   # 음수 = top-down
+        bmi.biPlanes      = 1
+        bmi.biBitCount    = 32
+        bmi.biCompression = 0    # BI_RGB
+
+        buf = ctypes.create_string_buffer(w * h * 4)
+        ret = _gdi.GetDIBits(
+            hdc_mem, hbmp, 0, h,
+            buf, ctypes.byref(bmi), 0   # DIB_RGB_COLORS
+        )
+        if ret == 0:
+            return None
+
+        img = Image.frombuffer("RGBA", (w, h), buf.raw, "raw", "BGRA", 0, 1)
+        return img.convert("RGB")
+
+    finally:
+        _gdi.DeleteObject(hbmp)
+        _gdi.DeleteDC(hdc_mem)
+        _u32.ReleaseDC(0, hdc_screen)
 
 
-def match_student_texture(crop: Image.Image) -> tuple[Optional[str], float]:
-    import core.student_names as _sn
-    texture_dir = TEMPLATE_DIR / STUDENT_TEXTURE_DIR
-    if not texture_dir.exists():
-        return None, 0.0
+# ── 창 목록 (선택 UI 전용) ────────────────────────────────
 
-    cands = {
-        sid: str(texture_dir / _sn.template_path(sid))
-        for sid in _sn.all_ids()
-        if (texture_dir / _sn.template_path(sid)).exists()
-    }
-    if not cands:
-        return None, 0.0
-
-    scores = sorted(
-        [
-            (sid, 0.55 * match_score_resized(crop, p)
-                + 0.45 * _color_hist_score(crop, p))
-            for sid, p in cands.items()
-        ],
-        key=lambda x: x[1],
-        reverse=True,
-    )
-    best_id, best_s = scores[0]
-    second_s = scores[1][1] if len(scores) > 1 else 0.0
-    margin   = best_s - second_s
-
-    print(
-        f"[Matcher] texture: 1위={best_id}({best_s:.3f}) "
-        f"2위={scores[1][0] if len(scores)>1 else '-'}({second_s:.3f}) "
-        f"margin={margin:.3f}"
-    )
-
-    if best_s < TEXTURE_THRESHOLD or margin < TEXTURE_MARGIN_REQUIRED:
-        return None, best_s
-    return best_id, best_s
-
-identify_student_by_texture = match_student_texture   # 하위 호환
-
-
-# ══════════════════════════════════════════════════════════
-# 무기 상태
-# ══════════════════════════════════════════════════════════
-
-def detect_weapon_state(crop: Image.Image) -> tuple[WeaponState, float]:
-    d = TEMPLATE_DIR / WEAPON_STATE_DIR
-    mapping = {
-        "no_weapon":       WeaponState.NO_WEAPON_SYSTEM,
-        "weapon_locked":   WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED,
-        "weapon_unlocked": WeaponState.WEAPON_EQUIPPED,
-    }
-    scores = {
-        k: (match_score_resized(crop, str(d / WEAPON_STATE_FILES[k]))
-            if (d / WEAPON_STATE_FILES[k]).exists() else 0.0)
-        for k in mapping
-    }
-
-    if not any(v > 0 for v in scores.values()):
-        return WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED, 0.0
-
-    best_key = max(scores, key=lambda k: scores[k])
-    best_val = scores[best_key]
-    print(f"[Matcher] weapon_state: { {k: f'{v:.3f}' for k,v in scores.items()} } → {best_key}")
-
-    if best_val < 0.55:
-        return WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED, best_val
-    return mapping[best_key], best_val
-
-detect_weapon_status = detect_weapon_state   # 하위 호환
-
-
-# ══════════════════════════════════════════════════════════
-# Check 플래그
-# ══════════════════════════════════════════════════════════
-
-def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
-    d = TEMPLATE_DIR / folder
-    cands = {
-        flag: str(d / f"{flag}.png")
-        for flag in ("true", "false")
-        if (d / f"{flag}.png").exists()
-    }
-    if not cands:
-        return CheckFlag.FALSE
-    lbl, score = best_match(crop, cands, threshold=0.55, resized=True)
-    if lbl is None:
-        return CheckFlag.FALSE
-    print(f"[Matcher] check_flag({folder}): {lbl} ({score:.3f})")
-    return CheckFlag(lbl)
-
-
-def read_skill_check(crop: Image.Image) -> CheckFlag:
-    return read_check_flag(crop, SKILL_CHECK_DIR)
-
-
-def read_equip_check(crop: Image.Image) -> CheckFlag:
-    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
-
-    explicit: dict[str, float] = {}
-    for flag in ("possible", "impossible"):
-        p = d / f"{flag}.png"
-        if p.exists():
-            explicit[flag] = match_score_resized(crop, str(p), focus_center=True)
-
-    if explicit:
-        print(f"[Matcher] equip_check explicit: "
-              + " ".join(f"{k}={v:.3f}" for k, v in explicit.items()))
-
-        possible_s   = explicit.get("possible",   0.0)
-        impossible_s = explicit.get("impossible", 0.0)
-        best_label   = max(explicit, key=explicit.get)
-        best_score   = explicit[best_label]
-        margin       = abs(possible_s - impossible_s)
-
-        if best_label == "impossible" and (best_score >= 0.50 or margin >= 0.03):
-            print(f"[Matcher] equip_check → IMPOSSIBLE")
-            return CheckFlag.IMPOSSIBLE
-        return CheckFlag.FALSE
-
-    IMPOSSIBLE_TF_MAX = 0.45
-    TRUE_THRESHOLD    = 0.55
-
-    scores: dict[str, float] = {
-        flag: match_score_resized(crop, str(d / f"{flag}.png"))
-        for flag in ("impossible", "true", "false")
-        if (d / f"{flag}.png").exists()
-    }
-    print(f"[Matcher] equip_check legacy: "
-          + " ".join(f"{k}={v:.3f}" for k, v in scores.items()))
-
-    true_s  = scores.get("true",  0.0)
-    false_s = scores.get("false", 0.0)
-    if max(true_s, false_s) < IMPOSSIBLE_TF_MAX:
-        return CheckFlag.IMPOSSIBLE
-    if true_s >= TRUE_THRESHOLD:
-        return CheckFlag.TRUE
-    return CheckFlag.FALSE
-
-
-def read_equip_check_inside(crop: Image.Image) -> CheckFlag:
-    TRUE_THRESHOLD = 0.55
-    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
-    scores = {
-        flag: match_score_resized(crop, str(d / f"{flag}.png"))
-        for flag in ("true", "false")
-        if (d / f"{flag}.png").exists()
-    }
-    print(f"[Matcher] equip_check_inside: "
-          + " ".join(f"{k}={v:.3f}" for k, v in scores.items()))
-    return CheckFlag.TRUE if scores.get("true", 0.0) >= TRUE_THRESHOLD else CheckFlag.FALSE
-
-
-# ══════════════════════════════════════════════════════════
-# 장비 슬롯 플래그
-# ══════════════════════════════════════════════════════════
-
-def read_equip_slot_flag(crop: Image.Image, slot: int) -> EquipSlotFlag:
-    d = TEMPLATE_DIR / f"equip{slot}_flag"
-    flag_files: dict[str, str] = {
-        "empty": f"equip{slot}_empty.png",
-    }
-    if slot in (2, 3):
-        flag_files["level_locked"] = f"equip{slot}_level_locked.png"
-    if slot == 4:
-        flag_files["love_locked"] = "equip4_love_locked.png"
-        flag_files["null"]        = "equip4_null.png"
-
-    cands = {k: str(d / v) for k, v in flag_files.items() if (d / v).exists()}
-    if not cands:
-        return EquipSlotFlag.NORMAL
-
-    lbl, score = best_match(crop, cands, threshold=0.60, resized=True)
-    if lbl is None:
-        return EquipSlotFlag.NORMAL
-    print(f"[Matcher] equip{slot}_flag: {lbl} ({score:.3f})")
-    return EquipSlotFlag(lbl)
-
-
-# ══════════════════════════════════════════════════════════
-# 스탯
-# ══════════════════════════════════════════════════════════
-
-def read_stat_value(crop: Image.Image, stat_key: str) -> Optional[int]:
-    folder = STAT_DIRS.get(stat_key)
-    if not folder:
-        return None
-    d = TEMPLATE_DIR / folder
-    if not d.exists():
-        return None
-    cands = {
-        str(i): str(d / f"{i}.png")
-        for i in range(26)
-        if (d / f"{i}.png").exists()
-    }
-    if not cands:
-        return None
-    lbl, score = best_match(crop, cands, threshold=0.60,
-                             resized=True, focus_center=True)
-    if lbl is None:
-        return None
-    print(f"[Matcher] stat_{stat_key}: {lbl} ({score:.3f})")
-    return int(lbl)
-
-
-def read_stat_value_result(crop: Image.Image, stat_key: str) -> RecognitionResult:
+def get_all_windows() -> list[dict]:
     """
-    read_stat_value() 의 RecognitionResult 반환 버전.
+    실행 중인 창 목록 반환. WindowPicker UI 전용.
+    gw.getAllWindows() 는 여기서만 호출.
     """
-    folder = STAT_DIRS.get(stat_key)
-    if not folder:
-        return RecognitionResult.skipped(f"no_stat_dir:{stat_key}")
-    d = TEMPLATE_DIR / folder
-    if not d.exists():
-        return RecognitionResult.skipped(f"dir_missing:{folder}")
-    cands = {
-        str(i): str(d / f"{i}.png")
-        for i in range(26)
-        if (d / f"{i}.png").exists()
-    }
-    if not cands:
-        return RecognitionResult.skipped("no_templates")
-
-    lbl, score = best_match(crop, cands, threshold=0.60,
-                             resized=True, focus_center=True)
-    print(f"[Matcher] stat_{stat_key}_result: {lbl} ({score:.3f})")
-    value = int(lbl) if lbl is not None else None
-    return _make_result(value, score, RecogSource.TEMPLATE_RESIZED)
+    if not HAS_GW:
+        return []
+    result: list[dict] = []
+    for win in gw.getAllWindows():
+        title = (win.title or "").strip()
+        if not title:
+            continue
+        try:
+            hwnd = win._hWnd
+            r = _get_client_rect_screen(hwnd)
+            size_txt = f"{r[2]}×{r[3]}" if r else f"{win.width}×{win.height}"
+            result.append({"hwnd": hwnd, "title": title, "size": size_txt})
+        except Exception:
+            pass
+    return result
 
 
-# ══════════════════════════════════════════════════════════
-# Digit 폴더 읽기 (장비 레벨 / 무기 레벨 / 학생 레벨 공통)
-# ══════════════════════════════════════════════════════════
+# ── 이미지 크롭 ──────────────────────────────────────────
 
-def _read_digit_from_folder(
-    folder: Path,
-    prefix: int,
-    crop: Image.Image,
-) -> Optional[str]:
-    if not folder.exists():
-        return None
-    cands = {
-        p.stem.split("_", 1)[1]: str(p)
-        for p in folder.glob(f"{prefix}_*.png")
-    }
-    if not cands:
-        return None
-    lbl, score = best_match(crop, cands, threshold=0.55,
-                             resized=True, focus_center=True)
-    print(f"[Matcher] {folder.name}: {lbl} ({score:.3f})")
-    return lbl
-
-
-def read_equip_level(
-    img: Image.Image,
-    slot: int,
-    d1_region: dict,
-    d2_region: dict,
-) -> Optional[int]:
-    from core.capture import crop_region
-    folder1 = TEMPLATE_DIR / f"equip{slot}level_digit1"
-    folder2 = TEMPLATE_DIR / f"equip{slot}level_digit2"
-    d1 = _read_digit_from_folder(folder1, 1, crop_region(img, d1_region))
-    d2 = _read_digit_from_folder(folder2, 2, crop_region(img, d2_region))
-
-    if not d1 or d1 == "v":
-        if d2:
-            try: return int(d2)
-            except ValueError: pass
-        return None
-    if d2:
-        try: return int(d1 + d2)
-        except ValueError: pass
-    try: return int(d1)
-    except ValueError: return None
-
-
-def read_weapon_level(
-    img: Image.Image,
-    d1_region: dict,
-    d2_region: dict,
-) -> Optional[int]:
-    from core.capture import crop_region
-    folder1 = TEMPLATE_DIR / "weaponlevel_digit1"
-    folder2 = TEMPLATE_DIR / "weaponlevel_digit2"
-    d1 = _read_digit_from_folder(folder1, 1, crop_region(img, d1_region))
-    d2 = _read_digit_from_folder(folder2, 2, crop_region(img, d2_region))
-
-    if not d2 or d2 == "null":
-        if d1:
-            try: return int(d1)
-            except ValueError: pass
-        return None
-    if d1:
-        try: return int(d1 + d2)
-        except ValueError: pass
-    try: return int(d2)
-    except ValueError: return None
-
-
-# ══════════════════════════════════════════════════════════
-# 별 등급
-# ══════════════════════════════════════════════════════════
-
-def read_star(crop: Image.Image, folder: str, max_n: int) -> int:
+def crop_region(img: Image.Image, region: dict) -> Image.Image:
     """
-    별 등급 인식.
-    RGBA 템플릿의 알파를 마스크로 사용 → 배경 색상 변화에 강건.
-    match_masked_icon() 경로로만 처리. best_match(masked=True) 혼용 금지.
+    비율 좌표 region {x1,y1,x2,y2} 로 img 를 크롭.
+    region 값은 0.0~1.0 비율.
     """
-    d = TEMPLATE_DIR / folder
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(max_n, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        print(f"[Matcher] {folder}: 템플릿 없음 → 1")
-        return 1
-
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.68)
-    print(f"[Matcher] {folder} star: {lbl} ({score:.3f})")
-    return int(lbl) if lbl else 1
+    w, h = img.size
+    return img.crop((
+        int(w * region["x1"]), int(h * region["y1"]),
+        int(w * region["x2"]), int(h * region["y2"]),
+    ))
 
 
-def read_star_result(crop: Image.Image, folder: str, max_n: int) -> RecognitionResult:
+def crop_ratio(img: Image.Image, region: dict) -> Image.Image:
+    """하위 호환 — crop_region() 별칭."""
+    return crop_region(img, region)
+
+
+# ── 좌표 변환 ─────────────────────────────────────────────
+
+def ratio_to_screen(
+    rect: tuple[int, int, int, int],
+    rx: float,
+    ry: float,
+) -> tuple[int, int]:
+    l, t, w, h = rect
+    return int(l + w * rx), int(t + h * ry)
+
+
+# ── 클릭 / 스크롤 ────────────────────────────────────────
+
+def safe_click(
+    rect: tuple[int, int, int, int],
+    rx: float,
+    ry: float,
+    label: str = "",
+) -> bool:
     """
-    read_star() 의 RecognitionResult 반환 버전.
-    별 개수 + score + source + uncertain 플래그 포함.
+    금지 구역 체크 후 클릭.
+    pyautogui 사용 — 클릭은 실제 커서 이동이 필요하므로 그대로 유지.
+    포커스 이동 없이 단순 좌표 클릭.
     """
-    d = TEMPLATE_DIR / folder
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(max_n, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        return RecognitionResult.fallback(1, "no_templates")
-
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
-    print(f"[Matcher] {folder} star_result: {lbl} ({score:.3f})")
-    value = int(lbl) if lbl else None
-    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
+    if not HAS_PAG:
+        return False
+    for fx1, fy1, fx2, fy2 in FORBIDDEN_ZONES:
+        if fx1 <= rx <= fx2 and fy1 <= ry <= fy2:
+            _log.debug(f"⛔ 금지구역 차단: {label} ({rx:.3f},{ry:.3f})")
+            return False
+    x, y = ratio_to_screen(rect, rx, ry)
+    pyautogui.click(x, y)
+    return True
 
 
-def read_student_star(crop: Image.Image) -> int:
-    return read_star(crop, "star", 5)
+def click_center(
+    rect: tuple[int, int, int, int],
+    region: dict,
+    label: str = "",
+) -> bool:
+    rx = (region["x1"] + region["x2"]) / 2
+    ry = (region["y1"] + region["y2"]) / 2
+    return safe_click(rect, rx, ry, label)
 
 
-def read_weapon_star(crop: Image.Image) -> int:
-    return read_star(crop, "weapon_star", 4)
+def scroll_at(
+    rect: tuple[int, int, int, int],
+    rx: float,
+    ry: float,
+    amount: int = -3,
+) -> None:
+    if not HAS_PAG:
+        return
+    x, y = ratio_to_screen(rect, rx, ry)
+    pyautogui.moveTo(x, y, duration=0.08)
+    pyautogui.scroll(amount)
+    time.sleep(0.30)
 
 
-def is_weapon_equipped(crop: Image.Image) -> bool:
-    return detect_weapon_state(crop)[0] == WeaponState.WEAPON_EQUIPPED
-
-read_weapon_unlocked = is_weapon_equipped   # 하위 호환
-
-
-# ══════════════════════════════════════════════════════════
-# 학생 레벨
-# ══════════════════════════════════════════════════════════
-
-def read_level_digit(crop: Image.Image, digit_pos: int) -> Optional[str]:
-    folder = TEMPLATE_DIR / f"studentlevel_digit{digit_pos}"
-    if not folder.exists():
-        return None
-    start = 1 if digit_pos == 1 else 0
-    cands = {
-        str(i): str(folder / f"{digit_pos}_{i}.png")
-        for i in range(start, 10)
-        if (folder / f"{digit_pos}_{i}.png").exists()
-    }
-    if not cands:
-        return None
-    lbl, score = best_match(crop, cands, threshold=0.55,
-                             resized=True, focus_center=True)
-    print(f"[Matcher] level_digit{digit_pos}: {lbl} ({score:.3f})")
-    return lbl
-
-
-def read_student_level(
-    img: Image.Image,
-    digit1_region: dict,
-    digit2_region: dict,
-) -> str:
-    from core.capture import crop_region
-    d1 = read_level_digit(crop_region(img, digit1_region), 1)
-    d2 = read_level_digit(crop_region(img, digit2_region), 2)
-
-    if not d2 or d2 == "null":
-        if d1:
-            print(f"[Matcher] student_level: 1자리 → {d1}")
-            return d1
-        return "unknown"
-    return f"{d1}{d2}" if d1 else d2
-
-
-# ══════════════════════════════════════════════════════════
-# 스킬 레벨
-# ══════════════════════════════════════════════════════════
-
-def read_skill(crop: Image.Image, skill_key: str) -> str:
-    d = TEMPLATE_DIR / skill_key
-    max_lv = 5 if skill_key == "EX_Skill" else 10
-    cands: dict[str, str] = {}
-
-    if skill_key == "EX_Skill":
-        for i in range(max_lv, 0, -1):
-            p = d / f"EX_Skill_{i}.png"
-            if p.exists():
-                cands[str(i)] = str(p)
-    else:
-        prefix = skill_key.replace("Skill", "Skill_")
-        locked = d / f"{prefix}_locked.png"
-        if locked.exists():
-            cands["locked"] = str(locked)
-        for i in range(max_lv, 0, -1):
-            p = d / f"{prefix}_{i}.png"
-            if p.exists():
-                cands[str(i)] = str(p)
-
-    if not cands:
-        return "unknown"
-
-    scores: dict[str, tuple[float, float, float]] = {}
-    for lbl, path in cands.items():
-        ui   = match_score_resized(crop, path, focus_center=True)
-        text = match_score_textonly(crop, path) if lbl != "locked" else 0.0
-        final = ui if lbl == "locked" else (0.55 * ui + 0.45 * text)
-        scores[lbl] = (final, ui, text)
-
-    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
-    best_lbl, (best_score, best_ui, best_text) = ranked[0]
-
-    if len(ranked) >= 2:
-        second_lbl, (second_score, _, _) = ranked[1]
-        if {best_lbl, second_lbl} == {"1", "2"} and abs(best_score - second_score) <= 0.035:
-            chosen   = "1" if scores["1"][2] >= scores["2"][2] else "2"
-            best_lbl = chosen
-            best_score, best_ui, best_text = scores[chosen]
-
-    print(f"[Matcher] {skill_key}: {best_lbl} "
-          f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})")
-    return best_lbl if best_score >= 0.60 else "unknown"
-
-
-def read_skill_result(crop: Image.Image, skill_key: str) -> RecognitionResult:
-    """
-    read_skill() 의 RecognitionResult 반환 버전.
-    score 와 uncertain 플래그가 함께 반환됨.
-    """
-    d = TEMPLATE_DIR / skill_key
-    max_lv = 5 if skill_key == "EX_Skill" else 10
-    cands: dict[str, str] = {}
-
-    if skill_key == "EX_Skill":
-        for i in range(max_lv, 0, -1):
-            p = d / f"EX_Skill_{i}.png"
-            if p.exists():
-                cands[str(i)] = str(p)
-    else:
-        prefix = skill_key.replace("Skill", "Skill_")
-        locked = d / f"{prefix}_locked.png"
-        if locked.exists():
-            cands["locked"] = str(locked)
-        for i in range(max_lv, 0, -1):
-            p = d / f"{prefix}_{i}.png"
-            if p.exists():
-                cands[str(i)] = str(p)
-
-    if not cands:
-        return RecognitionResult.fallback("unknown", "no_templates")
-
-    scores: dict[str, tuple[float, float, float]] = {}
-    for lbl, path in cands.items():
-        ui   = match_score_resized(crop, path, focus_center=True)
-        text = match_score_textonly(crop, path) if lbl != "locked" else 0.0
-        final = ui if lbl == "locked" else (0.55 * ui + 0.45 * text)
-        scores[lbl] = (final, ui, text)
-
-    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
-    best_lbl, (best_score, best_ui, best_text) = ranked[0]
-
-    if len(ranked) >= 2:
-        second_lbl, (second_score, _, _) = ranked[1]
-        if {best_lbl, second_lbl} == {"1", "2"} and abs(best_score - second_score) <= 0.035:
-            chosen   = "1" if scores["1"][2] >= scores["2"][2] else "2"
-            best_lbl = chosen
-            best_score, best_ui, best_text = scores[chosen]
-
-    print(f"[Matcher] {skill_key}: {best_lbl} "
-          f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})")
-
-    value = best_lbl if best_score >= 0.60 else None
-    try:
-        int_val = int(value) if value and value != "locked" else value
-    except (TypeError, ValueError):
-        int_val = value
-
-    return _make_result(int_val, best_score, RecogSource.COMBINED)
-
-
-# ══════════════════════════════════════════════════════════
-# 장비 티어
-# ══════════════════════════════════════════════════════════
-
-def read_equip_tier(crop: Image.Image, slot: int) -> str:
-    d = TEMPLATE_DIR / f"equip{slot}"
-    candidates: dict[str, str] = {}
-
-    empty_p = d / f"equip{slot}_empty.png"
-    if empty_p.exists():
-        candidates["empty"] = str(empty_p)
-    for p in d.glob(f"equip{slot}_T*.png"):
-        candidates[p.stem.replace(f"equip{slot}_", "")] = str(p)
-
-    if not candidates:
-        print(f"[Matcher] equip{slot}: 템플릿 없음 → unknown")
-        return "unknown"
-
-    scores = {
-        lbl: (0.60 * match_score_resized(crop, path)
-              + 0.40 * _color_hist_score(crop, path))
-        for lbl, path in candidates.items()
-    }
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    print(f"[Matcher] equip{slot} tier: "
-          + " ".join(f"{t}={s:.3f}" for t, s in ranked))
-
-    best_lbl, best_score = ranked[0]
-    if best_score < THRESHOLD_LOOSE:
-        print(f"[Matcher] equip{slot}: {best_lbl}({best_score:.3f}) < {THRESHOLD_LOOSE} → unknown")
-        return "unknown"
-    return best_lbl
-
-
-# ══════════════════════════════════════════════════════════
-# V5 공식 인터페이스 (하위 호환)
-# ══════════════════════════════════════════════════════════
-
-def read_student_star_v5(crop: Image.Image) -> Optional[int]:
-    """
-    학생 성작 인식 (v5 호환 인터페이스).
-    내부적으로 match_masked_icon() 경로 사용.
-    """
-    d = TEMPLATE_DIR / "star"
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(5, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        return None
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
-    print(f"[Matcher] student_star_v5: {lbl} ({score:.3f})")
-    return int(lbl) if lbl is not None else None
-
-
-def read_student_star_v5_result(crop: Image.Image) -> RecognitionResult:
-    """학생 성작 인식 — RecognitionResult 반환."""
-    d = TEMPLATE_DIR / "star"
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(5, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        return RecognitionResult.fallback(None, "no_templates")
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
-    print(f"[Matcher] student_star_v5_result: {lbl} ({score:.3f})")
-    value = int(lbl) if lbl is not None else None
-    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
-
-
-def read_weapon_star_v5(crop: Image.Image) -> Optional[int]:
-    """
-    무기 성작 인식 (v5 호환 인터페이스).
-    내부적으로 match_masked_icon() 경로 사용.
-    """
-    d = TEMPLATE_DIR / "weapon_star"
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(4, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        return None
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
-    print(f"[Matcher] weapon_star_v5: {lbl} ({score:.3f})")
-    return int(lbl) if lbl is not None else None
-
-
-def read_weapon_star_v5_result(crop: Image.Image) -> RecognitionResult:
-    """무기 성작 인식 — RecognitionResult 반환."""
-    d = TEMPLATE_DIR / "weapon_star"
-    cands = {
-        str(i): str(d / f"star_{i}.png")
-        for i in range(4, 0, -1)
-        if (d / f"star_{i}.png").exists()
-    }
-    if not cands:
-        return RecognitionResult.fallback(None, "no_templates")
-    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
-    print(f"[Matcher] weapon_star_v5_result: {lbl} ({score:.3f})")
-    value = int(lbl) if lbl is not None else None
-    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
-
-
-def read_student_level_v5(
-    img: Image.Image,
-    digit1_region: dict,
-    digit2_region: dict,
-) -> Optional[int]:
-    raw = read_student_level(img, digit1_region, digit2_region)
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        print(f"[Matcher] read_student_level_v5: 변환 실패 (raw='{raw}')")
-        return None
+def press_esc() -> None:
+    if HAS_PAG:
+        pyautogui.press("escape")
+        time.sleep(0.35)

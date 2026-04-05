@@ -26,6 +26,9 @@ import ctypes.wintypes as wintypes
 from typing import Optional
 from PIL import Image
 
+from core.logger import get_logger, LOG_CAPTURE
+_log = get_logger(LOG_CAPTURE)
+
 try:
     import pygetwindow as gw
     HAS_GW = True
@@ -90,7 +93,7 @@ def set_target_window(hwnd: int, title: str) -> None:
     _selected_hwnd  = hwnd
     _selected_title = title
     _hwnd_valid_cache.clear()
-    print(f"[Capture] 타겟 설정: '{title}' (HWND={hwnd})")
+    _log.info(f"타겟 설정: '{title}' (HWND={hwnd})")
 
 
 def get_target_info() -> tuple[int, str]:
@@ -152,7 +155,7 @@ def find_target_hwnd() -> Optional[int]:
     if not _selected_hwnd:
         return None
     if not _is_window_valid(_selected_hwnd):
-        print(f"[Capture] HWND={_selected_hwnd} 유효하지 않음")
+        _log.warning(f"HWND={_selected_hwnd} 유효하지 않음")
         return None
     return _selected_hwnd
 
@@ -164,7 +167,7 @@ def get_window_rect() -> Optional[tuple[int, int, int, int]]:
         return None
     r = _get_client_rect_screen(hwnd)
     if r is None:
-        print("[Capture] client rect 획득 실패")
+        _log.warning("client rect 획득 실패")
     return r
 
 
@@ -206,7 +209,7 @@ def capture_window_background(
         if attempt < retry:
             time.sleep(0.05)
 
-    print(f"[Capture] PrintWindow 실패 (HWND={hwnd}), {retry}회 재시도 후 포기")
+    _log.error(f"PrintWindow 실패 (HWND={hwnd}), {retry}회 재시도 후 포기")
     return None
 
 
@@ -238,7 +241,7 @@ def _print_window(hwnd: int) -> Optional[Image.Image]:
             return None
         # 최소화 상태에서는 실제 픽셀 취득 불가 → None 반환
         if _is_minimized(hwnd):
-            print("[Capture] 창이 최소화 상태 — 캡처 불가")
+            _log.warning("창이 최소화 상태 — 캡처 불가")
             return None
         return None
 
@@ -372,7 +375,7 @@ def safe_click(
         return False
     for fx1, fy1, fx2, fy2 in FORBIDDEN_ZONES:
         if fx1 <= rx <= fx2 and fy1 <= ry <= fy2:
-            print(f"[Capture] ⛔ 금지구역: {label} ({rx:.3f},{ry:.3f})")
+            _log.debug(f"⛔ 금지구역 차단: {label} ({rx:.3f},{ry:.3f})")
             return False
     x, y = ratio_to_screen(rect, rx, ry)
     pyautogui.click(x, y)

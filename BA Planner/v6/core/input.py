@@ -30,6 +30,9 @@ import ctypes
 import ctypes.wintypes as wintypes
 from typing import Optional
 
+from core.logger import get_logger, LOG_INPUT
+_log = get_logger(LOG_INPUT)
+
 # ── pyautogui 선택적 임포트 (fallback 전용) ──────────────
 try:
     import pyautogui as _pag
@@ -164,7 +167,7 @@ def _pag_click(sx: int, sy: int) -> bool:
         _pag.click(sx, sy)
         return True
     except Exception as e:
-        print(f"[Input] pyautogui click 실패: {e}")
+        _log.warning(f"pyautogui click 실패: {e}")
         return False
 
 
@@ -176,7 +179,7 @@ def _pag_scroll(sx: int, sy: int, amount: int) -> bool:
         _pag.scroll(amount)
         return True
     except Exception as e:
-        print(f"[Input] pyautogui scroll 실패: {e}")
+        _log.warning(f"pyautogui scroll 실패: {e}")
         return False
 
 
@@ -187,7 +190,7 @@ def _pag_escape() -> bool:
         _pag.press("escape")
         return True
     except Exception as e:
-        print(f"[Input] pyautogui escape 실패: {e}")
+        _log.warning(f"pyautogui escape 실패: {e}")
         return False
 
 
@@ -216,7 +219,7 @@ def click_point(
     """
     ok = _post_click(hwnd, cx, cy)
     if not ok:
-        print(f"[Input] PostMessage 실패 → pyautogui fallback ({label})")
+        _log.debug(f"PostMessage 실패 → pyautogui fallback ({label})")
         sx, sy = cx, cy   # 변환 실패 시 원본 사용
         converted = client_to_screen(hwnd, cx, cy)
         if converted:
@@ -251,7 +254,7 @@ def click_region(
     # 금지 구역 체크
     for fx1, fy1, fx2, fy2 in FORBIDDEN_ZONES:
         if fx1 <= rx <= fx2 and fy1 <= ry <= fy2:
-            print(f"[Input] ⛔ 금지구역 차단: {label} ({rx:.3f},{ry:.3f})")
+            _log.debug(f"⛔ 금지구역 차단: {label} ({rx:.3f},{ry:.3f})")
             return False
 
     cx, cy = ratio_to_client(rect, rx, ry)
@@ -278,7 +281,7 @@ def send_escape(
     """
     ok = _post_escape(hwnd)
     if not ok:
-        print("[Input] ESC PostMessage 실패 → pyautogui fallback")
+        _log.debug("ESC PostMessage 실패 → pyautogui fallback")
         ok = _pag_escape()
 
     if delay > 0:
@@ -311,7 +314,7 @@ def scroll(
     ok = _post_scroll(hwnd, cx, cy, amount)
 
     if not ok:
-        print("[Input] scroll PostMessage 실패 → pyautogui fallback")
+        _log.debug("scroll PostMessage 실패 → pyautogui fallback")
         converted = client_to_screen(hwnd, cx, cy)
         sx, sy = converted if converted else (cx, cy)
         ok = _pag_scroll(sx, sy, amount)
@@ -347,7 +350,7 @@ def safe_click(
     # 금지 구역 체크
     for fx1, fy1, fx2, fy2 in FORBIDDEN_ZONES:
         if fx1 <= rx <= fx2 and fy1 <= ry <= fy2:
-            print(f"[Input] ⛔ 금지구역: {label} ({rx:.3f},{ry:.3f})")
+            _log.debug(f"⛔ 금지구역: {label} ({rx:.3f},{ry:.3f})")
             return False
 
     hwnd = _get_hwnd()
