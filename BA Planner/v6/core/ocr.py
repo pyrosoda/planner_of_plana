@@ -1,16 +1,35 @@
 """
-core/ocr.py — EasyOCR 지연 로드 엔진
-스캔 세션 시작 시 로드, 완료 시 언로드
+core/ocr.py — BA Analyzer v6
+EasyOCR 지연 로드 엔진
+
+변경점 (v5 → v6):
+  - 전처리 코드 제거 → core/preprocess.py 위임
+  - _preprocess() 내부 PIL 변환 코드 제거
+  - read_text() 가 preprocess_for_name_ocr / preprocess_for_digit_ocr 선택
+  - 함수 내부에 cv2 / ImageEnhance / ImageFilter 직접 호출 없음
+  - 각 read_* 함수가 어떤 전처리 경로를 쓰는지 독스트링에 명시
 """
+
+from __future__ import annotations
 
 import re
 import gc
-from PIL import Image, ImageFilter, ImageEnhance
+from PIL import Image
+from typing import Optional
+
+from core.preprocess import (
+    preprocess_for_name_ocr,
+    preprocess_for_digit_ocr,
+)
 
 _reader = None
 
 
-def load():
+# ══════════════════════════════════════════════════════════
+# 엔진 로드 / 언로드
+# ══════════════════════════════════════════════════════════
+
+def load() -> None:
     global _reader
     if _reader is None:
         print("[OCR] 모델 로딩 중...")
@@ -19,7 +38,7 @@ def load():
         print("[OCR] 로딩 완료")
 
 
-def unload():
+def unload() -> None:
     global _reader
     if _reader is not None:
         _reader = None
@@ -31,37 +50,49 @@ def is_loaded() -> bool:
     return _reader is not None
 
 
-def _preprocess(img: Image.Image, scale: float = 2.0) -> Image.Image:
-    """
-    OCR 전처리:
-      - 2배 확대
-      - grayscale
-      - 대비 강화
-      - sharpen
-    """
-    w, h = img.size
-    img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
-    img = img.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(2.5)
-    return img.filter(ImageFilter.SHARPEN)
+# ══════════════════════════════════════════════════════════
+# 저수준 OCR 호출
+# ══════════════════════════════════════════════════════════
 
-
-def read_text(img: Image.Image, preproc: bool = True) -> str:
+def _run_ocr(arr) -> str:
     """
-    기본 OCR 호출.
+    numpy ndarray → easyocr → 결과 문자열.
+    _reader 미로드 시 RuntimeError.
     """
+    import numpy as np
     if _reader is None:
         raise RuntimeError("OCR 미로드 — load() 먼저 호출해야 해")
-
-    import numpy as np
-
-    if preproc:
-        img = _preprocess(img)
-
-    arr = np.array(img)
     results = _reader.readtext(arr, detail=0)
     return " ".join(results).strip()
 
+
+def read_text(
+    img: Image.Image,
+    mode: str = "name",
+) -> str:
+    """
+    OCR 기본 호출.
+
+    Parameters
+    ----------
+    img  : PIL Image (이미 crop 된 ROI)
+    mode : "name"  → preprocess_for_name_ocr  (이름/텍스트)
+           "digit" → preprocess_for_digit_ocr (숫자/레벨)
+
+    전처리 경로:
+      name  → OCR_SCALE=2.0, Contrast=2.5, SHARPEN
+      digit → OCR_SCALE=2.5, Contrast=3.0, SHARPEN
+    """
+    if mode == "digit":
+        arr = preprocess_for_digit_ocr(img)
+    else:
+        arr = preprocess_for_name_ocr(img)
+    return _run_ocr(arr)
+
+
+# ══════════════════════════════════════════════════════════
+# UI 잡문 제거 헬퍼
+# ══════════════════════════════════════════════════════════
 
 def _cleanup_common_ui_text(text: str) -> str:
     """
@@ -71,111 +102,97 @@ def _cleanup_common_ui_text(text: str) -> str:
         return ""
 
     # 괄호 통일
-    text = text.replace("（", "(").replace("）", ")")
-    text = text.replace("[", "(").replace("]", ")")
-    text = text.replace("【", "(").replace("】", ")")
+    for src, dst in [("（","("),("）",")"),("[","("),("](",")("),
+                     ("【","("),("】",")")]:
+        text = text.replace(src, dst)
 
-    # 자주 섞이는 UI 단어 제거
     noise_keywords = [
-        "레벨", "최대", "공격", "방어", "체력", "스킬", "무기",
-        "인연", "스트라이커", "스페셜", "프론트", "미들", "서포트",
-        "학생", "상세", "정보", "장비", "프로필",
+        "레벨","최대","공격","방어","체력","스킬","무기",
+        "인연","스트라이커","스페셜","프론트","미들","서포트",
+        "학생","상세","정보","장비","프로필",
     ]
     for kw in noise_keywords:
         text = text.replace(kw, " ")
 
-    # 의미 없는 기호 정리
-    text = text.replace("·", " ")
-    text = text.replace("|", " ")
-    text = text.replace(":", " ")
-
-    # 이름/태그에 필요할 수 있는 문자만 남김
-    # - 한글
-    # - 영문/숫자
-    # - *, 공백, 괄호
+    text = text.replace("·"," ").replace("|"," ").replace(":"," ")
     text = re.sub(r"[^가-힣A-Za-z0-9\*\(\)\s]", " ", text)
-
-    # 공백 정리
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+
+# ══════════════════════════════════════════════════════════
+# 공개 read_* 함수
+# ══════════════════════════════════════════════════════════
 
 def read_item_name(img: Image.Image) -> str:
-    """아이템/장비 이름 인식"""
-    text = read_text(img)
-
-    for kw in ["보유 수량", "보유수량", "아이템", "장비", "카테고리", "획득처"]:
+    """
+    아이템/장비 이름 인식.
+    전처리: preprocess_for_name_ocr (mode="name")
+    """
+    text = read_text(img, mode="name")
+    for kw in ["보유 수량","보유수량","아이템","장비","카테고리","획득처"]:
         text = text.replace(kw, " ")
-
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def read_item_count(img: Image.Image) -> str:
-    """수량 인식 (x10, x19K, x1546 등)"""
-    text = read_text(img)
+    """
+    수량 인식 (x10, x19K, x1546 등).
+    전처리: preprocess_for_digit_ocr (mode="digit")
+    """
+    text = read_text(img, mode="digit")
 
-    # x숫자K/M 패턴
     m = re.search(r"[xX×]\s*(\d[\d,]*\.?\d*\s*[KkMm]?)", text)
     if m:
-        raw = m.group(1).replace(",", "").replace(" ", "")
+        raw = m.group(1).replace(",","").replace(" ","")
         if raw.upper().endswith("K"):
-            return str(int(float(raw[:-1]) * 1000))
+            return str(int(float(raw[:-1]) * 1_000))
         if raw.upper().endswith("M"):
             return str(int(float(raw[:-1]) * 1_000_000))
         return raw
 
-    # 숫자만
     nums = re.findall(r"\d[\d,]*", text)
     if nums:
-        return nums[0].replace(",", "")
-
+        return nums[0].replace(",","")
     return "0"
 
 
 def read_student_name(img: Image.Image) -> str:
     """
     학생 이름+코스튬 태그 인식.
-
-    기존처럼 첫 번째 한글 덩어리만 잘라내지 않고,
-    가능한 한 전체 문자열을 보존해서 student_names.py가
-    이름/코스튬을 후처리로 분리할 수 있게 만든다.
+    전처리: preprocess_for_name_ocr (mode="name")
     """
-    text = read_text(img)
+    text = read_text(img, mode="name")
     text = _cleanup_common_ui_text(text)
-
     if not text:
         return ""
-
     # 괄호형이 있으면 최대한 보존
-    # 예: "시즈코 (수영복)" -> "시즈코 (수영복)"
     if "(" in text and ")" in text:
         return text
-
-    # 괄호는 없지만 "이름 태그" 구조일 수도 있으니 전체 유지
-    # 예: "시즈코 수영복", "아코 드레스"
     return text
 
 
 def read_level(img: Image.Image) -> str:
-    """레벨 숫자 인식 (Lv.90 → 90)"""
-    text = read_text(img)
-
+    """
+    레벨 숫자 인식 (Lv.90 → "90").
+    전처리: preprocess_for_digit_ocr (mode="digit")
+    """
+    text = read_text(img, mode="digit")
     m = re.search(r"[Ll][Vv]\.?\s*(\d+)", text)
     if m:
         return m.group(1)
-
     nums = re.findall(r"\d+", text)
     return nums[0] if nums else "1"
 
 
 def read_weapon_level(img: Image.Image) -> str:
-    """무기 레벨 인식"""
-    text = read_text(img)
-
+    """
+    무기 레벨 인식.
+    전처리: preprocess_for_digit_ocr (mode="digit")
+    """
+    text = read_text(img, mode="digit")
     m = re.search(r"[Ll][Vv]\.?\s*(\d+)", text)
     if m:
         return m.group(1)
-
     nums = re.findall(r"\d+", text)
     return nums[0] if nums else "1"

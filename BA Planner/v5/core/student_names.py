@@ -93,7 +93,7 @@ STUDENTS: dict[str, StudentMeta] = {
         "group":         "시로코",
         "variant":       None,
     },
-    "shiroko_riding": {
+    "shiroko_ridingsuit": {
         "display_name":  "시로코(라이딩)",
         "template_name": "shiroko_ridingsuit.png",
         "group":         "시로코",
@@ -726,7 +726,7 @@ STUDENTS: dict[str, StudentMeta] = {
         "variant":       None,
     },
     "hibiki_cheerleader": {
-        "display_name":  "히비키(치어리더)",
+        "display_name":  "히비키(응원단)",
         "template_name": "hibiki_cheerleader.png",
         "group":         "히비키",
         "variant":       "치어리더",
@@ -786,7 +786,7 @@ STUDENTS: dict[str, StudentMeta] = {
         "variant":       None,
     },
     "kotori_cheerleader": {
-        "display_name":  "코토리(치어리더)",
+        "display_name":  "코토리(응원단)",
         "template_name": "kotori_cheerleader.png",
         "group":         "코토리",
         "variant":       "치어리더",
@@ -924,7 +924,7 @@ STUDENTS: dict[str, StudentMeta] = {
         "variant":       None,
     },
     "utaha_cheerleader": {
-        "display_name":  "우타하(치어리더)",
+        "display_name":  "우타하(응원단)",
         "template_name": "utaha_cheerleader.png",
         "group":         "우타하",
         "variant":       "치어리더",
@@ -1075,7 +1075,7 @@ STUDENTS: dict[str, StudentMeta] = {
         "group":         "미나",
         "variant":       None,
     },
-    "reijo": {
+    "reizyo": {
         "display_name":  "레이죠",
         "template_name": "reizyo.png",
         "group":         "레이죠",
