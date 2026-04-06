@@ -1,1329 +1,1266 @@
 """
-core/scanner.py — BA Analyzer v6
-스캔 자동화 엔진
+core/matcher.py — BA Analyzer v6
+OpenCV 템플릿 매칭 엔진
 
 변경점 (v5 → v6):
-  - 스캔 파이프라인 단계 함수 완전 분리
-      enter_student_menu() / enter_first_student()
-      identify_student()   / go_next_student()
-      read_skills()        / read_weapon()
-      read_equipment()     / read_level()
-      read_student_star()  / read_stats()
-  - 캡처 최소화
-      · 각 단계 진입 직후 capture 1회 → 이후 crop 재사용
-      · 불필요한 중간 capture 제거
-  - UI 전환 중앙화
-      · _tab(key)      : 탭 버튼 클릭 + 대기
-      · _esc(n)        : ESC n회 + 대기
-      · _click_r(rect) : region 중심 클릭 (HWND 기반)
-  - retry 정책 통일
-      · _retry(fn, max_attempts, delay) 헬퍼
-      · 단계별 실패 시 skip / abort 정책 명시
-  - input.py 기반 입력 (pyautogui 직접 호출 제거)
+  - 전처리 코드 제거 → core/preprocess.py 위임
+  - 파일 I/O 제거 → core/template_cache.py 위임
+    · _load_tmpl (lru_cache) 완전 제거
+    · 모든 템플릿 접근은 _tmpl(path) 헬퍼를 통해 캐시에서만 읽음
+  - 함수 내부에 Image.open / cv2.imread / lru_cache 없음
+  - 디버그 로그 포맷 통일: [Matcher] {함수명}: {결과} ({점수:.3f})
 """
 
-import time
-import hashlib
+from __future__ import annotations
+
+import cv2
 import numpy as np
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from enum import Enum
+from pathlib import Path
 from PIL import Image
+from typing import Optional
 
-from core.logger import get_logger, log_section, LOG_SCANNER
-from core.log_context import (
-    ScanCtx, log_exc, EXC_WARNING, EXC_ERROR, EXC_FATAL,
-    dump_roi,
+from core.config import TEMPLATE_DIR, BASE_DIR
+from core.logger import get_logger, LOG_MATCHER
+from core.log_context import MatchCtx, log_exc, log_cv2_error, EXC_DEBUG, dump_roi
+
+_log = get_logger(LOG_MATCHER)
+from core.preprocess import (
+    to_gray,
+    to_bgr,
+    normalize_hist,
+    binarize,
+    focus_center_crop,
+    preprocess_for_template,
+    preprocess_for_masked_template,
+    preprocess_for_text_template,
+    preprocess_for_color_hist,
+    calc_color_hist,
 )
-
-# 모듈 로거
-_log = get_logger(LOG_SCANNER)
-
-# ── 캡처 / 입력 ──────────────────────────────────────────
-from core.capture import (
-    capture_window_background,
-    crop_region,
-    get_window_rect,
-    find_target_hwnd,
-)
-from core.input import (
-    click_center,
-    safe_click,
-    scroll_at,
-    press_esc,
-    click_point,
-    send_escape,
-    ratio_to_client,
-)
-
-# ── 매처 ──────────────────────────────────────────────────
-from core.matcher import (
-    WeaponState,
-    CheckFlag,
-    EquipSlotFlag,
-    match_student_texture,
-    detect_weapon_state,
-    read_skill_check,
-    read_equip_check,
-    read_equip_check_inside,
-    read_equip_slot_flag,
-    read_stat_value,
-    read_student_star_v5,
-    read_weapon_star_v5,
-    read_skill,
-    read_equip_tier,
-    read_equip_level,
-    read_weapon_level,
-    read_student_level_v5,
-)
-
-import core.ocr as ocr
-import core.student_names as student_names
-from core.item_names import correct_item_name
-from core.equip4_students import has_equip4
+from core.template_cache import get_cache, TemplateEntry
 
 
 # ══════════════════════════════════════════════════════════
-# 상수
+# 인식 결과 메타정보 타입
 # ══════════════════════════════════════════════════════════
 
-MAX_SCROLLS          = 60
-SCROLL_ITEM          = -3
-SCROLL_EQUIP         = -2
-SAME_THRESH          = 0.97
-STUDENT_MENU_WAIT    = 3.0
-MAX_CONSECUTIVE_DUP  = 3
-MAX_STUDENT_LEVEL    = 90
-STAT_UNLOCK_LEVEL    = 90
-STAT_UNLOCK_STAR     = 5
-
-# retry 정책
-RETRY_IDENTIFY   = 2      # 학생 식별 최대 시도
-RETRY_CAPTURE    = 2      # 캡처 실패 시 재시도
-DELAY_AFTER_CLICK = 0.22  # 슬롯 클릭 후 대기
-DELAY_TAB_SWITCH  = 0.45  # 탭 전환 후 대기
-DELAY_NEXT        = 0.90  # 다음 학생 버튼 후 대기
-DELAY_ESC         = 0.35  # ESC 후 대기
+from dataclasses import dataclass, field as dc_field
+from enum import Enum as _Enum
 
 
-# ══════════════════════════════════════════════════════════
-# 데이터 클래스
-# ══════════════════════════════════════════════════════════
-
-@dataclass
-class ItemEntry:
-    name:     Optional[str]
-    quantity: Optional[str]
-    source:   str = "item"
-    index:    int = 0
-
-    def key(self) -> str:
-        return f"{self.name}_{self.source}_{self.index}"
-
-
-# ── 스캔 상태 ─────────────────────────────────────────────
-
-class ScanState:
-    """
-    StudentEntry 의 현재 확정 상태.
-
-    TEMP      : 스캔 진행 중 (각 단계가 채워가는 중)
-    PARTIAL   : 일부 단계 실패 후 저장된 불완전 엔트리
-    COMMITTED : 검증 통과 후 확정된 완성 엔트리
-    SKIPPED   : 만렙 스킵 (이전 데이터 재활용)
-    FAILED    : 식별 자체 실패 — 저장하지 않음
-    """
-    TEMP      = "temp"
-    PARTIAL   = "partial"
-    COMMITTED = "committed"
-    SKIPPED   = "skipped"
-    FAILED    = "failed"
+class RecogSource(_Enum):
+    """인식 방법 태그 — 디버그 추적용."""
+    TEMPLATE_RESIZED = "template_resized"   # match_score_resized
+    TEMPLATE_MASKED  = "template_masked"    # match_masked_icon
+    TEMPLATE_TEXT    = "template_text"      # match_score_textonly
+    TEMPLATE_RAW     = "template_raw"       # match_score (원본 크기)
+    COLOR_HIST       = "color_hist"         # _color_hist_score
+    COMBINED         = "combined"           # 여러 방법 혼합
+    OCR              = "ocr"                # EasyOCR
+    SKIPPED          = "skipped"            # 조건 미충족으로 스킵
+    FALLBACK         = "fallback"           # 기본값 사용
 
 
 @dataclass
-class StudentEntry:
-    student_id:   Optional[str] = None
-    display_name: Optional[str] = None
-    level:        Optional[int] = None
-    student_star: Optional[int] = None
-    # 무기
-    weapon_state: Optional[WeaponState] = None
-    weapon_star:  Optional[int]         = None
-    weapon_level: Optional[int]         = None
-    # 스킬
-    ex_skill: Optional[int] = None
-    skill1:   Optional[int] = None
-    skill2:   Optional[int] = None
-    skill3:   Optional[int] = None
-    # 장비 티어
-    equip1:   Optional[str] = None
-    equip2:   Optional[str] = None
-    equip3:   Optional[str] = None
-    equip4:   Optional[str] = None
-    # 장비 레벨
-    equip1_level: Optional[int] = None
-    equip2_level: Optional[int] = None
-    equip3_level: Optional[int] = None
-    # 스탯
-    stat_hp:   Optional[int] = None
-    stat_atk:  Optional[int] = None
-    stat_heal: Optional[int] = None
-    # 메타
-    skipped:    bool = False
-    scan_state: str  = ScanState.TEMP   # 확정 상태 추적
-
-    def label(self) -> str:
-        return self.display_name or self.student_id or "?"
-
-    def is_committed(self) -> bool:
-        return self.scan_state == ScanState.COMMITTED
-
-    def is_partial(self) -> bool:
-        return self.scan_state == ScanState.PARTIAL
-
-    def missing_fields(self) -> list[str]:
-        """None 으로 남아 있는 필수 필드 목록."""
-        required = [
-            "level", "student_star", "weapon_state",
-            "ex_skill", "skill1", "skill2", "skill3",
-            "equip1", "equip2", "equip3",
-            "equip1_level", "equip2_level", "equip3_level",
-        ]
-        return [f for f in required if getattr(self, f) is None]
-
-    def confidence(self) -> float:
-        """채워진 필드 비율 0.0~1.0."""
-        required = self.missing_fields.__func__(self)  # 필드 목록 재사용
-        # missing_fields 는 None 인 것만 반환하므로
-        required_all = [
-            "level", "student_star", "weapon_state",
-            "ex_skill", "skill1", "skill2", "skill3",
-            "equip1", "equip2", "equip3",
-            "equip1_level", "equip2_level", "equip3_level",
-        ]
-        filled = sum(1 for f in required_all if getattr(self, f) is not None)
-        return round(filled / len(required_all), 3)
-
-
-@dataclass
-class EntryCommitResult:
+class RecognitionResult:
     """
-    finalize_student_entry() 결과.
+    인식 결과 + 신뢰도 메타정보.
 
     Attributes
     ----------
-    entry       : 처리된 StudentEntry
-    committed   : True 이면 COMMITTED (results에 추가할 것)
-    missing     : 비어 있는 필드 목록
-    confidence  : 채움 비율 0.0~1.0
-    reason      : partial / skip 이유 (디버그용)
+    value      : 인식된 값 (int / str / None)
+    score      : 유사도 점수 0.0~1.0 (높을수록 확실)
+    source     : 어떤 방법으로 인식했는지
+    uncertain  : True 이면 score 가 UNCERTAIN 구간 (재검토 권장)
+    label      : 로그용 짧은 설명 (자동 생성)
+
+    사용 예
+    -------
+    r = read_skill_result(crop, "EX_Skill")
+    if r.uncertain:
+        log(f"[경고] EX 스킬 인식 불확실: {r.value} ({r.score:.3f})")
+    entry.ex_skill = r.value
     """
-    entry:      StudentEntry
-    committed:  bool
-    missing:    list[str]
-    confidence: float
-    reason:     str = ""
+    value:    Optional[int | str]
+    score:    float
+    source:   RecogSource       = RecogSource.TEMPLATE_RESIZED
+    uncertain: bool             = False
+    label:    str               = ""
+
+    def __post_init__(self):
+        if not self.label:
+            self.label = f"{self.source.value}:{self.value}({self.score:.3f})"
+
+    @classmethod
+    def skipped(cls, reason: str = "") -> "RecognitionResult":
+        """조건 미충족으로 스킵된 결과."""
+        return cls(value=None, score=0.0,
+                   source=RecogSource.SKIPPED, label=f"skipped:{reason}")
+
+    @classmethod
+    def fallback(cls, value, reason: str = "") -> "RecognitionResult":
+        """기본값으로 대체된 결과."""
+        return cls(value=value, score=0.0,
+                   source=RecogSource.FALLBACK, label=f"fallback:{reason}")
 
 
-@dataclass
-class ScanResult:
-    items:     list[ItemEntry]    = field(default_factory=list)
-    equipment: list[ItemEntry]    = field(default_factory=list)
-    students:  list[StudentEntry] = field(default_factory=list)
-    resources: dict               = field(default_factory=dict)
-    errors:    list[str]          = field(default_factory=list)
+# ── 신뢰도 구간 상수 ──────────────────────────────────────
+# score 가 이 두 임계값 사이(SCORE_UNCERTAIN ~ SCORE_CONFIDENT)면
+# uncertain=True 로 마킹
+SCORE_CONFIDENT  = 0.75   # 이상이면 확실
+SCORE_UNCERTAIN  = 0.55   # 이상 CONFIDENT 미만이면 불확실
+                           # 미만이면 실패(value=None 처리)
+
+
+def _make_result(
+    value:    Optional[int | str],
+    score:    float,
+    source:   RecogSource,
+    *,
+    confident_thresh:  float = SCORE_CONFIDENT,
+    uncertain_thresh:  float = SCORE_UNCERTAIN,
+) -> RecognitionResult:
+    """
+    score 구간에 따라 uncertain 플래그를 자동 설정하는 팩토리.
+
+    score >= confident_thresh → uncertain=False
+    score >= uncertain_thresh → uncertain=True  (애매한 결과지만 반환)
+    score <  uncertain_thresh → value=None, uncertain=True (실패)
+    """
+    if value is None:
+        return RecognitionResult(value=None, score=score,
+                                 source=source, uncertain=True)
+    if score >= confident_thresh:
+        return RecognitionResult(value=value, score=score,
+                                 source=source, uncertain=False)
+    if score >= uncertain_thresh:
+        return RecognitionResult(value=value, score=score,
+                                 source=source, uncertain=True)
+    # score 미달 → 실패
+    return RecognitionResult(value=None, score=score,
+                             source=source, uncertain=True)
+
+
+# ── 템플릿 접근 헬퍼 ──────────────────────────────────────
+
+def _tmpl(path: str) -> Optional[TemplateEntry]:
+    """
+    경로로 캐시에서 TemplateEntry 조회.
+    캐시 미스 시 on-demand 로드 후 반환.
+    파일 없으면 None.
+    """
+    cache = get_cache()
+    entry = cache.get_by_path(path)
+    if entry is not None:
+        return entry
+    # warmup 에 포함되지 않은 파일 — on-demand 로드
+    return cache.load(path)
 
 
 # ══════════════════════════════════════════════════════════
-# 유틸
+# 매칭 임계값
 # ══════════════════════════════════════════════════════════
 
-def _img_hash(img: Image.Image) -> str:
-    small = img.convert("L").resize((16, 16))
-    return hashlib.md5(small.tobytes()).hexdigest()
+THRESHOLD         = 0.80
+THRESHOLD_LOOSE   = 0.72
+THRESHOLD_LOBBY   = 0.75
+TEXTURE_THRESHOLD        = 0.60
+TEXTURE_MARGIN_REQUIRED  = 0.05
 
 
-def _images_similar(a: Image.Image, b: Image.Image, thresh: float = SAME_THRESH) -> bool:
+# ══════════════════════════════════════════════════════════
+# 디렉터리 / 파일 상수
+# ══════════════════════════════════════════════════════════
+
+STUDENT_TEXTURE_DIR = "students"
+WEAPON_STATE_DIR    = "weapon_state"
+SKILL_CHECK_DIR     = "skillcheck"
+EQUIP_CHECK_DIR     = "equipcheck"
+
+WEAPON_STATE_FILES = {
+    "no_weapon":       "NO_WEAPON_SYSTEM.png",
+    "weapon_locked":   "WEAPON_UNLOCKED_NOT_EQUIPPED.png",
+    "weapon_unlocked": "WEAPON_EQUIPPED.png",
+}
+
+STAT_DIRS = {
+    "hp":   "stat_hp",
+    "atk":  "stat_atk",
+    "heal": "stat_heal",
+}
+
+
+# ══════════════════════════════════════════════════════════
+# Enum
+# ══════════════════════════════════════════════════════════
+
+class WeaponState(Enum):
+    NO_WEAPON_SYSTEM             = "no_weapon_system"
+    WEAPON_EQUIPPED              = "weapon_equipped"
+    WEAPON_UNLOCKED_NOT_EQUIPPED = "weapon_unlocked_not_equipped"
+
+WeaponStatus = WeaponState   # 하위 호환
+
+
+class CheckFlag(Enum):
+    TRUE       = "true"
+    FALSE      = "false"
+    IMPOSSIBLE = "impossible"
+
+
+class EquipSlotFlag(Enum):
+    NORMAL       = "normal"
+    EMPTY        = "empty"
+    LEVEL_LOCKED = "level_locked"
+    LOVE_LOCKED  = "love_locked"
+    NULL         = "null"
+
+
+# ── _load_tmpl 은 제거됨 → _tmpl() 헬퍼 사용 (파일 상단)
+
+
+# ══════════════════════════════════════════════════════════
+# 기본 매칭 함수
+# ══════════════════════════════════════════════════════════
+
+def match_score(crop: Image.Image, tmpl_path: str) -> float:
+    """
+    원본 해상도 TM_CCOEFF_NORMED 매칭 (알파 마스크 지원).
+    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+    bgr_c = to_bgr(crop)
+    if entry.bgr.shape[0] > bgr_c.shape[0] or entry.bgr.shape[1] > bgr_c.shape[1]:
+        return 0.0
     try:
-        a2 = np.array(a.convert("L").resize((64, 64))).flatten().astype(float)
-        b2 = np.array(b.convert("L").resize((64, 64))).flatten().astype(float)
-        return float(np.corrcoef(a2, b2)[0, 1]) >= thresh
-    except Exception:
-        return False
+        if entry.has_alpha and entry.alpha.max() > 0:
+            res = cv2.matchTemplate(bgr_c, entry.bgr, cv2.TM_CCORR_NORMED,
+                                    mask=entry.alpha)
+        else:
+            res = cv2.matchTemplate(bgr_c, entry.bgr, cv2.TM_CCOEFF_NORMED)
+        _, val, _, _ = cv2.minMaxLoc(res)
+        return float(val)
+    except cv2.error as e:
+        log_cv2_error(_log, "match_score 실패", e,
+                      ctx=MatchCtx(roi=Path(tmpl_path).stem))
+        return 0.0
 
 
-def _grid_region(slots: list[dict]) -> dict:
-    return {
-        "x1": min(s["x1"] for s in slots),
-        "y1": min(s["y1"] for s in slots),
-        "x2": max(s["x2"] for s in slots),
-        "y2": max(s["y2"] for s in slots),
-    }
+def match_score_resized(
+    crop: Image.Image,
+    tmpl_path: str,
+    focus_center: bool = False,
+) -> float:
+    """
+    crop 을 템플릿 크기에 맞춰 리사이즈 후 이진화 비교.
+    전처리: preprocess_for_template()
+    점수: NCC 0.7 + pixel_diff 0.3
+    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+
+    h_t, w_t = entry.gray.shape[:2]
+    if h_t < 2 or w_t < 2:
+        return 0.0
+
+    crop_proc = preprocess_for_template(crop, w_t, h_t, use_focus_crop=focus_center)
+    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t, use_focus_crop=focus_center)
+
+    return _ncc_diff_score(crop_proc, tmpl_proc)
 
 
-def _dict_to_student_entry(d: dict) -> StudentEntry:
-    ws_raw = d.get("weapon_state")
-    try:
-        ws = WeaponState(ws_raw) if ws_raw else None
-    except ValueError:
-        ws = None
-    return StudentEntry(
-        student_id=d.get("student_id"),
-        display_name=d.get("display_name"),
-        level=d.get("level"),
-        student_star=d.get("student_star"),
-        weapon_state=ws,
-        weapon_star=d.get("weapon_star"),
-        weapon_level=d.get("weapon_level"),
-        ex_skill=d.get("ex_skill"),
-        skill1=d.get("skill1"),
-        skill2=d.get("skill2"),
-        skill3=d.get("skill3"),
-        equip1=d.get("equip1"),
-        equip2=d.get("equip2"),
-        equip3=d.get("equip3"),
-        equip4=d.get("equip4"),
-        equip1_level=d.get("equip1_level"),
-        equip2_level=d.get("equip2_level"),
-        equip3_level=d.get("equip3_level"),
-        stat_hp=d.get("stat_hp"),
-        stat_atk=d.get("stat_atk"),
-        stat_heal=d.get("stat_heal"),
-        skipped=True,
+def match_score_resized_masked(
+    crop: Image.Image,
+    tmpl_path: str,
+    focus_center: bool = False,
+    binarize_flag: bool = True,
+) -> float:
+    """
+    알파 마스크 기반 리사이즈 매칭.
+    전처리: preprocess_for_masked_template()
+    점수: corr 0.50 + diff 0.30 + edge 0.20
+    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+
+    h_t, w_t = entry.gray.shape[:2]
+    if h_t < 2 or w_t < 2:
+        return 0.0
+
+    crop_proc, alpha_r = preprocess_for_masked_template(
+        crop, w_t, h_t, entry.alpha,
+        use_focus_crop=focus_center,
+        do_binarize=binarize_flag,
+    )
+    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t,
+                                      use_focus_crop=focus_center,
+                                      do_binarize=binarize_flag)
+
+    # alpha_r 이 focus_crop 으로 잘렸을 수 있으니 크기 재확인
+    h_p, w_p = crop_proc.shape[:2]
+    if alpha_r is None:
+        alpha_r = np.full((h_p, w_p), 255, dtype=np.uint8)
+    else:
+        alpha_r = cv2.resize(alpha_r, (w_p, h_p), interpolation=cv2.INTER_NEAREST)
+
+    valid = alpha_r > 0
+    if not np.any(valid):
+        return 0.0
+
+    crop_f = crop_proc.astype(np.float32)
+    tmpl_f = tmpl_proc.astype(np.float32)
+
+    masked_diff = np.abs(crop_f - tmpl_f)[valid].mean() / 255.0
+    diff_score  = 1.0 - float(masked_diff)
+
+    cv_  = crop_f[valid] - crop_f[valid].mean()
+    tv_  = tmpl_f[valid] - tmpl_f[valid].mean()
+    dnom = np.linalg.norm(cv_) * np.linalg.norm(tv_)
+    corr = 0.0 if dnom < 1e-6 else float(np.dot(cv_, tv_) / dnom)
+    corr = max(0.0, min(1.0, (corr + 1.0) / 2.0))
+
+    crop_edge = cv2.Canny(crop_proc, 50, 150)
+    tmpl_edge = cv2.Canny(tmpl_proc, 50, 150)
+    edge_score = 1.0 - float(
+        np.abs(crop_edge.astype(np.float32) - tmpl_edge.astype(np.float32))[valid].mean() / 255.0
     )
 
+    return 0.50 * corr + 0.30 * diff_score + 0.20 * edge_score
+
+
+def match_score_textonly(crop: Image.Image, tmpl_path: str) -> float:
+    """
+    텍스트(숫자) 픽셀만 추출해서 비교.
+    전처리: preprocess_for_text_template()
+    점수: NCC 0.7 + pixel_diff 0.3
+    파일 I/O 없음 — _tmpl() 캐시에서 읽음.
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+
+    h_t, w_t = entry.gray.shape[:2]
+    if h_t < 2 or w_t < 2:
+        return 0.0
+
+    crop_proc = preprocess_for_text_template(crop, w_t, h_t)
+    tmpl_proc = preprocess_for_text_template(
+        Image.fromarray(entry.gray), w_t, h_t
+    )
+    return _ncc_diff_score(crop_proc, tmpl_proc)
+
+
+# ── 내부 헬퍼 ─────────────────────────────────────────────
+
+def _preprocess_tmpl_gray(
+    tmpl_g: np.ndarray,
+    w: int,
+    h: int,
+    use_focus_crop: bool = False,
+    do_binarize: bool = True,
+) -> np.ndarray:
+    """
+    이미 로드된 템플릿 gray ndarray 를 동일 파이프라인으로 전처리.
+    (PIL Image 변환 없이 바로 처리해 속도 절감)
+    """
+    arr = cv2.resize(tmpl_g, (w, h), interpolation=cv2.INTER_AREA)
+    arr = normalize_hist(arr)
+    if do_binarize:
+        arr = binarize(arr)
+    if use_focus_crop:
+        arr, _ = focus_center_crop(arr)
+    return arr
+
+
+def _ncc_diff_score(a: np.ndarray, b: np.ndarray) -> float:
+    """NCC 0.7 + pixel_diff 0.3 점수."""
+    if a.shape != b.shape:
+        b = cv2.resize(b, (a.shape[1], a.shape[0]), interpolation=cv2.INTER_AREA)
+    try:
+        res = cv2.matchTemplate(a, b, cv2.TM_CCOEFF_NORMED)
+        _, ncc, _, _ = cv2.minMaxLoc(res)
+        diff = np.mean(np.abs(a.astype(np.float32) - b.astype(np.float32))) / 255.0
+        return 0.7 * float(ncc) + 0.3 * (1.0 - float(diff))
+    except cv2.error as e:
+        log_cv2_error(_log, "_ncc_diff_score 실패", e)
+        return 0.0
+
 
 # ══════════════════════════════════════════════════════════
-# Scanner
+# 마스크 매칭 표준화 레이어
+# ══════════════════════════════════════════════════════════
+#
+# 규칙:
+#   - RGBA 템플릿  → 알파 채널을 마스크로 사용  (has_alpha=True)
+#   - RGB 템플릿   → 마스크 없음, 전체 픽셀 비교
+#   - 알파 threshold: ALPHA_THRESH (기본 30) 이상인 픽셀만 유효
+#   - 호출 지점 구분:
+#       별 / 무기별 / 아이콘  → match_masked_icon()   사용
+#       일반 UI 템플릿        → match_score_resized()  사용
+#       텍스트/숫자           → match_score_textonly() 사용
+#   - 두 경로를 섞어 쓰지 않도록 read_star / read_weapon_star 등에서
+#     반드시 match_masked_icon() 만 호출할 것
+#
 # ══════════════════════════════════════════════════════════
 
-class Scanner:
+# 알파 유효 픽셀 최소값 (0~255). 이 값 미만은 배경으로 간주.
+ALPHA_THRESH: int = 30
 
-    def __init__(
-        self,
-        regions: dict,
-        on_progress: Optional[Callable[[str], None]] = None,
-        maxed_ids:   Optional[set[str]]  = None,
-        maxed_cache: Optional[dict[str, dict]] = None,
-    ):
-        self.r           = regions
-        self._on_progress = on_progress   # UI 콜백 (FloatingOverlay.add_log)
-        self._stop        = False
-        self._maxed_ids   = frozenset(maxed_ids or [])
-        self._maxed_cache: dict[str, dict] = maxed_cache or {}
+# 마스크 매칭 점수 가중치
+_MASK_W_CORR = 0.50
+_MASK_W_DIFF = 0.30
+_MASK_W_EDGE = 0.20
 
-        if self._maxed_ids:
-            self._info(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
 
-    def stop(self) -> None:
-        self._stop = True
-        _log.info("스캔 중지 요청")
+def _build_alpha_mask(
+    alpha: Optional[np.ndarray],
+    target_h: int,
+    target_w: int,
+    thresh: int = ALPHA_THRESH,
+) -> np.ndarray:
+    """
+    알파 채널 → boolean 마스크 (유효 픽셀 = True).
 
-    # ── 로그 헬퍼 ─────────────────────────────────────────
-    # logger + UI 콜백을 동시에 처리
+    Parameters
+    ----------
+    alpha    : 템플릿 알파 채널 (H×W uint8). None 이면 전체 유효.
+    target_h : 리사이즈 목표 높이
+    target_w : 리사이즈 목표 너비
+    thresh   : 유효 픽셀 최소 알파값
 
-    def _debug(self, msg: str) -> None:
-        _log.debug(msg)
+    Returns
+    -------
+    bool ndarray (target_h × target_w)
+    """
+    if alpha is None:
+        return np.ones((target_h, target_w), dtype=bool)
 
-    def _info(self, msg: str) -> None:
-        _log.info(msg)
-        if self._on_progress:
-            self._on_progress(msg)
+    resized = cv2.resize(alpha, (target_w, target_h),
+                         interpolation=cv2.INTER_NEAREST)
+    return resized >= thresh
 
-    def _warn(self, msg: str) -> None:
-        _log.warning(msg)
-        if self._on_progress:
-            self._on_progress(f"⚠️ {msg}")
 
-    def _error(self, msg: str) -> None:
-        _log.error(msg)
-        if self._on_progress:
-            self._on_progress(f"❌ {msg}")
+def _masked_score(
+    crop_g: np.ndarray,
+    tmpl_g: np.ndarray,
+    mask:   np.ndarray,
+) -> float:
+    """
+    마스크 영역만 비교하는 점수 계산.
+    corr 0.50 + diff 0.30 + edge 0.20
 
-    # 하위 호환: self.log(msg) 호출 지점 처리
-    @property
-    def log(self):
-        return self._info
+    Parameters
+    ----------
+    crop_g : 전처리된 crop grayscale (H×W uint8)
+    tmpl_g : 전처리된 template grayscale (H×W uint8)
+    mask   : 유효 픽셀 boolean mask (H×W)
 
-    # ══════════════════════════════════════════════════════
-    # 8-1. StudentEntry 갱신 흐름 — temp / finalize / commit
-    # ══════════════════════════════════════════════════════
+    Returns
+    -------
+    float 0.0 ~ 1.0
+    """
+    if not np.any(mask):
+        return 0.0
 
-    def begin_student_scan(self, student_id: str) -> StudentEntry:
-        """
-        학생 1명 스캔 시작 — TEMP 상태 엔트리 생성.
-        각 단계 함수는 이 temp 엔트리만 수정한다.
-        원본 results 에는 아직 추가하지 않음.
-        """
-        entry = StudentEntry(
-            student_id=student_id,
-            display_name=student_names.display_name(student_id),
-            scan_state=ScanState.TEMP,
-        )
-        _log.debug(f"[TEMP] 시작: {entry.label()}")
-        return entry
+    cf = crop_g.astype(np.float32)
+    tf = tmpl_g.astype(np.float32)
 
-    def finalize_student_entry(
-        self,
-        entry:   StudentEntry,
-        ctx:     "ScanCtx",
-        *,
-        partial_ok: bool = True,
-    ) -> EntryCommitResult:
-        """
-        TEMP 엔트리 검증 — COMMITTED 또는 PARTIAL 상태 결정.
+    # ── diff score ────────────────────────────────────────
+    diff_score = 1.0 - float(np.abs(cf - tf)[mask].mean() / 255.0)
 
-        검증 규칙:
-          - student_id 없음    → FAILED (results에 추가 안 함)
-          - 필수 필드 전부 있음 → COMMITTED
-          - 일부 필드 누락
-              partial_ok=True  → PARTIAL (results에 추가, 불완전 표시)
-              partial_ok=False → FAILED
+    # ── correlation score ─────────────────────────────────
+    cv_ = cf[mask] - cf[mask].mean()
+    tv_ = tf[mask] - tf[mask].mean()
+    dnom = np.linalg.norm(cv_) * np.linalg.norm(tv_)
+    corr_raw = 0.0 if dnom < 1e-6 else float(np.dot(cv_, tv_) / dnom)
+    corr = max(0.0, min(1.0, (corr_raw + 1.0) / 2.0))
 
-        Parameters
-        ----------
-        entry      : TEMP 상태 StudentEntry
-        ctx        : ScanCtx (로그 컨텍스트)
-        partial_ok : True 이면 일부 누락 허용, False 이면 엄격 검증
+    # ── edge score ────────────────────────────────────────
+    # Canny 는 uint8 배열 필요
+    crop_u8 = crop_g
+    tmpl_u8 = tmpl_g
+    crop_edge = cv2.Canny(crop_u8, 50, 150)
+    tmpl_edge = cv2.Canny(tmpl_u8, 50, 150)
+    edge_score = 1.0 - float(
+        np.abs(crop_edge.astype(np.float32)
+               - tmpl_edge.astype(np.float32))[mask].mean() / 255.0
+    )
 
-        Returns
-        -------
-        EntryCommitResult
-        """
-        if not entry.student_id:
-            entry.scan_state = ScanState.FAILED
-            return EntryCommitResult(
-                entry=entry, committed=False,
-                missing=[], confidence=0.0,
-                reason="student_id 없음",
-            )
+    return (_MASK_W_CORR * corr
+            + _MASK_W_DIFF * diff_score
+            + _MASK_W_EDGE * edge_score)
 
-        missing    = entry.missing_fields()
-        confidence = entry.confidence()
 
-        if not missing:
-            # 모든 필수 필드 채워짐 → COMMITTED
-            entry.scan_state = ScanState.COMMITTED
-            _log.info(
-                f"{ctx} ✅ COMMITTED "
-                f"(confidence={confidence:.2f})"
-            )
-            return EntryCommitResult(
-                entry=entry, committed=True,
-                missing=[], confidence=confidence,
-            )
+def match_masked_icon(
+    crop:      Image.Image,
+    tmpl_path: str,
+    *,
+    target_size: Optional[tuple[int, int]] = None,
+    thresh:      int = ALPHA_THRESH,
+) -> float:
+    """
+    아이콘/별/무기별 전용 마스크 매칭 함수.
 
-        # 일부 누락
-        if partial_ok:
-            entry.scan_state = ScanState.PARTIAL
-            _log.warning(
-                f"{ctx} ⚠️ PARTIAL "
-                f"(confidence={confidence:.2f} missing={missing})"
-            )
-            return EntryCommitResult(
-                entry=entry, committed=True,   # results에 추가하되 PARTIAL 표시
-                missing=missing, confidence=confidence,
-                reason=f"missing={missing}",
-            )
+    - RGBA 템플릿이면 알파를 마스크로 사용 → 배경 완전 무시
+    - RGB  템플릿이면 전체 픽셀 비교 (하위 호환)
+    - 항상 캐시에서 템플릿 읽음 (파일 I/O 없음)
 
-        # 엄격 모드 — 누락 있으면 FAILED
-        entry.scan_state = ScanState.FAILED
-        _log.warning(
-            f"{ctx} ❌ FAILED (strict) "
-            f"(confidence={confidence:.2f} missing={missing})"
-        )
-        return EntryCommitResult(
-            entry=entry, committed=False,
-            missing=missing, confidence=confidence,
-            reason=f"strict_fail missing={missing}",
-        )
+    Parameters
+    ----------
+    crop        : 비교 대상 PIL Image (이미 crop 된 ROI)
+    tmpl_path   : 템플릿 파일 절대 경로
+    target_size : (w, h) 리사이즈 목표. None 이면 템플릿 원본 크기 사용.
+    thresh      : 유효 픽셀 최소 알파값 (ALPHA_THRESH)
 
-    def commit_student_entry(
-        self,
-        result:  EntryCommitResult,
-        results: list[StudentEntry],
-        idx:     int,
-    ) -> bool:
-        """
-        EntryCommitResult 를 최종 results 목록에 추가.
-        committed=False 이면 추가하지 않고 로그만 남김.
+    Returns
+    -------
+    float 0.0 ~ 1.0
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
 
-        Returns
-        -------
-        True  = results 에 추가됨
-        False = 폐기됨
-        """
-        entry = result.entry
-        if not result.committed:
-            _log.warning(
-                f"[{idx+1:>3}] 엔트리 폐기: {entry.label()} "
-                f"— {result.reason}"
-            )
-            return False
+    # 목표 크기 결정
+    if target_size is not None:
+        w_t, h_t = target_size
+    else:
+        h_t, w_t = entry.gray.shape[:2]
 
-        results.append(entry)
+    if h_t < 2 or w_t < 2:
+        return 0.0
 
-        state_tag = "COMMITTED" if entry.is_committed() else "PARTIAL"
-        _log.info(
-            f"[{idx+1:>3}] ✓ {state_tag}: {entry.label()} "
-            f"(confidence={result.confidence:.2f})"
-        )
-        if result.missing:
-            self._warn(
-                f"  [{idx+1:>3}] {entry.label()} — "
-                f"누락 필드: {result.missing}"
-            )
-        return True
+    # crop 전처리 (gray + normalize + binarize)
+    crop_proc = preprocess_for_template(crop, w_t, h_t)
 
-    # ── 내부 유틸 ─────────────────────────────────────────
+    # 템플릿 전처리 (캐시된 gray 재사용)
+    tmpl_proc = _preprocess_tmpl_gray(entry.gray, w_t, h_t)
 
-    def _capture(self, retry: int = RETRY_CAPTURE) -> Optional[Image.Image]:
-        """캡처 + retry. 실패 시 None."""
-        for i in range(retry + 1):
-            img = capture_window_background()
-            if img is not None:
-                return img
-            if i < retry:
-                _log.debug(f"캡처 재시도 ({i+1}/{retry})")
-                time.sleep(0.1)
-        self._error("캡처 실패")
+    # 마스크 생성
+    mask = _build_alpha_mask(entry.alpha, h_t, w_t, thresh=thresh)
+
+    return _masked_score(crop_proc, tmpl_proc, mask)
+
+
+def best_match_masked_icons(
+    crop:       Image.Image,
+    candidates: dict[str, str],
+    threshold:  float = 0.68,
+    thresh:     int   = ALPHA_THRESH,
+) -> tuple[Optional[str], float]:
+    """
+    후보 아이콘 집합에서 마스크 매칭으로 최고 점수 라벨 반환.
+
+    Parameters
+    ----------
+    crop       : 비교 대상 PIL Image
+    candidates : {label: tmpl_path} 매핑
+    threshold  : 최소 점수 (이 이상일 때만 반환)
+    thresh     : 유효 픽셀 최소 알파값
+
+    Returns
+    -------
+    (best_label, best_score)  점수 미달 시 (None, best_score)
+    """
+    best_lbl:  Optional[str] = None
+    best_scr:  float         = threshold
+
+    for lbl, path in candidates.items():
+        s = match_masked_icon(crop, path, thresh=thresh)
+        if s > best_scr:
+            best_scr = s
+            best_lbl = lbl
+
+    return best_lbl, best_scr
+
+
+def best_match(
+    crop: Image.Image,
+    candidates: dict[str, str],
+    threshold: float = THRESHOLD,
+    resized: bool = False,
+    focus_center: bool = False,
+    masked: bool = False,
+) -> tuple[Optional[str], float]:
+    """
+    후보 집합에서 최고 점수 라벨 반환.
+
+    Parameters
+    ----------
+    masked : True 이면 match_masked_icon() 으로 위임.
+             별/아이콘 인식은 best_match_masked_icons() 를 직접 호출할 것.
+             이 파라미터는 하위 호환을 위해 유지하되 내부에서 표준 경로로 위임.
+    """
+    if masked:
+        return best_match_masked_icons(crop, candidates, threshold=threshold)
+
+    best_lbl, best_scr = None, threshold
+    for lbl, path in candidates.items():
+        s = (match_score_resized(crop, path, focus_center=focus_center)
+             if resized else match_score(crop, path))
+        if s > best_scr:
+            best_scr, best_lbl = s, lbl
+    return best_lbl, best_scr
+
+
+# ══════════════════════════════════════════════════════════
+# 로비 감지
+# ══════════════════════════════════════════════════════════
+
+_LOBBY_TMPL = str(BASE_DIR / "lobby_template.png")
+
+
+def is_lobby(img: Image.Image, region: dict) -> bool:
+    from core.capture import crop_region
+    crop  = crop_region(img, region)
+    score = match_score(crop, _LOBBY_TMPL)
+    _log.debug(f"is_lobby: {score:.3f}")
+    return score >= THRESHOLD_LOBBY
+
+
+# ══════════════════════════════════════════════════════════
+# 학생 텍스처 매칭
+# ══════════════════════════════════════════════════════════
+
+def _color_hist_score(crop: Image.Image, tmpl_path: str) -> float:
+    """컬러 히스토그램 유사도. 파일 I/O 없음 — _tmpl() 캐시에서 읽음."""
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+    try:
+        hsv_c = preprocess_for_color_hist(crop)
+        tmpl_small = cv2.resize(entry.bgr, (64, 64), interpolation=cv2.INTER_AREA)
+        hsv_t = cv2.cvtColor(tmpl_small, cv2.COLOR_BGR2HSV)
+        hc = calc_color_hist(hsv_c)
+        ht = calc_color_hist(hsv_t)
+        return max(0.0, float(cv2.compareHist(hc, ht, cv2.HISTCMP_CORREL)))
+    except cv2.error as e:
+        log_cv2_error(_log, "color_hist_score 실패", e,
+                      ctx=MatchCtx(roi=Path(tmpl_path).stem))
+        return 0.0
+
+
+def match_student_texture(crop: Image.Image) -> tuple[Optional[str], float]:
+    import core.student_names as _sn
+    texture_dir = TEMPLATE_DIR / STUDENT_TEXTURE_DIR
+    if not texture_dir.exists():
+        return None, 0.0
+
+    cands = {
+        sid: str(texture_dir / _sn.template_path(sid))
+        for sid in _sn.all_ids()
+        if (texture_dir / _sn.template_path(sid)).exists()
+    }
+    if not cands:
+        return None, 0.0
+
+    scores = sorted(
+        [
+            (sid, 0.55 * match_score_resized(crop, p)
+                + 0.45 * _color_hist_score(crop, p))
+            for sid, p in cands.items()
+        ],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    best_id, best_s = scores[0]
+    second_s = scores[1][1] if len(scores) > 1 else 0.0
+    margin   = best_s - second_s
+
+    _log.debug(
+        f"texture: 1위={best_id}({best_s:.3f}) "
+        f"2위={scores[1][0] if len(scores)>1 else '-'}({second_s:.3f}) "
+        f"margin={margin:.3f}"
+    )
+
+    if best_s < TEXTURE_THRESHOLD or margin < TEXTURE_MARGIN_REQUIRED:
+        return None, best_s
+    return best_id, best_s
+
+identify_student_by_texture = match_student_texture   # 하위 호환
+
+
+# ══════════════════════════════════════════════════════════
+# 무기 상태
+# ══════════════════════════════════════════════════════════
+
+def detect_weapon_state(crop: Image.Image) -> tuple[WeaponState, float]:
+    d = TEMPLATE_DIR / WEAPON_STATE_DIR
+    mapping = {
+        "no_weapon":       WeaponState.NO_WEAPON_SYSTEM,
+        "weapon_locked":   WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED,
+        "weapon_unlocked": WeaponState.WEAPON_EQUIPPED,
+    }
+    scores = {
+        k: (match_score_resized(crop, str(d / WEAPON_STATE_FILES[k]))
+            if (d / WEAPON_STATE_FILES[k]).exists() else 0.0)
+        for k in mapping
+    }
+
+    if not any(v > 0 for v in scores.values()):
+        return WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED, 0.0
+
+    best_key = max(scores, key=lambda k: scores[k])
+    best_val = scores[best_key]
+    _log.debug(f"weapon_state: { {k: f'{v:.3f}' for k,v in scores.items()} } → {best_key}")
+
+    if best_val < 0.55:
+        return WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED, best_val
+    return mapping[best_key], best_val
+
+detect_weapon_status = detect_weapon_state   # 하위 호환
+
+
+# ══════════════════════════════════════════════════════════
+# Check 플래그
+# ══════════════════════════════════════════════════════════
+
+def read_check_flag(crop: Image.Image, folder: str) -> CheckFlag:
+    d = TEMPLATE_DIR / folder
+    cands = {
+        flag: str(d / f"{flag}.png")
+        for flag in ("true", "false")
+        if (d / f"{flag}.png").exists()
+    }
+    if not cands:
+        return CheckFlag.FALSE
+    lbl, score = best_match(crop, cands, threshold=0.55, resized=True)
+    if lbl is None:
+        return CheckFlag.FALSE
+    _log.debug(f"check_flag({folder}): {lbl} ({score:.3f})")
+    return CheckFlag(lbl)
+
+
+def read_skill_check(crop: Image.Image) -> CheckFlag:
+    return read_check_flag(crop, SKILL_CHECK_DIR)
+
+
+def read_equip_check(crop: Image.Image) -> CheckFlag:
+    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
+
+    explicit: dict[str, float] = {}
+    for flag in ("possible", "impossible"):
+        p = d / f"{flag}.png"
+        if p.exists():
+            explicit[flag] = match_score_resized(crop, str(p), focus_center=True)
+
+    if explicit:
+        _log.debug(f"equip_check explicit: "
+              + " ".join(f"{k}={v:.3f}" for k, v in explicit.items()))
+
+        possible_s   = explicit.get("possible",   0.0)
+        impossible_s = explicit.get("impossible", 0.0)
+        best_label   = max(explicit, key=explicit.get)
+        best_score   = explicit[best_label]
+        margin       = abs(possible_s - impossible_s)
+
+        if best_label == "impossible" and (best_score >= 0.50 or margin >= 0.03):
+            _log.warning(f"equip_check → IMPOSSIBLE")
+            return CheckFlag.IMPOSSIBLE
+        return CheckFlag.FALSE
+
+    IMPOSSIBLE_TF_MAX = 0.45
+    TRUE_THRESHOLD    = 0.55
+
+    scores: dict[str, float] = {
+        flag: match_score_resized(crop, str(d / f"{flag}.png"))
+        for flag in ("impossible", "true", "false")
+        if (d / f"{flag}.png").exists()
+    }
+    _log.debug(f"equip_check legacy: "
+          + " ".join(f"{k}={v:.3f}" for k, v in scores.items()))
+
+    true_s  = scores.get("true",  0.0)
+    false_s = scores.get("false", 0.0)
+    if max(true_s, false_s) < IMPOSSIBLE_TF_MAX:
+        return CheckFlag.IMPOSSIBLE
+    if true_s >= TRUE_THRESHOLD:
+        return CheckFlag.TRUE
+    return CheckFlag.FALSE
+
+
+def read_equip_check_inside(crop: Image.Image) -> CheckFlag:
+    TRUE_THRESHOLD = 0.55
+    d = TEMPLATE_DIR / EQUIP_CHECK_DIR
+    scores = {
+        flag: match_score_resized(crop, str(d / f"{flag}.png"))
+        for flag in ("true", "false")
+        if (d / f"{flag}.png").exists()
+    }
+    _log.debug(f"equip_check_inside: "
+          + " ".join(f"{k}={v:.3f}" for k, v in scores.items()))
+    return CheckFlag.TRUE if scores.get("true", 0.0) >= TRUE_THRESHOLD else CheckFlag.FALSE
+
+
+# ══════════════════════════════════════════════════════════
+# 장비 슬롯 플래그
+# ══════════════════════════════════════════════════════════
+
+def read_equip_slot_flag(crop: Image.Image, slot: int) -> EquipSlotFlag:
+    d = TEMPLATE_DIR / f"equip{slot}_flag"
+    flag_files: dict[str, str] = {
+        "empty": f"equip{slot}_empty.png",
+    }
+    if slot in (2, 3):
+        flag_files["level_locked"] = f"equip{slot}_level_locked.png"
+    if slot == 4:
+        flag_files["love_locked"] = "equip4_love_locked.png"
+        flag_files["null"]        = "equip4_null.png"
+
+    cands = {k: str(d / v) for k, v in flag_files.items() if (d / v).exists()}
+    if not cands:
+        return EquipSlotFlag.NORMAL
+
+    lbl, score = best_match(crop, cands, threshold=0.60, resized=True)
+    if lbl is None:
+        return EquipSlotFlag.NORMAL
+    _log.debug(f"equip{slot}_flag: {lbl} ({score:.3f})")
+    return EquipSlotFlag(lbl)
+
+
+# ══════════════════════════════════════════════════════════
+# 스탯
+# ══════════════════════════════════════════════════════════
+
+def read_stat_value(crop: Image.Image, stat_key: str) -> Optional[int]:
+    folder = STAT_DIRS.get(stat_key)
+    if not folder:
         return None
-
-    def _rect(self) -> Optional[tuple[int, int, int, int]]:
-        return get_window_rect()
-
-    def _hwnd(self) -> Optional[int]:
-        return find_target_hwnd()
-
-    def _retry(
-        self,
-        fn: Callable,
-        max_attempts: int = 2,
-        delay: float = 0.3,
-        label: str = "",
-    ):
-        """
-        fn() 을 최대 max_attempts 회 시도.
-        None 이 아닌 값 반환 시 즉시 반환.
-        모두 실패 시 None 반환.
-        """
-        for i in range(max_attempts):
-            result = fn()
-            if result is not None:
-                return result
-            if i < max_attempts - 1:
-                self.log(f"  ↩ {label} 재시도 ({i+2}/{max_attempts})")
-                time.sleep(delay)
+    d = TEMPLATE_DIR / folder
+    if not d.exists():
         return None
-
-    # ── UI 전환 중앙화 ────────────────────────────────────
-
-    def _click_r(self, region: dict, label: str = "") -> bool:
-        """region 중심 클릭 (HWND 기반 우선)."""
-        rect = self._rect()
-        if rect is None:
-            return False
-        hwnd = self._hwnd()
-        if hwnd:
-            rx = (region["x1"] + region["x2"]) / 2
-            ry = (region["y1"] + region["y2"]) / 2
-            cx, cy = ratio_to_client(rect, rx, ry)
-            return click_point(hwnd, cx, cy, label=label)
-        return click_center(rect, region, label)
-
-    def _tab(self, region_key: str, delay: float = DELAY_TAB_SWITCH) -> bool:
-        """탭 버튼 클릭 + 대기."""
-        sr = self.r["student"]
-        region = sr.get(region_key)
-        if not region:
-            self.log(f"  ⚠️ {region_key} 미정의 — 탭 이동 생략")
-            return False
-        ok = self._click_r(region, region_key)
-        if delay > 0:
-            time.sleep(delay)
-        return ok
-
-    def _esc(self, n: int = 1, delay: float = DELAY_ESC) -> None:
-        """ESC n회 전송."""
-        hwnd = self._hwnd()
-        for _ in range(n):
-            if hwnd:
-                send_escape(hwnd, delay=delay)
-            else:
-                press_esc()
-
-    def _restore_basic_tab(self) -> None:
-        """기본 정보 탭으로 복귀."""
-        sr = self.r["student"]
-        if "basic_info_button" in sr:
-            self._click_r(sr["basic_info_button"], "basic_info_tab")
-            time.sleep(0.3)
-        else:
-            self._esc()
-
-    # ══════════════════════════════════════════════════════
-    # 재화 스캔
-    # ══════════════════════════════════════════════════════
-
-    def scan_resources(self) -> dict:
-        self.log("💰 재화 스캔 중...")
-        img = self._capture()
-        if img is None:
-            return {}
-
-        lobby_r = self.r["lobby"]
-        result: dict = {}
-
-        ocr.load()
-        try:
-            for key, rk in [("크레딧", "credit_region"),
-                             ("청휘석", "pyroxene_region")]:
-                try:
-                    crop = crop_region(img, lobby_r[rk])
-                    result[key] = ocr.read_item_count(crop)
-                except Exception as e:
-                    result[key] = None
-                    _log.warning(f"재화 OCR 실패 ({key}): {type(e).__name__}: {e}")
-        finally:
-            ocr.unload()
-
-        self.log(f"💰 청휘석={result.get('청휘석','-')}  크레딧={result.get('크레딧','-')}")
-        return result
-
-    # ══════════════════════════════════════════════════════
-    # 그리드 스캔 (아이템 / 장비 공통)
-    # ══════════════════════════════════════════════════════
-
-    def _open_menu(self) -> bool:
-        rect = self._rect()
-        if not rect:
-            return False
-        self.log("📂 메뉴 열기...")
-        self._click_r(self.r["lobby"]["menu_button"], "menu_button")
-        time.sleep(0.7)
-        return True
-
-    def _go_to(self, btn_key: str, label: str) -> bool:
-        btn = self.r["menu"].get(btn_key)
-        if not btn:
-            self.log(f"❌ {label} 버튼 설정 없음")
-            return False
-        self.log(f"  → {label} 진입...")
-        self._click_r(btn, label)
-        time.sleep(1.0)
-        return True
-
-    def _return_lobby(self) -> None:
-        self.log("🏠 로비 복귀...")
-        self._esc()
-
-    def _scan_grid(
-        self,
-        section: str,
-        source: str,
-        scroll_amount: int,
-    ) -> list[ItemEntry]:
-        r_sec   = self.r[section]
-        slots   = r_sec["grid_slots"]
-        name_r  = r_sec["name_region"]
-        count_r = r_sec["count_region"]
-        grid_r  = _grid_region(slots)
-
-        rect = self._rect()
-        if not rect:
-            self.log("❌ 창 없음")
-            return []
-
-        scroll_cx = (grid_r["x1"] + grid_r["x2"]) / 2
-        scroll_cy = (grid_r["y1"] + grid_r["y2"]) / 2
-
-        items:       list[ItemEntry] = []
-        seen_keys:   set[str]        = set()
-        seen_hashes: list[str]       = []
-        icon = "📦" if source == "item" else "🔧"
-
-        self.log(f"{icon} 그리드 스캔 시작 (슬롯 {len(slots)}개)")
-
-        for scroll_i in range(MAX_SCROLLS):
-            if self._stop:
-                break
-
-            # ── 1회 캡처 → 이후 crop 재사용 ──────────────
-            img = self._capture()
-            if img is None:
-                break
-
-            grid_crop = crop_region(img, grid_r)
-            cur_hash  = _img_hash(grid_crop)
-
-            if cur_hash in seen_hashes:
-                self.log(f"  🔁 화면 반복 감지 → 스캔 종료 ({len(items)}개)")
-                break
-            seen_hashes.append(cur_hash)
-            if len(seen_hashes) > 10:
-                seen_hashes.pop(0)
-
-            new_this = 0
-            for slot in slots:
-                if self._stop:
-                    break
-
-                click_ry = slot["y1"] + (slot["y2"] - slot["y1"]) * 0.4
-                safe_click(rect, slot["cx"], click_ry, f"{source}_slot")
-                time.sleep(DELAY_AFTER_CLICK)
-
-                # 슬롯 클릭 후 1회 캡처
-                img2 = self._capture()
-                if img2 is None:
-                    continue
-
-                # 이름/수량 crop 재사용
-                name_crop  = crop_region(img2, name_r)
-                count_crop = crop_region(img2, count_r)
-
-                name  = ocr.read_item_name(name_crop)
-                count = ocr.read_item_count(count_crop)
-                if not name:
-                    continue
-
-                entry = ItemEntry(
-                    name=name,
-                    quantity=count,
-                    source=source,
-                    index=len(items),
-                )
-                k = entry.key()
-                if k not in seen_keys:
-                    seen_keys.add(k)
-                    items.append(entry)
-                    new_this += 1
-                    self.log(f"  {icon} [{len(items):>3}] {name}  ×{count}")
-
-            self.log(f"  스크롤 {scroll_i+1}회차: 신규 {new_this}개 / 누계 {len(items)}개")
-
-            # 스크롤 전 기준 캡처
-            before_img = self._capture()
-            before = crop_region(before_img, grid_r) if before_img else None
-
-            scroll_at(rect, scroll_cx, scroll_cy, scroll_amount)
-            time.sleep(0.15)
-
-            after_img = self._capture()
-            if after_img is None:
-                break
-            after = crop_region(after_img, grid_r)
-
-            if before is not None and _images_similar(before, after):
-                self.log(f"  ✅ 스크롤 끝 — 총 {len(items)}개")
-                break
-            if new_this == 0 and scroll_i >= 2:
-                self.log(f"  ✅ 신규 없음 — 총 {len(items)}개")
-                break
-
-        return items
-
-    # ── 아이템 / 장비 공개 스캔 ──────────────────────────
-
-    def scan_items(self) -> list[ItemEntry]:
-        self._stop = False
-        self.log("━━━ 📦 아이템 스캔 시작 ━━━")
-        try:
-            ocr.load()
-            if not self._open_menu():
-                return []
-            if not self._go_to("item_entry_button", "아이템"):
-                return []
-            time.sleep(0.5)
-            result = self._scan_grid("item", "item", SCROLL_ITEM)
-            self.log(f"━━━ 📦 아이템 스캔 완료: {len(result)}개 ━━━")
-            return result
-        except Exception as e:
-            self.log(f"❌ 아이템 스캔 오류: {e}")
-            return []
-        finally:
-            self._return_lobby()
-            ocr.unload()
-
-    def scan_equipment(self) -> list[ItemEntry]:
-        self._stop = False
-        self.log("━━━ 🔧 장비 스캔 시작 ━━━")
-        try:
-            ocr.load()
-            if not self._open_menu():
-                return []
-            if not self._go_to("equipment_entry_button", "장비"):
-                return []
-            time.sleep(0.5)
-            result = self._scan_grid("equipment", "equipment", SCROLL_EQUIP)
-            self.log(f"━━━ 🔧 장비 스캔 완료: {len(result)}개 ━━━")
-            return result
-        except Exception as e:
-            self.log(f"❌ 장비 스캔 오류: {e}")
-            return []
-        finally:
-            self._return_lobby()
-            ocr.unload()
-
-    # ══════════════════════════════════════════════════════
-    # 학생 스캔 — 파이프라인
-    # ══════════════════════════════════════════════════════
-
-    def scan_students(self) -> list[StudentEntry]:
-        return self.scan_students_v5()
-
-    def scan_students_v5(self) -> list[StudentEntry]:
-        self._stop = False
-        log_section(_log, "학생 스캔 시작 (V6)")
-        self._info("━━━ 👩 학생 스캔 시작 (V6) ━━━")
-        results:       list[StudentEntry] = []
-        skipped_count  = 0
-        scanned_count  = 0
-
-        try:
-            if not self.enter_student_menu():
-                return []
-            if not self.enter_first_student():
-                return []
-
-            seen_ids:        set[str]       = set()
-            consecutive_dup: int            = 0
-            prev_id:         Optional[str]  = None
-
-            for idx in range(500):
-                if self._stop:
-                    _log.info("스캔 중지 플래그 감지 → 루프 종료")
-                    break
-
-                # ── 1. 학생 식별 ──────────────────────────
-                _log.debug(f"[{idx+1}] 학생 식별 시작")
-                sid = self.identify_student(idx)
-                if sid is None:
-                    self._warn(f"[{idx+1}] 식별 실패 → 스캔 종료")
-                    break
-
-                # ── 2. 중복 / 종료 판정 ───────────────────
-                if sid == prev_id:
-                    consecutive_dup += 1
-                    _log.info(
-                        f"[{idx+1}] 동일 학생 연속: {sid} "
-                        f"({consecutive_dup}/{MAX_CONSECUTIVE_DUP})"
-                    )
-                    if consecutive_dup >= MAX_CONSECUTIVE_DUP:
-                        _log.info("연속 동일 → 마지막 학생 판정, 스캔 종료")
-                        self._info("  ✅ 연속 동일 → 마지막 학생, 종료")
-                        break
-                    self._restore_basic_tab()
-                    self.go_next_student()
-                    continue
-
-                consecutive_dup = 0
-                prev_id = sid
-
-                if sid in seen_ids:
-                    _log.info(f"[{idx+1}] 이미 스캔됨: {sid} → 종료")
-                    self._info(f"  🔁 이미 스캔됨: {sid} — 종료")
-                    break
-                seen_ids.add(sid)
-
-                # ── 3. 만렙 스킵 ──────────────────────────
-                if sid in self._maxed_ids:
-                    entry = self._make_skipped_entry(sid)
-                    results.append(entry)
-                    skipped_count += 1
-                    _log.info(f"[{idx+1:>3}] {entry.label()} — 만렙 스킵")
-                    self._info(f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵")
-                    self._restore_basic_tab()
-                    self.go_next_student()
-                    continue
-
-                # ── 4. 세부 스캔 ──────────────────────────
-                _log.info(f"[{idx+1:>3}] ▶ 스캔 시작: {sid}")
-                ctx = ScanCtx(idx=idx+1, student_id=sid)
-
-                # TEMP 엔트리 생성 — 이 시점부터 각 단계가 채워넣음
-                entry = self.begin_student_scan(sid)
-
-                # 각 단계: 실패해도 나머지 진행 (skip 정책)
-                # 단계마다 entry.scan_state 는 여전히 TEMP
-                self.read_skills(entry)
-                self.read_weapon(entry)
-                self.read_equipment(entry)
-                self.read_level(entry)
-                self.read_student_star(entry)
-                self.read_stats(entry)
-
-                # TEMP → COMMITTED or PARTIAL 검증
-                commit_result = self.finalize_student_entry(
-                    entry, ctx, partial_ok=True
-                )
-
-                # 검증 결과에 따라 results 에 추가 (FAILED 이면 폐기)
-                added = self.commit_student_entry(commit_result, results, idx)
-                if added:
-                    scanned_count += 1
-                    self._log_student(entry, len(results) - 1)
-
-                self._restore_basic_tab()
-                self.go_next_student()
-
-        except Exception as e:
-            _log.exception(f"학생 스캔 중 예외 발생: {e}")
-            self._error(f"학생 스캔 오류: {e}")
-        finally:
-            self._return_lobby()
-
-        summary = (
-            f"학생 스캔 완료: 총 {len(results)}명 "
-            f"(스캔:{scanned_count} / 스킵:{skipped_count})"
-        )
-        _log.info(summary)
-        self._info(f"━━━ 👩 {summary} ━━━")
-        return results
-
-    # ── 만렙 스킵 헬퍼 ───────────────────────────────────
-
-    def _make_skipped_entry(self, student_id: str) -> StudentEntry:
-        if student_id in self._maxed_cache:
-            entry = _dict_to_student_entry(self._maxed_cache[student_id])
-        else:
-            entry = StudentEntry(
-                student_id=student_id,
-                display_name=student_names.display_name(student_id),
-                skipped=True,
-            )
-        entry.skipped = True
-        return entry
-
-    # ══════════════════════════════════════════════════════
-    # 파이프라인 단계 함수
-    # ══════════════════════════════════════════════════════
-
-    # ── 네비게이션 ────────────────────────────────────────
-
-    def enter_student_menu(self) -> bool:
-        self.log("  학생 메뉴 진입...")
-        self._click_r(self.r["lobby"]["student_menu_button"], "student_menu")
-        time.sleep(STUDENT_MENU_WAIT)
-        return True
-
-    def enter_first_student(self) -> bool:
-        self.log("  첫 학생 선택...")
-        btn = self.r["student_menu"].get("first_student_button")
-        if not btn:
-            self.log("  ⚠️ first_student_button 미정의")
-            return False
-        self._click_r(btn, "first_student")
-        time.sleep(0.8)
-        return True
-
-    def go_next_student(self) -> bool:
-        btn = self.r["student"].get("next_student_button")
-        if not btn:
-            self.log("  ⚠️ next_student_button 미정의")
-            return False
-        self._click_r(btn, "next_student")
-        time.sleep(DELAY_NEXT)
-        return True
-
-    # ── 학생 식별 ─────────────────────────────────────────
-
-    def identify_student(self, idx: int = 0) -> Optional[str]:
-        """
-        텍스처 매칭으로 학생 식별.
-        RETRY_IDENTIFY 회 시도 후 실패 시 None.
-        """
-        sr        = self.r["student"]
-        texture_r = sr.get("student_texture_region")
-        ctx       = ScanCtx(idx=idx+1, step="identify")
-
-        if not texture_r:
-            _log.warning(f"{ctx} student_texture_region 미정의 — 식별 불가")
-            return None
-
-        def _try() -> Optional[str]:
-            img = self._capture()
-            if img is None:
-                return None
-            crop = crop_region(img, texture_r)
-            sid, score = match_student_texture(crop)
-            if sid is not None:
-                _log.info(
-                    f"{ctx} 식별 성공: {student_names.display_name(sid)} "
-                    f"(score={score:.3f})"
-                )
-                self._info(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
-                return sid
-            # 식별 실패 → 디버그 덤프
-            _log.debug(f"{ctx} 텍스처 식별 미달 (score={score:.3f})")
-            dump_roi(crop, "identify_fail", score=score, reason="below_thresh")
-            self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
-            return None
-
-        return self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별")
-
-    # ── 스킬 스캔 ─────────────────────────────────────────
-
-    def read_skills(self, entry: StudentEntry) -> None:
-        """
-        스킬 메뉴 진입 → 캡처 1회 → 4개 스킬 crop 재사용.
-        실패 시 해당 필드 None 유지 (skip).
-        """
-        ctx = ScanCtx(student_id=entry.student_id, step="read_skills")
-
-        if not self._tab("skill_menu_button"):
-            _log.warning(f"{ctx} 스킬 탭 이동 실패")
-            return
-
-        img = self._capture()
-        if img is None:
-            _log.warning(f"{ctx} 캡처 실패")
-            self._esc()
-            return
-
-        sr      = self.r["student"]
-        check_r = sr.get("skill_all_view_check_region")
-
-        if check_r:
-            if read_skill_check(crop_region(img, check_r)) == CheckFlag.FALSE:
-                self.log("  🔘 스킬 일괄성장 체크 클릭")
-                self._click_r(check_r, "skill_check")
-                time.sleep(0.3)
-                img = self._capture()
-                if img is None:
-                    _log.warning(f"{ctx} 체크 후 재캡처 실패")
-                    self._esc()
-                    return
-
-        for field_name, region_key, tmpl_key in [
-            ("ex_skill", "EX_skill", "EX_Skill"),
-            ("skill1",   "Skill_1",  "Skill1"),
-            ("skill2",   "Skill_2",  "Skill2"),
-            ("skill3",   "Skill_3",  "Skill3"),
-        ]:
-            region = sr.get(region_key)
-            if region is None:
-                _log.warning(f"{ctx.with_step(field_name)} region 미정의 — 생략")
-                continue
-            crop = crop_region(img, region)
-            raw  = read_skill(crop, tmpl_key)
-            try:
-                setattr(entry, field_name, int(raw))
-            except (TypeError, ValueError):
-                _log.debug(f"{ctx.with_step(field_name)} 값 변환 실패 (raw={raw!r})")
-                dump_roi(crop, f"skill_{field_name}", reason="convert_fail")
-                setattr(entry, field_name, None)
-
-        self.log(
-            f"  🎓 스킬: EX={entry.ex_skill} "
-            f"S1={entry.skill1} S2={entry.skill2} S3={entry.skill3}"
-        )
-        self._esc()
-
-    # ── 무기 스캔 ─────────────────────────────────────────
-
-    def read_weapon(self, entry: StudentEntry) -> None:
-        """
-        기본 화면에서 무기 감지 플래그 crop → 상태 판정.
-        WEAPON_EQUIPPED 일 때만 무기 메뉴 진입.
-        """
-        sr       = self.r["student"]
-        weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
-        if not weapon_r:
-            self.log("  ⚠️ weapon_detect_flag_region 미정의 → NO_WEAPON_SYSTEM")
-            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
-            return
-
-        img = self._capture()
-        if img is None:
-            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
-            return
-
-        state, score = detect_weapon_state(crop_region(img, weapon_r))
-        entry.weapon_state = state
-        self.log(f"  🗡 무기 상태: {state.name} (score={score:.3f})")
-
-        if state == WeaponState.NO_WEAPON_SYSTEM:
-            return
-
-        if state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
-            entry.weapon_star  = None
-            entry.weapon_level = None
-            self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
-            return
-
-        # WEAPON_EQUIPPED → 무기 메뉴 진입
-        menu_btn = sr.get("weapon_info_menu_button")
-        if not menu_btn:
-            self.log("  ⚠️ weapon_info_menu_button 미정의")
-            return
-
-        self._click_r(menu_btn, "weapon_info_menu")
-        time.sleep(DELAY_TAB_SWITCH)
-
-        # 무기 메뉴 캡처 1회
-        img = self._capture()
-        if img is None:
-            self._esc()
-            return
-
-        # 성작 + 레벨 crop 재사용
-        star_r = sr.get("weapon_star_region")
-        if star_r:
-            entry.weapon_star = read_weapon_star_v5(crop_region(img, star_r))
-
-        d1 = sr.get("weapon_level_digit_1") or sr.get("weapon_level_digit1")
-        d2 = sr.get("weapon_level_digit_2") or sr.get("weapon_level_digit2")
-        if d1 and d2:
-            entry.weapon_level = read_weapon_level(img, d1, d2)
-            self.log(f"  🗡 무기: {entry.weapon_star}★  Lv.{entry.weapon_level}")
-        else:
-            self.log("  ⚠️ weapon_level_digit 미정의")
-
-        self._esc()
-
-    # ── 장비 스캔 ─────────────────────────────────────────
-
-    def read_equipment(self, entry: StudentEntry) -> None:
-        """
-        장비 탭 진입 → 캡처 1회 → 슬롯 1~4 crop 재사용.
-        impossible 판정 시 전체 스킵.
-        """
-        sr        = self.r["student"]
-        equip_btn = sr.get("equipment_button")
-        if not equip_btn:
-            self.log("  ⚠️ equipment_button 미정의")
-            return
-
-        # 탭 진입 전 pre-check (기본 화면에서)
-        img = self._capture()
-        if img is None:
-            return
-
-        pre = read_equip_check(crop_region(img, equip_btn))
-        if pre == CheckFlag.IMPOSSIBLE:
-            self.log("  🚫 equipment_button=impossible — 장비 스캔 스킵")
-            return
-
-        self._click_r(equip_btn, "equipment_tab")
-        time.sleep(DELAY_TAB_SWITCH)
-
-        # 장비 메뉴 캡처 1회
-        img = self._capture()
-        if img is None:
-            self._esc()
-            return
-
-        check_r = sr.get("equipment_all_view_check_region")
-        if check_r:
-            if read_equip_check_inside(crop_region(img, check_r)) == CheckFlag.FALSE:
-                self.log("  🔘 장비 일괄성장 체크 클릭")
-                self._click_r(check_r, "equip_check")
-                time.sleep(0.3)
-                img = self._capture()   # 체크 후 재캡처
-                if img is None:
-                    self._esc()
-                    return
-
-        sid = entry.student_id or ""
-
-        # 슬롯 1~3: 캡처 이미지 공유
-        for slot in (1, 2, 3):
-            skip_flags = {EquipSlotFlag.EMPTY}
-            if slot in (2, 3):
-                skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
-            self._scan_equip_slot(entry, img, sr, slot,
-                                  skip_flags=skip_flags, scan_level=True)
-
-        # 슬롯 4
-        if has_equip4(sid):
-            self._scan_equip_slot(
-                entry, img, sr, 4,
-                skip_flags={EquipSlotFlag.EMPTY,
-                            EquipSlotFlag.LOVE_LOCKED,
-                            EquipSlotFlag.NULL},
-                scan_level=False,
-            )
-        else:
-            self.log(f"  🎒 장비4: {sid} equip4 없음 — 스킵")
-
-        self._esc()
-
-    def _scan_equip_slot(
-        self,
-        entry: StudentEntry,
-        img: Image.Image,
-        sr: dict,
-        slot: int,
-        skip_flags: set[EquipSlotFlag],
-        scan_level: bool,
-    ) -> None:
-        """단일 장비 슬롯 판독. img는 장비 메뉴 캡처 이미지 (재사용)."""
-        flag_r = (sr.get(f"equip{slot}_flag")
-                  or sr.get(f"equip{slot}_emptyflag")
-                  or sr.get(f"equip{slot}_empty_flag"))
-        if flag_r:
-            slot_flag = read_equip_slot_flag(crop_region(img, flag_r), slot)
-            if slot_flag in skip_flags:
-                self.log(f"  🎒 장비{slot}: {slot_flag.value} — 스킵")
-                setattr(entry, f"equip{slot}", slot_flag.value)
-                return
-
-        tier_r = sr.get(f"equipment_{slot}")
-        if tier_r:
-            tier = read_equip_tier(crop_region(img, tier_r), slot)
-            setattr(entry, f"equip{slot}", tier)
-            self.log(f"  🎒 장비{slot} 티어: {tier}")
-
-        if scan_level:
-            d1 = sr.get(f"equipment_{slot}_level_digit_1")
-            d2 = sr.get(f"equipment_{slot}_level_digit_2")
-            if d1 and d2:
-                lv = read_equip_level(img, slot, d1, d2)
-                setattr(entry, f"equip{slot}_level", lv)
-                self.log(f"  🎒 장비{slot} 레벨: {lv}")
-            else:
-                self.log(f"  ⚠️ equipment_{slot}_level_digit 미정의")
-
-    # ── 레벨 스캔 ─────────────────────────────────────────
-
-    def read_level(self, entry: StudentEntry) -> None:
-        """레벨 탭 진입 → 캡처 1회 → digit crop 재사용."""
-        if entry.level == MAX_STUDENT_LEVEL:
-            self.log(f"  ⏭ 레벨 스캔 생략 (이미 Lv.90)")
-            return
-
-        if not self._tab("levelcheck_button", delay=0.4):
-            return
-
-        img = self._capture()
-        if img is None:
-            self._restore_basic_tab()
-            return
-
-        sr = self.r["student"]
-        d1 = sr.get("level_digit_1")
-        d2 = sr.get("level_digit_2")
-        if not d1 or not d2:
-            self.log("  ⚠️ level_digit region 미정의")
-            self._restore_basic_tab()
-            return
-
-        lv = read_student_level_v5(img, d1, d2)
-        entry.level = lv
-        self.log(f"  📊 레벨: {entry.label()} → Lv.{lv}")
-
-        self._restore_basic_tab()
-
-    # ── 성작 스캔 ─────────────────────────────────────────
-
-    def read_student_star(self, entry: StudentEntry) -> None:
-        """
-        무기 보유 학생은 5★ 확정.
-        그 외 star_menu 탭 진입 → 캡처 1회.
-        """
-        if entry.weapon_state != WeaponState.NO_WEAPON_SYSTEM:
-            entry.student_star = 5
-            self.log(f"  ⏭ 성작 스캔 생략 (무기 보유 → 5★)")
-            return
-
-        sr       = self.r["student"]
-        star_btn = sr.get("star_menu_button")
-        if star_btn:
-            self._click_r(star_btn, "star_menu")
-            time.sleep(0.3)
-
-        img = self._capture()
-        if img is None:
-            return
-
-        region_key = (
-            "student_star_region"
-            if "student_star_region" in sr
-            else "star_region"
-        )
-        star_r = sr.get(region_key)
-        if star_r:
-            entry.student_star = read_student_star_v5(crop_region(img, star_r))
-            self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
-
-    # ── 스탯 스캔 ─────────────────────────────────────────
-
-    def read_stats(self, entry: StudentEntry) -> None:
-        """
-        Lv.90 + 5★ 조건 미충족 시 스킵.
-        stat 메뉴 진입 → 캡처 1회 → 3종 crop 재사용.
-        """
-        level_ok = entry.level is not None and entry.level >= STAT_UNLOCK_LEVEL
-        star_ok  = entry.student_star is not None and entry.student_star >= STAT_UNLOCK_STAR
-
-        if not level_ok or not star_ok:
-            self.log(
-                f"  ⏭ 스탯 스캔 생략 "
-                f"(Lv.{entry.level} / {entry.student_star}★)"
-            )
-            return
-
-        if not self._tab("stat_menu_button", delay=0.4):
-            return
-
-        img = self._capture()
-        if img is None:
-            self._esc()
-            return
-
-        sr = self.r["student"]
-        for stat_key, field_name, region_key in [
-            ("hp",   "stat_hp",   "hp"),
-            ("atk",  "stat_atk",  "atk"),
-            ("heal", "stat_heal", "heal"),
-        ]:
-            region = sr.get(region_key)
-            if region:
-                val = read_stat_value(crop_region(img, region), stat_key)
-                setattr(entry, field_name, val)
-            else:
-                self.log(f"  ⚠️ {region_key} region 미정의")
-
-        self.log(
-            f"  📈 스탯: HP={entry.stat_hp} "
-            f"ATK={entry.stat_atk} HEAL={entry.stat_heal}"
-        )
-        self._esc()
-
-    # ── 로그 ──────────────────────────────────────────────
-
-    def _log_student(self, entry: StudentEntry, idx: int) -> None:
-        weapon_info = ""
-        if entry.weapon_state == WeaponState.WEAPON_EQUIPPED:
-            weapon_info = f" | 무기:{entry.weapon_star}★ Lv.{entry.weapon_level}"
-        elif entry.weapon_state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
-            weapon_info = " | 무기:미장착"
-
-        equip_info = (
-            f"{entry.equip1}(Lv.{entry.equip1_level})/"
-            f"{entry.equip2}(Lv.{entry.equip2_level})/"
-            f"{entry.equip3}(Lv.{entry.equip3_level})/"
-            f"{entry.equip4}"
-        )
-        self.log(
-            f"  👩 [{idx+1:>3}] {entry.label()}  Lv.{entry.level}  "
-            f"{entry.student_star}★{weapon_info}  "
-            f"EX:{entry.ex_skill} S1:{entry.skill1} "
-            f"S2:{entry.skill2} S3:{entry.skill3}  "
-            f"장비:{equip_info}  "
-            f"스탯(HP:{entry.stat_hp}/ATK:{entry.stat_atk}/HEAL:{entry.stat_heal})"
-        )
-
-    # ── 전체 스캔 ─────────────────────────────────────────
-
-    def run_full_scan(self) -> ScanResult:
-        self._stop = False
-        result = ScanResult()
-        self.log("━━━━━ 전체 스캔 시작 ━━━━━")
-        result.resources = self.scan_resources()
-        result.items     = self.scan_items()
-        if not self._stop:
-            result.equipment = self.scan_equipment()
-        if not self._stop:
-            result.students  = self.scan_students_v5()
-        self.log("━━━━━ 전체 스캔 완료 ━━━━━")
-        return result
+    cands = {
+        str(i): str(d / f"{i}.png")
+        for i in range(26)
+        if (d / f"{i}.png").exists()
+    }
+    if not cands:
+        return None
+    lbl, score = best_match(crop, cands, threshold=0.60,
+                             resized=True, focus_center=True)
+    if lbl is None:
+        return None
+    _log.debug(f"stat_{stat_key}: {lbl} ({score:.3f})")
+    return int(lbl)
+
+
+def read_stat_value_result(crop: Image.Image, stat_key: str) -> RecognitionResult:
+    """
+    read_stat_value() 의 RecognitionResult 반환 버전.
+    """
+    folder = STAT_DIRS.get(stat_key)
+    if not folder:
+        return RecognitionResult.skipped(f"no_stat_dir:{stat_key}")
+    d = TEMPLATE_DIR / folder
+    if not d.exists():
+        return RecognitionResult.skipped(f"dir_missing:{folder}")
+    cands = {
+        str(i): str(d / f"{i}.png")
+        for i in range(26)
+        if (d / f"{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.skipped("no_templates")
+
+    lbl, score = best_match(crop, cands, threshold=0.60,
+                             resized=True, focus_center=True)
+    _log.debug(f"stat_{stat_key}_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_RESIZED)
+
+
+# ══════════════════════════════════════════════════════════
+# Digit 폴더 읽기 (장비 레벨 / 무기 레벨 / 학생 레벨 공통)
+# ══════════════════════════════════════════════════════════
+
+def _read_digit_from_folder(
+    folder: Path,
+    prefix: int,
+    crop: Image.Image,
+) -> Optional[str]:
+    if not folder.exists():
+        return None
+    cands = {
+        p.stem.split("_", 1)[1]: str(p)
+        for p in folder.glob(f"{prefix}_*.png")
+    }
+    if not cands:
+        return None
+    lbl, score = best_match(crop, cands, threshold=0.55,
+                             resized=True, focus_center=True)
+    _log.debug(f"{folder.name}: {lbl} ({score:.3f})")
+    return lbl
+
+
+def read_equip_level(
+    img: Image.Image,
+    slot: int,
+    d1_region: dict,
+    d2_region: dict,
+) -> Optional[int]:
+    from core.capture import crop_region
+    folder1 = TEMPLATE_DIR / f"equip{slot}level_digit1"
+    folder2 = TEMPLATE_DIR / f"equip{slot}level_digit2"
+    d1 = _read_digit_from_folder(folder1, 1, crop_region(img, d1_region))
+    d2 = _read_digit_from_folder(folder2, 2, crop_region(img, d2_region))
+
+    if not d1 or d1 == "v":
+        if d2:
+            try: return int(d2)
+            except ValueError as e: _log.debug(f"equip_level d2 변환 실패: {e}"); pass
+        return None
+    if d2:
+        try: return int(d1 + d2)
+        except ValueError as e: _log.debug(f"equip_level d1+d2 변환 실패: {e}"); pass
+    try: return int(d1)
+    except ValueError as e: _log.debug(f"equip_level d1 변환 실패: {e}"); return None
+
+
+def read_weapon_level(
+    img: Image.Image,
+    d1_region: dict,
+    d2_region: dict,
+) -> Optional[int]:
+    from core.capture import crop_region
+    folder1 = TEMPLATE_DIR / "weaponlevel_digit1"
+    folder2 = TEMPLATE_DIR / "weaponlevel_digit2"
+    d1 = _read_digit_from_folder(folder1, 1, crop_region(img, d1_region))
+    d2 = _read_digit_from_folder(folder2, 2, crop_region(img, d2_region))
+
+    if not d2 or d2 == "null":
+        if d1:
+            try: return int(d1)
+            except ValueError: pass
+        return None
+    if d1:
+        try: return int(d1 + d2)
+        except ValueError: pass
+    try: return int(d2)
+    except ValueError: return None
+
+
+# ══════════════════════════════════════════════════════════
+# 별 등급
+# ══════════════════════════════════════════════════════════
+
+def read_star(crop: Image.Image, folder: str, max_n: int) -> int:
+    """
+    별 등급 인식.
+    RGBA 템플릿의 알파를 마스크로 사용 → 배경 색상 변화에 강건.
+    match_masked_icon() 경로로만 처리. best_match(masked=True) 혼용 금지.
+    """
+    d = TEMPLATE_DIR / folder
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(max_n, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        _log.warning(f"{folder}: 템플릿 없음 → 1")
+        return 1
+
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.68)
+    _log.debug(f"{folder} star: {lbl} ({score:.3f})")
+    return int(lbl) if lbl else 1
+
+
+def read_star_result(crop: Image.Image, folder: str, max_n: int) -> RecognitionResult:
+    """
+    read_star() 의 RecognitionResult 반환 버전.
+    별 개수 + score + source + uncertain 플래그 포함.
+    """
+    d = TEMPLATE_DIR / folder
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(max_n, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(1, "no_templates")
+
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    _log.debug(f"{folder} star_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
+
+
+def read_student_star(crop: Image.Image) -> int:
+    return read_star(crop, "star", 5)
+
+
+def read_weapon_star(crop: Image.Image) -> int:
+    return read_star(crop, "weapon_star", 4)
+
+
+def is_weapon_equipped(crop: Image.Image) -> bool:
+    return detect_weapon_state(crop)[0] == WeaponState.WEAPON_EQUIPPED
+
+read_weapon_unlocked = is_weapon_equipped   # 하위 호환
+
+
+# ══════════════════════════════════════════════════════════
+# 학생 레벨
+# ══════════════════════════════════════════════════════════
+
+def read_level_digit(crop: Image.Image, digit_pos: int) -> Optional[str]:
+    folder = TEMPLATE_DIR / f"studentlevel_digit{digit_pos}"
+    if not folder.exists():
+        return None
+    start = 1 if digit_pos == 1 else 0
+    cands = {
+        str(i): str(folder / f"{digit_pos}_{i}.png")
+        for i in range(start, 10)
+        if (folder / f"{digit_pos}_{i}.png").exists()
+    }
+    if not cands:
+        return None
+    lbl, score = best_match(crop, cands, threshold=0.55,
+                             resized=True, focus_center=True)
+    _log.debug(f"level_digit{digit_pos}: {lbl} ({score:.3f})")
+    return lbl
+
+
+def read_student_level(
+    img: Image.Image,
+    digit1_region: dict,
+    digit2_region: dict,
+) -> str:
+    from core.capture import crop_region
+    d1 = read_level_digit(crop_region(img, digit1_region), 1)
+    d2 = read_level_digit(crop_region(img, digit2_region), 2)
+
+    if not d2 or d2 == "null":
+        if d1:
+            _log.debug(f"student_level: 1자리 → {d1}")
+            return d1
+        return "unknown"
+    return f"{d1}{d2}" if d1 else d2
+
+
+# ══════════════════════════════════════════════════════════
+# 스킬 레벨
+# ══════════════════════════════════════════════════════════
+
+def read_skill(crop: Image.Image, skill_key: str) -> str:
+    d = TEMPLATE_DIR / skill_key
+    max_lv = 5 if skill_key == "EX_Skill" else 10
+    cands: dict[str, str] = {}
+
+    if skill_key == "EX_Skill":
+        for i in range(max_lv, 0, -1):
+            p = d / f"EX_Skill_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+    else:
+        prefix = skill_key.replace("Skill", "Skill_")
+        locked = d / f"{prefix}_locked.png"
+        if locked.exists():
+            cands["locked"] = str(locked)
+        for i in range(max_lv, 0, -1):
+            p = d / f"{prefix}_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+
+    if not cands:
+        return "unknown"
+
+    scores: dict[str, tuple[float, float, float]] = {}
+    for lbl, path in cands.items():
+        ui   = match_score_resized(crop, path, focus_center=True)
+        text = match_score_textonly(crop, path) if lbl != "locked" else 0.0
+        final = ui if lbl == "locked" else (0.55 * ui + 0.45 * text)
+        scores[lbl] = (final, ui, text)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+    best_lbl, (best_score, best_ui, best_text) = ranked[0]
+
+    if len(ranked) >= 2:
+        second_lbl, (second_score, _, _) = ranked[1]
+        if {best_lbl, second_lbl} == {"1", "2"} and abs(best_score - second_score) <= 0.035:
+            chosen   = "1" if scores["1"][2] >= scores["2"][2] else "2"
+            best_lbl = chosen
+            best_score, best_ui, best_text = scores[chosen]
+
+    _log.debug(f"{skill_key}: {best_lbl} "
+          f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})")
+    return best_lbl if best_score >= 0.60 else "unknown"
+
+
+def read_skill_result(crop: Image.Image, skill_key: str) -> RecognitionResult:
+    """
+    read_skill() 의 RecognitionResult 반환 버전.
+    score 와 uncertain 플래그가 함께 반환됨.
+    """
+    d = TEMPLATE_DIR / skill_key
+    max_lv = 5 if skill_key == "EX_Skill" else 10
+    cands: dict[str, str] = {}
+
+    if skill_key == "EX_Skill":
+        for i in range(max_lv, 0, -1):
+            p = d / f"EX_Skill_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+    else:
+        prefix = skill_key.replace("Skill", "Skill_")
+        locked = d / f"{prefix}_locked.png"
+        if locked.exists():
+            cands["locked"] = str(locked)
+        for i in range(max_lv, 0, -1):
+            p = d / f"{prefix}_{i}.png"
+            if p.exists():
+                cands[str(i)] = str(p)
+
+    if not cands:
+        return RecognitionResult.fallback("unknown", "no_templates")
+
+    scores: dict[str, tuple[float, float, float]] = {}
+    for lbl, path in cands.items():
+        ui   = match_score_resized(crop, path, focus_center=True)
+        text = match_score_textonly(crop, path) if lbl != "locked" else 0.0
+        final = ui if lbl == "locked" else (0.55 * ui + 0.45 * text)
+        scores[lbl] = (final, ui, text)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+    best_lbl, (best_score, best_ui, best_text) = ranked[0]
+
+    if len(ranked) >= 2:
+        second_lbl, (second_score, _, _) = ranked[1]
+        if {best_lbl, second_lbl} == {"1", "2"} and abs(best_score - second_score) <= 0.035:
+            chosen   = "1" if scores["1"][2] >= scores["2"][2] else "2"
+            best_lbl = chosen
+            best_score, best_ui, best_text = scores[chosen]
+
+    _log.debug(f"{skill_key}: {best_lbl} "
+          f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})")
+
+    value = best_lbl if best_score >= 0.60 else None
+    try:
+        int_val = int(value) if value and value != "locked" else value
+    except (TypeError, ValueError):
+        int_val = value
+
+    return _make_result(int_val, best_score, RecogSource.COMBINED)
+
+
+# ══════════════════════════════════════════════════════════
+# 장비 티어
+# ══════════════════════════════════════════════════════════
+
+def read_equip_tier(crop: Image.Image, slot: int) -> str:
+    d = TEMPLATE_DIR / f"equip{slot}"
+    candidates: dict[str, str] = {}
+
+    empty_p = d / f"equip{slot}_empty.png"
+    if empty_p.exists():
+        candidates["empty"] = str(empty_p)
+    for p in d.glob(f"equip{slot}_T*.png"):
+        candidates[p.stem.replace(f"equip{slot}_", "")] = str(p)
+
+    if not candidates:
+        _log.warning(f"equip{slot}: 템플릿 없음 → unknown")
+        return "unknown"
+
+    scores = {
+        lbl: (0.60 * match_score_resized(crop, path)
+              + 0.40 * _color_hist_score(crop, path))
+        for lbl, path in candidates.items()
+    }
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    _log.debug(f"equip{slot} tier: "
+          + " ".join(f"{t}={s:.3f}" for t, s in ranked))
+
+    best_lbl, best_score = ranked[0]
+    if best_score < THRESHOLD_LOOSE:
+        _log.debug(f"equip{slot}: {best_lbl}({best_score:.3f}) < {THRESHOLD_LOOSE} → unknown")
+        return "unknown"
+    return best_lbl
+
+
+# ══════════════════════════════════════════════════════════
+# V5 공식 인터페이스 (하위 호환)
+# ══════════════════════════════════════════════════════════
+
+def read_student_star_v5(crop: Image.Image) -> Optional[int]:
+    """
+    학생 성작 인식 (v5 호환 인터페이스).
+    내부적으로 match_masked_icon() 경로 사용.
+    """
+    d = TEMPLATE_DIR / "star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(5, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return None
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
+    _log.debug(f"student_star_v5: {lbl} ({score:.3f})")
+    return int(lbl) if lbl is not None else None
+
+
+def read_student_star_v5_result(crop: Image.Image) -> RecognitionResult:
+    """학생 성작 인식 — RecognitionResult 반환."""
+    d = TEMPLATE_DIR / "star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(5, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(None, "no_templates")
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    _log.debug(f"student_star_v5_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
+
+
+def read_weapon_star_v5(crop: Image.Image) -> Optional[int]:
+    """
+    무기 성작 인식 (v5 호환 인터페이스).
+    내부적으로 match_masked_icon() 경로 사용.
+    """
+    d = TEMPLATE_DIR / "weapon_star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(4, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return None
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.65)
+    _log.debug(f"weapon_star_v5: {lbl} ({score:.3f})")
+    return int(lbl) if lbl is not None else None
+
+
+def read_weapon_star_v5_result(crop: Image.Image) -> RecognitionResult:
+    """무기 성작 인식 — RecognitionResult 반환."""
+    d = TEMPLATE_DIR / "weapon_star"
+    cands = {
+        str(i): str(d / f"star_{i}.png")
+        for i in range(4, 0, -1)
+        if (d / f"star_{i}.png").exists()
+    }
+    if not cands:
+        return RecognitionResult.fallback(None, "no_templates")
+    lbl, score = best_match_masked_icons(crop, cands, threshold=0.60)
+    _log.debug(f"weapon_star_v5_result: {lbl} ({score:.3f})")
+    value = int(lbl) if lbl is not None else None
+    return _make_result(value, score, RecogSource.TEMPLATE_MASKED)
+
+
+def read_student_level_v5(
+    img: Image.Image,
+    digit1_region: dict,
+    digit2_region: dict,
+) -> Optional[int]:
+    raw = read_student_level(img, digit1_region, digit2_region)
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as e:
+        _log.warning(f"read_student_level_v5: 변환 실패 (raw={raw!r}) — {e}")
+        return None

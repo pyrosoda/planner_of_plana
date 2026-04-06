@@ -120,6 +120,101 @@ class ItemEntry:
         return f"{self.name}_{self.source}_{self.index}"
 
 
+# ══════════════════════════════════════════════════════════
+# 필드 메타정보 — 값과 출처/상태 분리
+# ══════════════════════════════════════════════════════════
+
+class FieldStatus:
+    """
+    필드 획득 상태 상수.
+
+    ok          : 정상 인식
+    inferred    : 다른 값에서 추론 (예: 무기 보유 → 5★)
+    uncertain   : 인식했지만 score 낮음 (RecognitionResult.uncertain=True)
+    failed      : 인식 시도했으나 실패 (None 저장)
+    skipped     : 조건 미충족으로 시도하지 않음
+    region_missing : region 정의 없음
+    """
+    OK              = "ok"
+    INFERRED        = "inferred"
+    UNCERTAIN       = "uncertain"
+    FAILED          = "failed"
+    SKIPPED         = "skipped"
+    REGION_MISSING  = "region_missing"
+
+
+class FieldSource:
+    """
+    필드 획득 방법 상수.
+
+    template    : 템플릿 매칭
+    ocr         : OCR (easyocr)
+    inferred    : 다른 필드에서 논리적 추론
+    cached      : 이전 스캔 캐시에서 복사 (만렙 스킵)
+    default     : 기본값 (fallback)
+    """
+    TEMPLATE = "template"
+    OCR      = "ocr"
+    INFERRED = "inferred"
+    CACHED   = "cached"
+    DEFAULT  = "default"
+
+
+@dataclass
+class FieldMeta:
+    """
+    단일 필드의 메타정보.
+
+    Attributes
+    ----------
+    status  : FieldStatus 상수 — 어떤 상태로 얻었는지
+    source  : FieldSource 상수 — 어떤 방법으로 얻었는지
+    score   : 인식 점수 (0.0~1.0). 템플릿/OCR 외 경우 None
+    note    : 자유 텍스트 (추론 근거, 실패 이유 등)
+    """
+    status: str            = FieldStatus.OK
+    source: str            = FieldSource.TEMPLATE
+    score:  Optional[float] = None
+    note:   str            = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "status": self.status,
+            "source": self.source,
+            "score":  round(self.score, 3) if self.score is not None else None,
+            "note":   self.note,
+        }
+
+    @classmethod
+    def ok(cls, source: str, score: Optional[float] = None) -> "FieldMeta":
+        return cls(status=FieldStatus.OK, source=source, score=score)
+
+    @classmethod
+    def inferred(cls, note: str = "") -> "FieldMeta":
+        return cls(status=FieldStatus.INFERRED,
+                   source=FieldSource.INFERRED, note=note)
+
+    @classmethod
+    def uncertain(cls, source: str, score: Optional[float] = None,
+                  note: str = "") -> "FieldMeta":
+        return cls(status=FieldStatus.UNCERTAIN,
+                   source=source, score=score, note=note)
+
+    @classmethod
+    def failed(cls, source: str, note: str = "") -> "FieldMeta":
+        return cls(status=FieldStatus.FAILED, source=source, note=note)
+
+    @classmethod
+    def skipped(cls, note: str = "") -> "FieldMeta":
+        return cls(status=FieldStatus.SKIPPED,
+                   source=FieldSource.DEFAULT, note=note)
+
+    @classmethod
+    def region_missing(cls, note: str = "") -> "FieldMeta":
+        return cls(status=FieldStatus.REGION_MISSING,
+                   source=FieldSource.DEFAULT, note=note)
+
+
 # ── 스캔 상태 ─────────────────────────────────────────────
 
 class ScanState:
@@ -169,7 +264,15 @@ class StudentEntry:
     stat_heal: Optional[int] = None
     # 메타
     skipped:    bool = False
-    scan_state: str  = ScanState.TEMP   # 확정 상태 추적
+    scan_state: str  = ScanState.TEMP
+
+    # ── 필드 메타 딕셔너리 ────────────────────────────────
+    # {field_name: FieldMeta} — 값과 출처/상태를 분리 저장
+    # 추적 대상 필드:
+    #   level / student_star / weapon_state / weapon_star / weapon_level
+    #   ex_skill / skill1~3 / equip1~4 / equip1~3_level
+    #   stat_hp / stat_atk / stat_heal
+    _meta: dict = field(default_factory=dict)
 
     def label(self) -> str:
         return self.display_name or self.student_id or "?"
@@ -179,6 +282,28 @@ class StudentEntry:
 
     def is_partial(self) -> bool:
         return self.scan_state == ScanState.PARTIAL
+
+    def set_meta(self, field_name: str, meta: FieldMeta) -> None:
+        """필드 메타 설정."""
+        self._meta[field_name] = meta
+
+    def get_meta(self, field_name: str) -> Optional[FieldMeta]:
+        """필드 메타 조회. 없으면 None."""
+        return self._meta.get(field_name)
+
+    def meta_summary(self) -> dict[str, dict]:
+        """전체 메타 딕셔너리를 직렬화 가능한 형태로 반환."""
+        return {k: v.to_dict() for k, v in self._meta.items()}
+
+    def uncertain_fields(self) -> list[str]:
+        """uncertain 상태인 필드 목록."""
+        return [k for k, v in self._meta.items()
+                if v.status == FieldStatus.UNCERTAIN]
+
+    def failed_fields(self) -> list[str]:
+        """failed 상태인 필드 목록."""
+        return [k for k, v in self._meta.items()
+                if v.status == FieldStatus.FAILED]
 
     def missing_fields(self) -> list[str]:
         """None 으로 남아 있는 필수 필드 목록."""
@@ -192,8 +317,6 @@ class StudentEntry:
 
     def confidence(self) -> float:
         """채워진 필드 비율 0.0~1.0."""
-        required = self.missing_fields.__func__(self)  # 필드 목록 재사용
-        # missing_fields 는 None 인 것만 반환하므로
         required_all = [
             "level", "student_star", "weapon_state",
             "ex_skill", "skill1", "skill2", "skill3",
@@ -403,10 +526,18 @@ class Scanner:
         if not missing:
             # 모든 필수 필드 채워짐 → COMMITTED
             entry.scan_state = ScanState.COMMITTED
-            _log.info(
-                f"{ctx} ✅ COMMITTED "
-                f"(confidence={confidence:.2f})"
-            )
+
+            # uncertain 필드가 있으면 경고
+            uncertain = entry.uncertain_fields()
+            if uncertain:
+                _log.warning(
+                    f"{ctx} ⚠️ COMMITTED 하지만 불확실 필드 있음: {uncertain}"
+                )
+            else:
+                _log.info(
+                    f"{ctx} ✅ COMMITTED "
+                    f"(confidence={confidence:.2f})"
+                )
             return EntryCommitResult(
                 entry=entry, committed=True,
                 missing=[], confidence=confidence,
@@ -1002,15 +1133,20 @@ class Scanner:
             region = sr.get(region_key)
             if region is None:
                 _log.warning(f"{ctx.with_step(field_name)} region 미정의 — 생략")
+                entry.set_meta(field_name, FieldMeta.region_missing(region_key))
                 continue
             crop = crop_region(img, region)
             raw  = read_skill(crop, tmpl_key)
             try:
                 setattr(entry, field_name, int(raw))
+                entry.set_meta(field_name, FieldMeta.ok(FieldSource.TEMPLATE))
             except (TypeError, ValueError):
                 _log.debug(f"{ctx.with_step(field_name)} 값 변환 실패 (raw={raw!r})")
                 dump_roi(crop, f"skill_{field_name}", reason="convert_fail")
                 setattr(entry, field_name, None)
+                entry.set_meta(field_name,
+                               FieldMeta.failed(FieldSource.TEMPLATE,
+                                                note=f"raw={raw!r}"))
 
         self.log(
             f"  🎓 스킬: EX={entry.ex_skill} "
@@ -1025,20 +1161,32 @@ class Scanner:
         기본 화면에서 무기 감지 플래그 crop → 상태 판정.
         WEAPON_EQUIPPED 일 때만 무기 메뉴 진입.
         """
+        ctx      = ScanCtx(student_id=entry.student_id, step="read_weapon")
         sr       = self.r["student"]
         weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
         if not weapon_r:
             self.log("  ⚠️ weapon_detect_flag_region 미정의 → NO_WEAPON_SYSTEM")
             entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            entry.set_meta("weapon_state", FieldMeta.region_missing("weapon_detect_flag_region"))
             return
 
         img = self._capture()
         if img is None:
             entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            entry.set_meta("weapon_state", FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
             return
 
         state, score = detect_weapon_state(crop_region(img, weapon_r))
         entry.weapon_state = state
+
+        if score < 0.60:
+            entry.set_meta("weapon_state",
+                           FieldMeta.uncertain(FieldSource.TEMPLATE, score=score,
+                                               note=state.value))
+            _log.warning(f"{ctx} 무기 상태 불확실 (score={score:.3f} → {state.name})")
+        else:
+            entry.set_meta("weapon_state",
+                           FieldMeta.ok(FieldSource.TEMPLATE, score=score))
         self.log(f"  🗡 무기 상태: {state.name} (score={score:.3f})")
 
         if state == WeaponState.NO_WEAPON_SYSTEM:
@@ -1047,6 +1195,8 @@ class Scanner:
         if state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
             entry.weapon_star  = None
             entry.weapon_level = None
+            entry.set_meta("weapon_star",  FieldMeta.skipped("not_equipped"))
+            entry.set_meta("weapon_level", FieldMeta.skipped("not_equipped"))
             self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
             return
 
@@ -1059,24 +1209,36 @@ class Scanner:
         self._click_r(menu_btn, "weapon_info_menu")
         time.sleep(DELAY_TAB_SWITCH)
 
-        # 무기 메뉴 캡처 1회
         img = self._capture()
         if img is None:
             self._esc()
             return
 
-        # 성작 + 레벨 crop 재사용
         star_r = sr.get("weapon_star_region")
         if star_r:
-            entry.weapon_star = read_weapon_star_v5(crop_region(img, star_r))
+            from core.matcher import read_weapon_star_v5_result
+            rs = read_weapon_star_v5_result(crop_region(img, star_r))
+            entry.weapon_star = rs.value
+            entry.set_meta("weapon_star",
+                           FieldMeta.ok(FieldSource.TEMPLATE, score=rs.score)
+                           if not rs.uncertain
+                           else FieldMeta.uncertain(FieldSource.TEMPLATE,
+                                                    score=rs.score))
+        else:
+            entry.set_meta("weapon_star", FieldMeta.region_missing("weapon_star_region"))
 
         d1 = sr.get("weapon_level_digit_1") or sr.get("weapon_level_digit1")
         d2 = sr.get("weapon_level_digit_2") or sr.get("weapon_level_digit2")
         if d1 and d2:
             entry.weapon_level = read_weapon_level(img, d1, d2)
+            entry.set_meta("weapon_level",
+                           FieldMeta.ok(FieldSource.TEMPLATE)
+                           if entry.weapon_level is not None
+                           else FieldMeta.failed(FieldSource.TEMPLATE, "digit_read_fail"))
             self.log(f"  🗡 무기: {entry.weapon_star}★  Lv.{entry.weapon_level}")
         else:
             self.log("  ⚠️ weapon_level_digit 미정의")
+            entry.set_meta("weapon_level", FieldMeta.region_missing("weapon_level_digit"))
 
         self._esc()
 
@@ -1187,29 +1349,42 @@ class Scanner:
 
     def read_level(self, entry: StudentEntry) -> None:
         """레벨 탭 진입 → 캡처 1회 → digit crop 재사용."""
+        ctx = ScanCtx(student_id=entry.student_id, step="read_level")
+
         if entry.level == MAX_STUDENT_LEVEL:
             self.log(f"  ⏭ 레벨 스캔 생략 (이미 Lv.90)")
+            entry.set_meta("level", FieldMeta.skipped("already_max"))
             return
 
         if not self._tab("levelcheck_button", delay=0.4):
+            _log.warning(f"{ctx} 레벨 탭 이동 실패")
+            entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "tab_fail"))
             return
 
         img = self._capture()
         if img is None:
             self._restore_basic_tab()
+            entry.set_meta("level", FieldMeta.failed(FieldSource.OCR, "capture_fail"))
             return
 
         sr = self.r["student"]
         d1 = sr.get("level_digit_1")
         d2 = sr.get("level_digit_2")
         if not d1 or not d2:
-            self.log("  ⚠️ level_digit region 미정의")
+            _log.warning(f"{ctx} level_digit region 미정의")
             self._restore_basic_tab()
+            entry.set_meta("level", FieldMeta.region_missing("level_digit"))
             return
 
         lv = read_student_level_v5(img, d1, d2)
         entry.level = lv
-        self.log(f"  📊 레벨: {entry.label()} → Lv.{lv}")
+
+        if lv is not None:
+            entry.set_meta("level", FieldMeta.ok(FieldSource.TEMPLATE))
+            self.log(f"  📊 레벨: {entry.label()} → Lv.{lv}")
+        else:
+            entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "digit_read_fail"))
+            _log.warning(f"{ctx} 레벨 인식 실패")
 
         self._restore_basic_tab()
 
@@ -1220,8 +1395,13 @@ class Scanner:
         무기 보유 학생은 5★ 확정.
         그 외 star_menu 탭 진입 → 캡처 1회.
         """
+        ctx = ScanCtx(student_id=entry.student_id, step="read_student_star")
+
         if entry.weapon_state != WeaponState.NO_WEAPON_SYSTEM:
+            # 무기 보유 = 5★ 확정 — 인식 불필요
             entry.student_star = 5
+            entry.set_meta("student_star",
+                           FieldMeta.inferred("weapon_state → 5★ 확정"))
             self.log(f"  ⏭ 성작 스캔 생략 (무기 보유 → 5★)")
             return
 
@@ -1233,6 +1413,8 @@ class Scanner:
 
         img = self._capture()
         if img is None:
+            entry.set_meta("student_star",
+                           FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
             return
 
         region_key = (
@@ -1241,9 +1423,25 @@ class Scanner:
             else "star_region"
         )
         star_r = sr.get(region_key)
-        if star_r:
-            entry.student_star = read_student_star_v5(crop_region(img, star_r))
-            self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
+        if not star_r:
+            entry.set_meta("student_star",
+                           FieldMeta.region_missing(region_key))
+            return
+
+        from core.matcher import read_student_star_v5_result
+        r = read_student_star_v5_result(crop_region(img, star_r))
+
+        entry.student_star = r.value
+        if r.uncertain or r.value is None:
+            entry.set_meta("student_star",
+                           FieldMeta.uncertain(FieldSource.TEMPLATE,
+                                               score=r.score,
+                                               note=f"value={r.value}"))
+            _log.warning(f"{ctx} 성작 인식 불확실 (score={r.score:.3f} val={r.value})")
+        else:
+            entry.set_meta("student_star",
+                           FieldMeta.ok(FieldSource.TEMPLATE, score=r.score))
+            self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★ (score={r.score:.3f})")
 
     # ── 스탯 스캔 ─────────────────────────────────────────
 
