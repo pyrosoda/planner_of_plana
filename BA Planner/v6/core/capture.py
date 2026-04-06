@@ -27,6 +27,7 @@ from typing import Optional
 from PIL import Image
 
 from core.logger import get_logger, LOG_CAPTURE
+from core.log_context import log_hwnd_invalid, log_capture_fail, CaptureCtx
 _log = get_logger(LOG_CAPTURE)
 
 try:
@@ -58,8 +59,8 @@ _gdi  = ctypes.windll.gdi32
 
 try:
     _u32.SetProcessDPIAware()
-except Exception:
-    pass
+except Exception as _e:
+    _log.debug(f"무시된 예외: {_e}")
 
 
 class _POINT(ctypes.Structure):
@@ -155,7 +156,7 @@ def find_target_hwnd() -> Optional[int]:
     if not _selected_hwnd:
         return None
     if not _is_window_valid(_selected_hwnd):
-        _log.warning(f"HWND={_selected_hwnd} 유효하지 않음")
+        log_hwnd_invalid(_log, _selected_hwnd)
         return None
     return _selected_hwnd
 
@@ -207,9 +208,10 @@ def capture_window_background(
                 img = normalize_frame(img)
             return img
         if attempt < retry:
+            log_capture_fail(_log, hwnd, attempt + 1, reason="PrintWindow 반환 None")
             time.sleep(0.05)
 
-    _log.error(f"PrintWindow 실패 (HWND={hwnd}), {retry}회 재시도 후 포기")
+    _log.error(f"PrintWindow 최종 실패 (HWND={hex(hwnd)}, retry={retry})")
     return None
 
 
@@ -323,8 +325,8 @@ def get_all_windows() -> list[dict]:
             r = _get_client_rect_screen(hwnd)
             size_txt = f"{r[2]}×{r[3]}" if r else f"{win.width}×{win.height}"
             result.append({"hwnd": hwnd, "title": title, "size": size_txt})
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug(f"무시된 예외: {_e}")
     return result
 
 

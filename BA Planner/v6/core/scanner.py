@@ -30,6 +30,10 @@ from typing import Callable, Optional
 from PIL import Image
 
 from core.logger import get_logger, log_section, LOG_SCANNER
+from core.log_context import (
+    ScanCtx, log_exc, EXC_WARNING, EXC_ERROR, EXC_FATAL,
+    dump_roi,
+)
 
 # 모듈 로거
 _log = get_logger(LOG_SCANNER)
@@ -116,6 +120,25 @@ class ItemEntry:
         return f"{self.name}_{self.source}_{self.index}"
 
 
+# ── 스캔 상태 ─────────────────────────────────────────────
+
+class ScanState:
+    """
+    StudentEntry 의 현재 확정 상태.
+
+    TEMP      : 스캔 진행 중 (각 단계가 채워가는 중)
+    PARTIAL   : 일부 단계 실패 후 저장된 불완전 엔트리
+    COMMITTED : 검증 통과 후 확정된 완성 엔트리
+    SKIPPED   : 만렙 스킵 (이전 데이터 재활용)
+    FAILED    : 식별 자체 실패 — 저장하지 않음
+    """
+    TEMP      = "temp"
+    PARTIAL   = "partial"
+    COMMITTED = "committed"
+    SKIPPED   = "skipped"
+    FAILED    = "failed"
+
+
 @dataclass
 class StudentEntry:
     student_id:   Optional[str] = None
@@ -145,10 +168,60 @@ class StudentEntry:
     stat_atk:  Optional[int] = None
     stat_heal: Optional[int] = None
     # 메타
-    skipped: bool = False
+    skipped:    bool = False
+    scan_state: str  = ScanState.TEMP   # 확정 상태 추적
 
     def label(self) -> str:
         return self.display_name or self.student_id or "?"
+
+    def is_committed(self) -> bool:
+        return self.scan_state == ScanState.COMMITTED
+
+    def is_partial(self) -> bool:
+        return self.scan_state == ScanState.PARTIAL
+
+    def missing_fields(self) -> list[str]:
+        """None 으로 남아 있는 필수 필드 목록."""
+        required = [
+            "level", "student_star", "weapon_state",
+            "ex_skill", "skill1", "skill2", "skill3",
+            "equip1", "equip2", "equip3",
+            "equip1_level", "equip2_level", "equip3_level",
+        ]
+        return [f for f in required if getattr(self, f) is None]
+
+    def confidence(self) -> float:
+        """채워진 필드 비율 0.0~1.0."""
+        required = self.missing_fields.__func__(self)  # 필드 목록 재사용
+        # missing_fields 는 None 인 것만 반환하므로
+        required_all = [
+            "level", "student_star", "weapon_state",
+            "ex_skill", "skill1", "skill2", "skill3",
+            "equip1", "equip2", "equip3",
+            "equip1_level", "equip2_level", "equip3_level",
+        ]
+        filled = sum(1 for f in required_all if getattr(self, f) is not None)
+        return round(filled / len(required_all), 3)
+
+
+@dataclass
+class EntryCommitResult:
+    """
+    finalize_student_entry() 결과.
+
+    Attributes
+    ----------
+    entry       : 처리된 StudentEntry
+    committed   : True 이면 COMMITTED (results에 추가할 것)
+    missing     : 비어 있는 필드 목록
+    confidence  : 채움 비율 0.0~1.0
+    reason      : partial / skip 이유 (디버그용)
+    """
+    entry:      StudentEntry
+    committed:  bool
+    missing:    list[str]
+    confidence: float
+    reason:     str = ""
 
 
 @dataclass
@@ -271,6 +344,136 @@ class Scanner:
     def log(self):
         return self._info
 
+    # ══════════════════════════════════════════════════════
+    # 8-1. StudentEntry 갱신 흐름 — temp / finalize / commit
+    # ══════════════════════════════════════════════════════
+
+    def begin_student_scan(self, student_id: str) -> StudentEntry:
+        """
+        학생 1명 스캔 시작 — TEMP 상태 엔트리 생성.
+        각 단계 함수는 이 temp 엔트리만 수정한다.
+        원본 results 에는 아직 추가하지 않음.
+        """
+        entry = StudentEntry(
+            student_id=student_id,
+            display_name=student_names.display_name(student_id),
+            scan_state=ScanState.TEMP,
+        )
+        _log.debug(f"[TEMP] 시작: {entry.label()}")
+        return entry
+
+    def finalize_student_entry(
+        self,
+        entry:   StudentEntry,
+        ctx:     "ScanCtx",
+        *,
+        partial_ok: bool = True,
+    ) -> EntryCommitResult:
+        """
+        TEMP 엔트리 검증 — COMMITTED 또는 PARTIAL 상태 결정.
+
+        검증 규칙:
+          - student_id 없음    → FAILED (results에 추가 안 함)
+          - 필수 필드 전부 있음 → COMMITTED
+          - 일부 필드 누락
+              partial_ok=True  → PARTIAL (results에 추가, 불완전 표시)
+              partial_ok=False → FAILED
+
+        Parameters
+        ----------
+        entry      : TEMP 상태 StudentEntry
+        ctx        : ScanCtx (로그 컨텍스트)
+        partial_ok : True 이면 일부 누락 허용, False 이면 엄격 검증
+
+        Returns
+        -------
+        EntryCommitResult
+        """
+        if not entry.student_id:
+            entry.scan_state = ScanState.FAILED
+            return EntryCommitResult(
+                entry=entry, committed=False,
+                missing=[], confidence=0.0,
+                reason="student_id 없음",
+            )
+
+        missing    = entry.missing_fields()
+        confidence = entry.confidence()
+
+        if not missing:
+            # 모든 필수 필드 채워짐 → COMMITTED
+            entry.scan_state = ScanState.COMMITTED
+            _log.info(
+                f"{ctx} ✅ COMMITTED "
+                f"(confidence={confidence:.2f})"
+            )
+            return EntryCommitResult(
+                entry=entry, committed=True,
+                missing=[], confidence=confidence,
+            )
+
+        # 일부 누락
+        if partial_ok:
+            entry.scan_state = ScanState.PARTIAL
+            _log.warning(
+                f"{ctx} ⚠️ PARTIAL "
+                f"(confidence={confidence:.2f} missing={missing})"
+            )
+            return EntryCommitResult(
+                entry=entry, committed=True,   # results에 추가하되 PARTIAL 표시
+                missing=missing, confidence=confidence,
+                reason=f"missing={missing}",
+            )
+
+        # 엄격 모드 — 누락 있으면 FAILED
+        entry.scan_state = ScanState.FAILED
+        _log.warning(
+            f"{ctx} ❌ FAILED (strict) "
+            f"(confidence={confidence:.2f} missing={missing})"
+        )
+        return EntryCommitResult(
+            entry=entry, committed=False,
+            missing=missing, confidence=confidence,
+            reason=f"strict_fail missing={missing}",
+        )
+
+    def commit_student_entry(
+        self,
+        result:  EntryCommitResult,
+        results: list[StudentEntry],
+        idx:     int,
+    ) -> bool:
+        """
+        EntryCommitResult 를 최종 results 목록에 추가.
+        committed=False 이면 추가하지 않고 로그만 남김.
+
+        Returns
+        -------
+        True  = results 에 추가됨
+        False = 폐기됨
+        """
+        entry = result.entry
+        if not result.committed:
+            _log.warning(
+                f"[{idx+1:>3}] 엔트리 폐기: {entry.label()} "
+                f"— {result.reason}"
+            )
+            return False
+
+        results.append(entry)
+
+        state_tag = "COMMITTED" if entry.is_committed() else "PARTIAL"
+        _log.info(
+            f"[{idx+1:>3}] ✓ {state_tag}: {entry.label()} "
+            f"(confidence={result.confidence:.2f})"
+        )
+        if result.missing:
+            self._warn(
+                f"  [{idx+1:>3}] {entry.label()} — "
+                f"누락 필드: {result.missing}"
+            )
+        return True
+
     # ── 내부 유틸 ─────────────────────────────────────────
 
     def _capture(self, retry: int = RETRY_CAPTURE) -> Optional[Image.Image]:
@@ -379,7 +582,7 @@ class Scanner:
                     result[key] = ocr.read_item_count(crop)
                 except Exception as e:
                     result[key] = None
-                    print(f"[Scanner] 재화 OCR 실패 ({key}): {e}")
+                    _log.warning(f"재화 OCR 실패 ({key}): {type(e).__name__}: {e}")
         finally:
             ocr.unload()
 
@@ -634,12 +837,13 @@ class Scanner:
 
                 # ── 4. 세부 스캔 ──────────────────────────
                 _log.info(f"[{idx+1:>3}] ▶ 스캔 시작: {sid}")
-                entry = StudentEntry(
-                    student_id=sid,
-                    display_name=student_names.display_name(sid),
-                )
+                ctx = ScanCtx(idx=idx+1, student_id=sid)
+
+                # TEMP 엔트리 생성 — 이 시점부터 각 단계가 채워넣음
+                entry = self.begin_student_scan(sid)
 
                 # 각 단계: 실패해도 나머지 진행 (skip 정책)
+                # 단계마다 entry.scan_state 는 여전히 TEMP
                 self.read_skills(entry)
                 self.read_weapon(entry)
                 self.read_equipment(entry)
@@ -647,10 +851,16 @@ class Scanner:
                 self.read_student_star(entry)
                 self.read_stats(entry)
 
-                results.append(entry)
-                scanned_count += 1
-                self._log_student(entry, len(results) - 1)
-                _log.info(f"[{idx+1:>3}] ✓ 완료: {entry.label()}")
+                # TEMP → COMMITTED or PARTIAL 검증
+                commit_result = self.finalize_student_entry(
+                    entry, ctx, partial_ok=True
+                )
+
+                # 검증 결과에 따라 results 에 추가 (FAILED 이면 폐기)
+                added = self.commit_student_entry(commit_result, results, idx)
+                if added:
+                    scanned_count += 1
+                    self._log_student(entry, len(results) - 1)
 
                 self._restore_basic_tab()
                 self.go_next_student()
@@ -723,8 +933,10 @@ class Scanner:
         """
         sr        = self.r["student"]
         texture_r = sr.get("student_texture_region")
+        ctx       = ScanCtx(idx=idx+1, step="identify")
+
         if not texture_r:
-            _log.warning("student_texture_region 미정의 — 식별 불가")
+            _log.warning(f"{ctx} student_texture_region 미정의 — 식별 불가")
             return None
 
         def _try() -> Optional[str]:
@@ -735,12 +947,14 @@ class Scanner:
             sid, score = match_student_texture(crop)
             if sid is not None:
                 _log.info(
-                    f"[{idx+1}] 식별 성공: {student_names.display_name(sid)} "
+                    f"{ctx} 식별 성공: {student_names.display_name(sid)} "
                     f"(score={score:.3f})"
                 )
                 self._info(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
                 return sid
-            _log.debug(f"[{idx+1}] 텍스처 식별 미달 (score={score:.3f})")
+            # 식별 실패 → 디버그 덤프
+            _log.debug(f"{ctx} 텍스처 식별 미달 (score={score:.3f})")
+            dump_roi(crop, "identify_fail", score=score, reason="below_thresh")
             self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
             return None
 
@@ -753,30 +967,32 @@ class Scanner:
         스킬 메뉴 진입 → 캡처 1회 → 4개 스킬 crop 재사용.
         실패 시 해당 필드 None 유지 (skip).
         """
+        ctx = ScanCtx(student_id=entry.student_id, step="read_skills")
+
         if not self._tab("skill_menu_button"):
+            _log.warning(f"{ctx} 스킬 탭 이동 실패")
             return
 
-        # 탭 전환 후 1회 캡처
         img = self._capture()
         if img is None:
+            _log.warning(f"{ctx} 캡처 실패")
             self._esc()
             return
 
         sr      = self.r["student"]
         check_r = sr.get("skill_all_view_check_region")
 
-        # 일괄성장 체크 확인 (체크 안 되어 있으면 클릭)
         if check_r:
             if read_skill_check(crop_region(img, check_r)) == CheckFlag.FALSE:
                 self.log("  🔘 스킬 일괄성장 체크 클릭")
                 self._click_r(check_r, "skill_check")
                 time.sleep(0.3)
-                img = self._capture()   # 체크 후 재캡처
+                img = self._capture()
                 if img is None:
+                    _log.warning(f"{ctx} 체크 후 재캡처 실패")
                     self._esc()
                     return
 
-        # 캡처 1회분으로 4개 스킬 crop 재사용
         for field_name, region_key, tmpl_key in [
             ("ex_skill", "EX_skill", "EX_Skill"),
             ("skill1",   "Skill_1",  "Skill1"),
@@ -785,12 +1001,15 @@ class Scanner:
         ]:
             region = sr.get(region_key)
             if region is None:
-                self.log(f"  ⚠️ {region_key} 미정의 — {field_name} 생략")
+                _log.warning(f"{ctx.with_step(field_name)} region 미정의 — 생략")
                 continue
-            raw = read_skill(crop_region(img, region), tmpl_key)
+            crop = crop_region(img, region)
+            raw  = read_skill(crop, tmpl_key)
             try:
                 setattr(entry, field_name, int(raw))
             except (TypeError, ValueError):
+                _log.debug(f"{ctx.with_step(field_name)} 값 변환 실패 (raw={raw!r})")
+                dump_roi(crop, f"skill_{field_name}", reason="convert_fail")
                 setattr(entry, field_name, None)
 
         self.log(

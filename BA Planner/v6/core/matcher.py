@@ -1,412 +1,1329 @@
 """
-core/capture.py — BA Analyzer v6
-HWND 기반 백그라운드 캡처 + 포커스 튐 완전 제거
+core/scanner.py — BA Analyzer v6
+스캔 자동화 엔진
 
 변경점 (v5 → v6):
-  - win.activate() / SetForegroundWindow 완전 제거
-  - PrintWindow(PW_RENDERFULLCONTENT) 기반 백그라운드 캡처 도입
-    → 창이 가려지거나 최소화 상태에서도 캡처 가능
-  - pygetwindow 의존 최소화
-    → find_window() 는 HWND 정수 반환으로 변경
-    → _get_window_by_hwnd() / gw.getAllWindows() 반복 제거
-  - HWND 캐시 도입: _hwnd_valid_cache 로 IsWindow 결과 캐싱
-  - 공개 인터페이스:
-      find_target_hwnd()             → int | None
-      capture_window_background()    → Image | None   (메인 캡처)
-      capture_window()               → Image | None   (하위 호환 래퍼)
-      crop_region(img, region)       → Image           (≒ crop_ratio)
-      crop_ratio(img, region)        → Image           (하위 호환)
-      get_window_rect()              → tuple | None
-      safe_click / click_center / scroll_at / press_esc  그대로 유지
+  - 스캔 파이프라인 단계 함수 완전 분리
+      enter_student_menu() / enter_first_student()
+      identify_student()   / go_next_student()
+      read_skills()        / read_weapon()
+      read_equipment()     / read_level()
+      read_student_star()  / read_stats()
+  - 캡처 최소화
+      · 각 단계 진입 직후 capture 1회 → 이후 crop 재사용
+      · 불필요한 중간 capture 제거
+  - UI 전환 중앙화
+      · _tab(key)      : 탭 버튼 클릭 + 대기
+      · _esc(n)        : ESC n회 + 대기
+      · _click_r(rect) : region 중심 클릭 (HWND 기반)
+  - retry 정책 통일
+      · _retry(fn, max_attempts, delay) 헬퍼
+      · 단계별 실패 시 skip / abort 정책 명시
+  - input.py 기반 입력 (pyautogui 직접 호출 제거)
 """
 
 import time
-import ctypes
-import ctypes.wintypes as wintypes
-from typing import Optional
+import hashlib
+import numpy as np
+from dataclasses import dataclass, field
+from typing import Callable, Optional
 from PIL import Image
 
-from core.logger import get_logger, LOG_CAPTURE
-_log = get_logger(LOG_CAPTURE)
+from core.logger import get_logger, log_section, LOG_SCANNER
+from core.log_context import (
+    ScanCtx, log_exc, EXC_WARNING, EXC_ERROR, EXC_FATAL,
+    dump_roi,
+)
 
-try:
-    import pygetwindow as gw
-    HAS_GW = True
-except ImportError:
-    HAS_GW = False
+# 모듈 로거
+_log = get_logger(LOG_SCANNER)
 
-try:
-    import pyautogui
-    HAS_PAG = True
-except ImportError:
-    HAS_PAG = False
+# ── 캡처 / 입력 ──────────────────────────────────────────
+from core.capture import (
+    capture_window_background,
+    crop_region,
+    get_window_rect,
+    find_target_hwnd,
+)
+from core.input import (
+    click_center,
+    safe_click,
+    scroll_at,
+    press_esc,
+    click_point,
+    send_escape,
+    ratio_to_client,
+)
 
+# ── 매처 ──────────────────────────────────────────────────
+from core.matcher import (
+    WeaponState,
+    CheckFlag,
+    EquipSlotFlag,
+    match_student_texture,
+    detect_weapon_state,
+    read_skill_check,
+    read_equip_check,
+    read_equip_check_inside,
+    read_equip_slot_flag,
+    read_stat_value,
+    read_student_star_v5,
+    read_weapon_star_v5,
+    read_skill,
+    read_equip_tier,
+    read_equip_level,
+    read_weapon_level,
+    read_student_level_v5,
+)
 
-# ── 금지 구역 (비율 좌표) ────────────────────────────────
-FORBIDDEN_ZONES: list[tuple[float, float, float, float]] = [
-    (0.53, 0.86, 1.00, 1.00),  # 사용/MIN/MAX 버튼
-]
-
-# ── Win32 상수 ────────────────────────────────────────────
-PW_RENDERFULLCONTENT = 0x00000002   # PrintWindow 전체 렌더 플래그
-GWL_STYLE            = -16
-WS_MINIMIZE          = 0x20000000
-
-# ── Win32 API ────────────────────────────────────────────
-_u32  = ctypes.windll.user32
-_gdi  = ctypes.windll.gdi32
-
-try:
-    _u32.SetProcessDPIAware()
-except Exception:
-    pass
-
-
-class _POINT(ctypes.Structure):
-    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
-
-
-class _RECT(ctypes.Structure):
-    _fields_ = [
-        ("left",   wintypes.LONG),
-        ("top",    wintypes.LONG),
-        ("right",  wintypes.LONG),
-        ("bottom", wintypes.LONG),
-    ]
-
-
-# ── 전역 상태 ─────────────────────────────────────────────
-_selected_hwnd:  int = 0
-_selected_title: str = ""
-
-# HWND 유효성 캐시: {hwnd: (timestamp, is_valid)}
-# IsWindow() 는 저렴하지만 gw.getAllWindows() 는 비싸므로 구분 캐싱
-_hwnd_valid_cache: dict[int, tuple[float, bool]] = {}
-_HWND_CACHE_TTL = 2.0   # 초
+import core.ocr as ocr
+import core.student_names as student_names
+from core.item_names import correct_item_name
+from core.equip4_students import has_equip4
 
 
-# ── HWND 등록 / 조회 ──────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# 상수
+# ══════════════════════════════════════════════════════════
 
-def set_target_window(hwnd: int, title: str) -> None:
-    """사용자가 선택한 창 HWND 저장."""
-    global _selected_hwnd, _selected_title
-    _selected_hwnd  = hwnd
-    _selected_title = title
-    _hwnd_valid_cache.clear()
-    _log.info(f"타겟 설정: '{title}' (HWND={hwnd})")
+MAX_SCROLLS          = 60
+SCROLL_ITEM          = -3
+SCROLL_EQUIP         = -2
+SAME_THRESH          = 0.97
+STUDENT_MENU_WAIT    = 3.0
+MAX_CONSECUTIVE_DUP  = 3
+MAX_STUDENT_LEVEL    = 90
+STAT_UNLOCK_LEVEL    = 90
+STAT_UNLOCK_STAR     = 5
 
-
-def get_target_info() -> tuple[int, str]:
-    return _selected_hwnd, _selected_title
-
-
-def clear_target() -> None:
-    global _selected_hwnd, _selected_title
-    _selected_hwnd  = 0
-    _selected_title = ""
-    _hwnd_valid_cache.clear()
-
-
-# ── HWND 유효성 확인 (캐시 적용) ─────────────────────────
-
-def _is_window_valid(hwnd: int) -> bool:
-    """IsWindow() 결과를 짧게 캐싱해 반복 호출 비용 절감."""
-    now = time.monotonic()
-    cached = _hwnd_valid_cache.get(hwnd)
-    if cached and now - cached[0] < _HWND_CACHE_TTL:
-        return cached[1]
-    result = bool(_u32.IsWindow(hwnd))
-    _hwnd_valid_cache[hwnd] = (now, result)
-    return result
+# retry 정책
+RETRY_IDENTIFY   = 2      # 학생 식별 최대 시도
+RETRY_CAPTURE    = 2      # 캡처 실패 시 재시도
+DELAY_AFTER_CLICK = 0.22  # 슬롯 클릭 후 대기
+DELAY_TAB_SWITCH  = 0.45  # 탭 전환 후 대기
+DELAY_NEXT        = 0.90  # 다음 학생 버튼 후 대기
+DELAY_ESC         = 0.35  # ESC 후 대기
 
 
-def _is_minimized(hwnd: int) -> bool:
-    style = _u32.GetWindowLongW(hwnd, GWL_STYLE)
-    return bool(style & WS_MINIMIZE)
+# ══════════════════════════════════════════════════════════
+# 데이터 클래스
+# ══════════════════════════════════════════════════════════
+
+@dataclass
+class ItemEntry:
+    name:     Optional[str]
+    quantity: Optional[str]
+    source:   str = "item"
+    index:    int = 0
+
+    def key(self) -> str:
+        return f"{self.name}_{self.source}_{self.index}"
 
 
-# ── Client Area ───────────────────────────────────────────
+# ── 스캔 상태 ─────────────────────────────────────────────
 
-def _get_client_rect_screen(hwnd: int) -> Optional[tuple[int, int, int, int]]:
+class ScanState:
     """
-    HWND의 client area를 화면 절대 좌표로 반환.
-    Returns: (left, top, width, height)  또는 None
+    StudentEntry 의 현재 확정 상태.
+
+    TEMP      : 스캔 진행 중 (각 단계가 채워가는 중)
+    PARTIAL   : 일부 단계 실패 후 저장된 불완전 엔트리
+    COMMITTED : 검증 통과 후 확정된 완성 엔트리
+    SKIPPED   : 만렙 스킵 (이전 데이터 재활용)
+    FAILED    : 식별 자체 실패 — 저장하지 않음
     """
-    rect = _RECT()
-    if not _u32.GetClientRect(hwnd, ctypes.byref(rect)):
-        return None
-    w = rect.right  - rect.left
-    h = rect.bottom - rect.top
-    if w <= 0 or h <= 0:
-        return None
-    pt = _POINT(0, 0)
-    if not _u32.ClientToScreen(hwnd, ctypes.byref(pt)):
-        return None
-    return pt.x, pt.y, w, h
+    TEMP      = "temp"
+    PARTIAL   = "partial"
+    COMMITTED = "committed"
+    SKIPPED   = "skipped"
+    FAILED    = "failed"
 
 
-# ── 메인 공개 API ─────────────────────────────────────────
+@dataclass
+class StudentEntry:
+    student_id:   Optional[str] = None
+    display_name: Optional[str] = None
+    level:        Optional[int] = None
+    student_star: Optional[int] = None
+    # 무기
+    weapon_state: Optional[WeaponState] = None
+    weapon_star:  Optional[int]         = None
+    weapon_level: Optional[int]         = None
+    # 스킬
+    ex_skill: Optional[int] = None
+    skill1:   Optional[int] = None
+    skill2:   Optional[int] = None
+    skill3:   Optional[int] = None
+    # 장비 티어
+    equip1:   Optional[str] = None
+    equip2:   Optional[str] = None
+    equip3:   Optional[str] = None
+    equip4:   Optional[str] = None
+    # 장비 레벨
+    equip1_level: Optional[int] = None
+    equip2_level: Optional[int] = None
+    equip3_level: Optional[int] = None
+    # 스탯
+    stat_hp:   Optional[int] = None
+    stat_atk:  Optional[int] = None
+    stat_heal: Optional[int] = None
+    # 메타
+    skipped:    bool = False
+    scan_state: str  = ScanState.TEMP   # 확정 상태 추적
 
-def find_target_hwnd() -> Optional[int]:
+    def label(self) -> str:
+        return self.display_name or self.student_id or "?"
+
+    def is_committed(self) -> bool:
+        return self.scan_state == ScanState.COMMITTED
+
+    def is_partial(self) -> bool:
+        return self.scan_state == ScanState.PARTIAL
+
+    def missing_fields(self) -> list[str]:
+        """None 으로 남아 있는 필수 필드 목록."""
+        required = [
+            "level", "student_star", "weapon_state",
+            "ex_skill", "skill1", "skill2", "skill3",
+            "equip1", "equip2", "equip3",
+            "equip1_level", "equip2_level", "equip3_level",
+        ]
+        return [f for f in required if getattr(self, f) is None]
+
+    def confidence(self) -> float:
+        """채워진 필드 비율 0.0~1.0."""
+        required = self.missing_fields.__func__(self)  # 필드 목록 재사용
+        # missing_fields 는 None 인 것만 반환하므로
+        required_all = [
+            "level", "student_star", "weapon_state",
+            "ex_skill", "skill1", "skill2", "skill3",
+            "equip1", "equip2", "equip3",
+            "equip1_level", "equip2_level", "equip3_level",
+        ]
+        filled = sum(1 for f in required_all if getattr(self, f) is not None)
+        return round(filled / len(required_all), 3)
+
+
+@dataclass
+class EntryCommitResult:
     """
-    등록된 HWND가 유효하면 반환. 없으면 None.
-    pygetwindow 없이 Win32만 사용.
-    """
-    if not _selected_hwnd:
-        return None
-    if not _is_window_valid(_selected_hwnd):
-        _log.warning(f"HWND={_selected_hwnd} 유효하지 않음")
-        return None
-    return _selected_hwnd
+    finalize_student_entry() 결과.
 
-
-def get_window_rect() -> Optional[tuple[int, int, int, int]]:
-    """Client area (left, top, width, height) 반환."""
-    hwnd = find_target_hwnd()
-    if hwnd is None:
-        return None
-    r = _get_client_rect_screen(hwnd)
-    if r is None:
-        _log.warning("client rect 획득 실패")
-    return r
-
-
-def capture_window_background(
-    hwnd: Optional[int] = None,
-    *,
-    retry:     int  = 1,
-    normalize: bool = True,
-) -> Optional[Image.Image]:
-    """
-    PrintWindow(PW_RENDERFULLCONTENT) 기반 백그라운드 캡처.
-    창이 다른 창에 가려지거나 최소화 상태에서도 동작.
-    포커스·활성화 일절 없음.
-
-    Parameters
+    Attributes
     ----------
-    hwnd      : 캡처 대상 HWND. None 이면 등록된 타겟 사용.
-    retry     : 실패 시 재시도 횟수 (기본 1회)
-    normalize : True 이면 캡처 직후 기준 해상도로 정규화 (기본 True)
-                ROI 는 비율 좌표라 스케일 무관하게 항상 유효.
-                matcher 는 QHD 기준 템플릿을 사용하므로 정규화 권장.
-
-    Returns
-    -------
-    PIL Image 또는 None (실패 시)
+    entry       : 처리된 StudentEntry
+    committed   : True 이면 COMMITTED (results에 추가할 것)
+    missing     : 비어 있는 필드 목록
+    confidence  : 채움 비율 0.0~1.0
+    reason      : partial / skip 이유 (디버그용)
     """
-    if hwnd is None:
-        hwnd = find_target_hwnd()
-    if hwnd is None:
-        return None
-
-    for attempt in range(retry + 1):
-        img = _print_window(hwnd)
-        if img is not None:
-            if normalize:
-                from core.preprocess import normalize_frame
-                img = normalize_frame(img)
-            return img
-        if attempt < retry:
-            time.sleep(0.05)
-
-    _log.error(f"PrintWindow 실패 (HWND={hwnd}), {retry}회 재시도 후 포기")
-    return None
+    entry:      StudentEntry
+    committed:  bool
+    missing:    list[str]
+    confidence: float
+    reason:     str = ""
 
 
-def capture_window() -> Optional[Image.Image]:
-    """
-    하위 호환 래퍼.
-    내부적으로 capture_window_background() 를 호출.
-    """
-    return capture_window_background()
+@dataclass
+class ScanResult:
+    items:     list[ItemEntry]    = field(default_factory=list)
+    equipment: list[ItemEntry]    = field(default_factory=list)
+    students:  list[StudentEntry] = field(default_factory=list)
+    resources: dict               = field(default_factory=dict)
+    errors:    list[str]          = field(default_factory=list)
 
 
-# ── PrintWindow 구현 ──────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# 유틸
+# ══════════════════════════════════════════════════════════
 
-def _print_window(hwnd: int) -> Optional[Image.Image]:
-    """
-    Win32 PrintWindow 로 HWND 내용을 비트맵으로 캡처.
-    최소화 상태이면 먼저 클라이언트 rect를 가져온 뒤
-    ShowWindow(SW_RESTORE) 없이 캡처를 시도.
-    """
-    rect = _get_client_rect_screen(hwnd)
-    if rect is None:
-        # 최소화 상태일 수 있음: WindowRect 기반으로 fallback 시도
-        wr = _RECT()
-        if not _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
-            return None
-        w = wr.right  - wr.left
-        h = wr.bottom - wr.top
-        if w <= 0 or h <= 0:
-            return None
-        # 최소화 상태에서는 실제 픽셀 취득 불가 → None 반환
-        if _is_minimized(hwnd):
-            _log.warning("창이 최소화 상태 — 캡처 불가")
-            return None
-        return None
+def _img_hash(img: Image.Image) -> str:
+    small = img.convert("L").resize((16, 16))
+    return hashlib.md5(small.tobytes()).hexdigest()
 
-    _, _, w, h = rect
 
-    # GDI 비트맵 생성
-    hdc_screen = _u32.GetDC(0)
-    hdc_mem    = _gdi.CreateCompatibleDC(hdc_screen)
-    hbmp       = _gdi.CreateCompatibleBitmap(hdc_screen, w, h)
-    _gdi.SelectObject(hdc_mem, hbmp)
-
+def _images_similar(a: Image.Image, b: Image.Image, thresh: float = SAME_THRESH) -> bool:
     try:
-        # PW_RENDERFULLCONTENT: 하드웨어 가속 콘텐츠도 캡처
-        ok = _u32.PrintWindow(hwnd, hdc_mem, PW_RENDERFULLCONTENT)
-        if not ok:
-            # fallback: 플래그 없이 재시도
-            ok = _u32.PrintWindow(hwnd, hdc_mem, 0)
-        if not ok:
-            return None
-
-        # 비트맵 → PIL Image
-        import ctypes
-        class BITMAPINFOHEADER(ctypes.Structure):
-            _fields_ = [
-                ("biSize",          wintypes.DWORD),
-                ("biWidth",         wintypes.LONG),
-                ("biHeight",        wintypes.LONG),
-                ("biPlanes",        wintypes.WORD),
-                ("biBitCount",      wintypes.WORD),
-                ("biCompression",   wintypes.DWORD),
-                ("biSizeImage",     wintypes.DWORD),
-                ("biXPelsPerMeter", wintypes.LONG),
-                ("biYPelsPerMeter", wintypes.LONG),
-                ("biClrUsed",       wintypes.DWORD),
-                ("biClrImportant",  wintypes.DWORD),
-            ]
-
-        bmi = BITMAPINFOHEADER()
-        bmi.biSize        = ctypes.sizeof(BITMAPINFOHEADER)
-        bmi.biWidth       = w
-        bmi.biHeight      = -h   # 음수 = top-down
-        bmi.biPlanes      = 1
-        bmi.biBitCount    = 32
-        bmi.biCompression = 0    # BI_RGB
-
-        buf = ctypes.create_string_buffer(w * h * 4)
-        ret = _gdi.GetDIBits(
-            hdc_mem, hbmp, 0, h,
-            buf, ctypes.byref(bmi), 0   # DIB_RGB_COLORS
-        )
-        if ret == 0:
-            return None
-
-        img = Image.frombuffer("RGBA", (w, h), buf.raw, "raw", "BGRA", 0, 1)
-        return img.convert("RGB")
-
-    finally:
-        _gdi.DeleteObject(hbmp)
-        _gdi.DeleteDC(hdc_mem)
-        _u32.ReleaseDC(0, hdc_screen)
-
-
-# ── 창 목록 (선택 UI 전용) ────────────────────────────────
-
-def get_all_windows() -> list[dict]:
-    """
-    실행 중인 창 목록 반환. WindowPicker UI 전용.
-    gw.getAllWindows() 는 여기서만 호출.
-    """
-    if not HAS_GW:
-        return []
-    result: list[dict] = []
-    for win in gw.getAllWindows():
-        title = (win.title or "").strip()
-        if not title:
-            continue
-        try:
-            hwnd = win._hWnd
-            r = _get_client_rect_screen(hwnd)
-            size_txt = f"{r[2]}×{r[3]}" if r else f"{win.width}×{win.height}"
-            result.append({"hwnd": hwnd, "title": title, "size": size_txt})
-        except Exception:
-            pass
-    return result
-
-
-# ── 이미지 크롭 ──────────────────────────────────────────
-
-def crop_region(img: Image.Image, region: dict) -> Image.Image:
-    """
-    비율 좌표 region {x1,y1,x2,y2} 로 img 를 크롭.
-    region 값은 0.0~1.0 비율.
-    """
-    w, h = img.size
-    return img.crop((
-        int(w * region["x1"]), int(h * region["y1"]),
-        int(w * region["x2"]), int(h * region["y2"]),
-    ))
-
-
-def crop_ratio(img: Image.Image, region: dict) -> Image.Image:
-    """하위 호환 — crop_region() 별칭."""
-    return crop_region(img, region)
-
-
-# ── 좌표 변환 ─────────────────────────────────────────────
-
-def ratio_to_screen(
-    rect: tuple[int, int, int, int],
-    rx: float,
-    ry: float,
-) -> tuple[int, int]:
-    l, t, w, h = rect
-    return int(l + w * rx), int(t + h * ry)
-
-
-# ── 클릭 / 스크롤 ────────────────────────────────────────
-
-def safe_click(
-    rect: tuple[int, int, int, int],
-    rx: float,
-    ry: float,
-    label: str = "",
-) -> bool:
-    """
-    금지 구역 체크 후 클릭.
-    pyautogui 사용 — 클릭은 실제 커서 이동이 필요하므로 그대로 유지.
-    포커스 이동 없이 단순 좌표 클릭.
-    """
-    if not HAS_PAG:
+        a2 = np.array(a.convert("L").resize((64, 64))).flatten().astype(float)
+        b2 = np.array(b.convert("L").resize((64, 64))).flatten().astype(float)
+        return float(np.corrcoef(a2, b2)[0, 1]) >= thresh
+    except Exception:
         return False
-    for fx1, fy1, fx2, fy2 in FORBIDDEN_ZONES:
-        if fx1 <= rx <= fx2 and fy1 <= ry <= fy2:
-            _log.debug(f"⛔ 금지구역 차단: {label} ({rx:.3f},{ry:.3f})")
+
+
+def _grid_region(slots: list[dict]) -> dict:
+    return {
+        "x1": min(s["x1"] for s in slots),
+        "y1": min(s["y1"] for s in slots),
+        "x2": max(s["x2"] for s in slots),
+        "y2": max(s["y2"] for s in slots),
+    }
+
+
+def _dict_to_student_entry(d: dict) -> StudentEntry:
+    ws_raw = d.get("weapon_state")
+    try:
+        ws = WeaponState(ws_raw) if ws_raw else None
+    except ValueError:
+        ws = None
+    return StudentEntry(
+        student_id=d.get("student_id"),
+        display_name=d.get("display_name"),
+        level=d.get("level"),
+        student_star=d.get("student_star"),
+        weapon_state=ws,
+        weapon_star=d.get("weapon_star"),
+        weapon_level=d.get("weapon_level"),
+        ex_skill=d.get("ex_skill"),
+        skill1=d.get("skill1"),
+        skill2=d.get("skill2"),
+        skill3=d.get("skill3"),
+        equip1=d.get("equip1"),
+        equip2=d.get("equip2"),
+        equip3=d.get("equip3"),
+        equip4=d.get("equip4"),
+        equip1_level=d.get("equip1_level"),
+        equip2_level=d.get("equip2_level"),
+        equip3_level=d.get("equip3_level"),
+        stat_hp=d.get("stat_hp"),
+        stat_atk=d.get("stat_atk"),
+        stat_heal=d.get("stat_heal"),
+        skipped=True,
+    )
+
+
+# ══════════════════════════════════════════════════════════
+# Scanner
+# ══════════════════════════════════════════════════════════
+
+class Scanner:
+
+    def __init__(
+        self,
+        regions: dict,
+        on_progress: Optional[Callable[[str], None]] = None,
+        maxed_ids:   Optional[set[str]]  = None,
+        maxed_cache: Optional[dict[str, dict]] = None,
+    ):
+        self.r           = regions
+        self._on_progress = on_progress   # UI 콜백 (FloatingOverlay.add_log)
+        self._stop        = False
+        self._maxed_ids   = frozenset(maxed_ids or [])
+        self._maxed_cache: dict[str, dict] = maxed_cache or {}
+
+        if self._maxed_ids:
+            self._info(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
+
+    def stop(self) -> None:
+        self._stop = True
+        _log.info("스캔 중지 요청")
+
+    # ── 로그 헬퍼 ─────────────────────────────────────────
+    # logger + UI 콜백을 동시에 처리
+
+    def _debug(self, msg: str) -> None:
+        _log.debug(msg)
+
+    def _info(self, msg: str) -> None:
+        _log.info(msg)
+        if self._on_progress:
+            self._on_progress(msg)
+
+    def _warn(self, msg: str) -> None:
+        _log.warning(msg)
+        if self._on_progress:
+            self._on_progress(f"⚠️ {msg}")
+
+    def _error(self, msg: str) -> None:
+        _log.error(msg)
+        if self._on_progress:
+            self._on_progress(f"❌ {msg}")
+
+    # 하위 호환: self.log(msg) 호출 지점 처리
+    @property
+    def log(self):
+        return self._info
+
+    # ══════════════════════════════════════════════════════
+    # 8-1. StudentEntry 갱신 흐름 — temp / finalize / commit
+    # ══════════════════════════════════════════════════════
+
+    def begin_student_scan(self, student_id: str) -> StudentEntry:
+        """
+        학생 1명 스캔 시작 — TEMP 상태 엔트리 생성.
+        각 단계 함수는 이 temp 엔트리만 수정한다.
+        원본 results 에는 아직 추가하지 않음.
+        """
+        entry = StudentEntry(
+            student_id=student_id,
+            display_name=student_names.display_name(student_id),
+            scan_state=ScanState.TEMP,
+        )
+        _log.debug(f"[TEMP] 시작: {entry.label()}")
+        return entry
+
+    def finalize_student_entry(
+        self,
+        entry:   StudentEntry,
+        ctx:     "ScanCtx",
+        *,
+        partial_ok: bool = True,
+    ) -> EntryCommitResult:
+        """
+        TEMP 엔트리 검증 — COMMITTED 또는 PARTIAL 상태 결정.
+
+        검증 규칙:
+          - student_id 없음    → FAILED (results에 추가 안 함)
+          - 필수 필드 전부 있음 → COMMITTED
+          - 일부 필드 누락
+              partial_ok=True  → PARTIAL (results에 추가, 불완전 표시)
+              partial_ok=False → FAILED
+
+        Parameters
+        ----------
+        entry      : TEMP 상태 StudentEntry
+        ctx        : ScanCtx (로그 컨텍스트)
+        partial_ok : True 이면 일부 누락 허용, False 이면 엄격 검증
+
+        Returns
+        -------
+        EntryCommitResult
+        """
+        if not entry.student_id:
+            entry.scan_state = ScanState.FAILED
+            return EntryCommitResult(
+                entry=entry, committed=False,
+                missing=[], confidence=0.0,
+                reason="student_id 없음",
+            )
+
+        missing    = entry.missing_fields()
+        confidence = entry.confidence()
+
+        if not missing:
+            # 모든 필수 필드 채워짐 → COMMITTED
+            entry.scan_state = ScanState.COMMITTED
+            _log.info(
+                f"{ctx} ✅ COMMITTED "
+                f"(confidence={confidence:.2f})"
+            )
+            return EntryCommitResult(
+                entry=entry, committed=True,
+                missing=[], confidence=confidence,
+            )
+
+        # 일부 누락
+        if partial_ok:
+            entry.scan_state = ScanState.PARTIAL
+            _log.warning(
+                f"{ctx} ⚠️ PARTIAL "
+                f"(confidence={confidence:.2f} missing={missing})"
+            )
+            return EntryCommitResult(
+                entry=entry, committed=True,   # results에 추가하되 PARTIAL 표시
+                missing=missing, confidence=confidence,
+                reason=f"missing={missing}",
+            )
+
+        # 엄격 모드 — 누락 있으면 FAILED
+        entry.scan_state = ScanState.FAILED
+        _log.warning(
+            f"{ctx} ❌ FAILED (strict) "
+            f"(confidence={confidence:.2f} missing={missing})"
+        )
+        return EntryCommitResult(
+            entry=entry, committed=False,
+            missing=missing, confidence=confidence,
+            reason=f"strict_fail missing={missing}",
+        )
+
+    def commit_student_entry(
+        self,
+        result:  EntryCommitResult,
+        results: list[StudentEntry],
+        idx:     int,
+    ) -> bool:
+        """
+        EntryCommitResult 를 최종 results 목록에 추가.
+        committed=False 이면 추가하지 않고 로그만 남김.
+
+        Returns
+        -------
+        True  = results 에 추가됨
+        False = 폐기됨
+        """
+        entry = result.entry
+        if not result.committed:
+            _log.warning(
+                f"[{idx+1:>3}] 엔트리 폐기: {entry.label()} "
+                f"— {result.reason}"
+            )
             return False
-    x, y = ratio_to_screen(rect, rx, ry)
-    pyautogui.click(x, y)
-    return True
 
+        results.append(entry)
 
-def click_center(
-    rect: tuple[int, int, int, int],
-    region: dict,
-    label: str = "",
-) -> bool:
-    rx = (region["x1"] + region["x2"]) / 2
-    ry = (region["y1"] + region["y2"]) / 2
-    return safe_click(rect, rx, ry, label)
+        state_tag = "COMMITTED" if entry.is_committed() else "PARTIAL"
+        _log.info(
+            f"[{idx+1:>3}] ✓ {state_tag}: {entry.label()} "
+            f"(confidence={result.confidence:.2f})"
+        )
+        if result.missing:
+            self._warn(
+                f"  [{idx+1:>3}] {entry.label()} — "
+                f"누락 필드: {result.missing}"
+            )
+        return True
 
+    # ── 내부 유틸 ─────────────────────────────────────────
 
-def scroll_at(
-    rect: tuple[int, int, int, int],
-    rx: float,
-    ry: float,
-    amount: int = -3,
-) -> None:
-    if not HAS_PAG:
-        return
-    x, y = ratio_to_screen(rect, rx, ry)
-    pyautogui.moveTo(x, y, duration=0.08)
-    pyautogui.scroll(amount)
-    time.sleep(0.30)
+    def _capture(self, retry: int = RETRY_CAPTURE) -> Optional[Image.Image]:
+        """캡처 + retry. 실패 시 None."""
+        for i in range(retry + 1):
+            img = capture_window_background()
+            if img is not None:
+                return img
+            if i < retry:
+                _log.debug(f"캡처 재시도 ({i+1}/{retry})")
+                time.sleep(0.1)
+        self._error("캡처 실패")
+        return None
 
+    def _rect(self) -> Optional[tuple[int, int, int, int]]:
+        return get_window_rect()
 
-def press_esc() -> None:
-    if HAS_PAG:
-        pyautogui.press("escape")
-        time.sleep(0.35)
+    def _hwnd(self) -> Optional[int]:
+        return find_target_hwnd()
+
+    def _retry(
+        self,
+        fn: Callable,
+        max_attempts: int = 2,
+        delay: float = 0.3,
+        label: str = "",
+    ):
+        """
+        fn() 을 최대 max_attempts 회 시도.
+        None 이 아닌 값 반환 시 즉시 반환.
+        모두 실패 시 None 반환.
+        """
+        for i in range(max_attempts):
+            result = fn()
+            if result is not None:
+                return result
+            if i < max_attempts - 1:
+                self.log(f"  ↩ {label} 재시도 ({i+2}/{max_attempts})")
+                time.sleep(delay)
+        return None
+
+    # ── UI 전환 중앙화 ────────────────────────────────────
+
+    def _click_r(self, region: dict, label: str = "") -> bool:
+        """region 중심 클릭 (HWND 기반 우선)."""
+        rect = self._rect()
+        if rect is None:
+            return False
+        hwnd = self._hwnd()
+        if hwnd:
+            rx = (region["x1"] + region["x2"]) / 2
+            ry = (region["y1"] + region["y2"]) / 2
+            cx, cy = ratio_to_client(rect, rx, ry)
+            return click_point(hwnd, cx, cy, label=label)
+        return click_center(rect, region, label)
+
+    def _tab(self, region_key: str, delay: float = DELAY_TAB_SWITCH) -> bool:
+        """탭 버튼 클릭 + 대기."""
+        sr = self.r["student"]
+        region = sr.get(region_key)
+        if not region:
+            self.log(f"  ⚠️ {region_key} 미정의 — 탭 이동 생략")
+            return False
+        ok = self._click_r(region, region_key)
+        if delay > 0:
+            time.sleep(delay)
+        return ok
+
+    def _esc(self, n: int = 1, delay: float = DELAY_ESC) -> None:
+        """ESC n회 전송."""
+        hwnd = self._hwnd()
+        for _ in range(n):
+            if hwnd:
+                send_escape(hwnd, delay=delay)
+            else:
+                press_esc()
+
+    def _restore_basic_tab(self) -> None:
+        """기본 정보 탭으로 복귀."""
+        sr = self.r["student"]
+        if "basic_info_button" in sr:
+            self._click_r(sr["basic_info_button"], "basic_info_tab")
+            time.sleep(0.3)
+        else:
+            self._esc()
+
+    # ══════════════════════════════════════════════════════
+    # 재화 스캔
+    # ══════════════════════════════════════════════════════
+
+    def scan_resources(self) -> dict:
+        self.log("💰 재화 스캔 중...")
+        img = self._capture()
+        if img is None:
+            return {}
+
+        lobby_r = self.r["lobby"]
+        result: dict = {}
+
+        ocr.load()
+        try:
+            for key, rk in [("크레딧", "credit_region"),
+                             ("청휘석", "pyroxene_region")]:
+                try:
+                    crop = crop_region(img, lobby_r[rk])
+                    result[key] = ocr.read_item_count(crop)
+                except Exception as e:
+                    result[key] = None
+                    _log.warning(f"재화 OCR 실패 ({key}): {type(e).__name__}: {e}")
+        finally:
+            ocr.unload()
+
+        self.log(f"💰 청휘석={result.get('청휘석','-')}  크레딧={result.get('크레딧','-')}")
+        return result
+
+    # ══════════════════════════════════════════════════════
+    # 그리드 스캔 (아이템 / 장비 공통)
+    # ══════════════════════════════════════════════════════
+
+    def _open_menu(self) -> bool:
+        rect = self._rect()
+        if not rect:
+            return False
+        self.log("📂 메뉴 열기...")
+        self._click_r(self.r["lobby"]["menu_button"], "menu_button")
+        time.sleep(0.7)
+        return True
+
+    def _go_to(self, btn_key: str, label: str) -> bool:
+        btn = self.r["menu"].get(btn_key)
+        if not btn:
+            self.log(f"❌ {label} 버튼 설정 없음")
+            return False
+        self.log(f"  → {label} 진입...")
+        self._click_r(btn, label)
+        time.sleep(1.0)
+        return True
+
+    def _return_lobby(self) -> None:
+        self.log("🏠 로비 복귀...")
+        self._esc()
+
+    def _scan_grid(
+        self,
+        section: str,
+        source: str,
+        scroll_amount: int,
+    ) -> list[ItemEntry]:
+        r_sec   = self.r[section]
+        slots   = r_sec["grid_slots"]
+        name_r  = r_sec["name_region"]
+        count_r = r_sec["count_region"]
+        grid_r  = _grid_region(slots)
+
+        rect = self._rect()
+        if not rect:
+            self.log("❌ 창 없음")
+            return []
+
+        scroll_cx = (grid_r["x1"] + grid_r["x2"]) / 2
+        scroll_cy = (grid_r["y1"] + grid_r["y2"]) / 2
+
+        items:       list[ItemEntry] = []
+        seen_keys:   set[str]        = set()
+        seen_hashes: list[str]       = []
+        icon = "📦" if source == "item" else "🔧"
+
+        self.log(f"{icon} 그리드 스캔 시작 (슬롯 {len(slots)}개)")
+
+        for scroll_i in range(MAX_SCROLLS):
+            if self._stop:
+                break
+
+            # ── 1회 캡처 → 이후 crop 재사용 ──────────────
+            img = self._capture()
+            if img is None:
+                break
+
+            grid_crop = crop_region(img, grid_r)
+            cur_hash  = _img_hash(grid_crop)
+
+            if cur_hash in seen_hashes:
+                self.log(f"  🔁 화면 반복 감지 → 스캔 종료 ({len(items)}개)")
+                break
+            seen_hashes.append(cur_hash)
+            if len(seen_hashes) > 10:
+                seen_hashes.pop(0)
+
+            new_this = 0
+            for slot in slots:
+                if self._stop:
+                    break
+
+                click_ry = slot["y1"] + (slot["y2"] - slot["y1"]) * 0.4
+                safe_click(rect, slot["cx"], click_ry, f"{source}_slot")
+                time.sleep(DELAY_AFTER_CLICK)
+
+                # 슬롯 클릭 후 1회 캡처
+                img2 = self._capture()
+                if img2 is None:
+                    continue
+
+                # 이름/수량 crop 재사용
+                name_crop  = crop_region(img2, name_r)
+                count_crop = crop_region(img2, count_r)
+
+                name  = ocr.read_item_name(name_crop)
+                count = ocr.read_item_count(count_crop)
+                if not name:
+                    continue
+
+                entry = ItemEntry(
+                    name=name,
+                    quantity=count,
+                    source=source,
+                    index=len(items),
+                )
+                k = entry.key()
+                if k not in seen_keys:
+                    seen_keys.add(k)
+                    items.append(entry)
+                    new_this += 1
+                    self.log(f"  {icon} [{len(items):>3}] {name}  ×{count}")
+
+            self.log(f"  스크롤 {scroll_i+1}회차: 신규 {new_this}개 / 누계 {len(items)}개")
+
+            # 스크롤 전 기준 캡처
+            before_img = self._capture()
+            before = crop_region(before_img, grid_r) if before_img else None
+
+            scroll_at(rect, scroll_cx, scroll_cy, scroll_amount)
+            time.sleep(0.15)
+
+            after_img = self._capture()
+            if after_img is None:
+                break
+            after = crop_region(after_img, grid_r)
+
+            if before is not None and _images_similar(before, after):
+                self.log(f"  ✅ 스크롤 끝 — 총 {len(items)}개")
+                break
+            if new_this == 0 and scroll_i >= 2:
+                self.log(f"  ✅ 신규 없음 — 총 {len(items)}개")
+                break
+
+        return items
+
+    # ── 아이템 / 장비 공개 스캔 ──────────────────────────
+
+    def scan_items(self) -> list[ItemEntry]:
+        self._stop = False
+        self.log("━━━ 📦 아이템 스캔 시작 ━━━")
+        try:
+            ocr.load()
+            if not self._open_menu():
+                return []
+            if not self._go_to("item_entry_button", "아이템"):
+                return []
+            time.sleep(0.5)
+            result = self._scan_grid("item", "item", SCROLL_ITEM)
+            self.log(f"━━━ 📦 아이템 스캔 완료: {len(result)}개 ━━━")
+            return result
+        except Exception as e:
+            self.log(f"❌ 아이템 스캔 오류: {e}")
+            return []
+        finally:
+            self._return_lobby()
+            ocr.unload()
+
+    def scan_equipment(self) -> list[ItemEntry]:
+        self._stop = False
+        self.log("━━━ 🔧 장비 스캔 시작 ━━━")
+        try:
+            ocr.load()
+            if not self._open_menu():
+                return []
+            if not self._go_to("equipment_entry_button", "장비"):
+                return []
+            time.sleep(0.5)
+            result = self._scan_grid("equipment", "equipment", SCROLL_EQUIP)
+            self.log(f"━━━ 🔧 장비 스캔 완료: {len(result)}개 ━━━")
+            return result
+        except Exception as e:
+            self.log(f"❌ 장비 스캔 오류: {e}")
+            return []
+        finally:
+            self._return_lobby()
+            ocr.unload()
+
+    # ══════════════════════════════════════════════════════
+    # 학생 스캔 — 파이프라인
+    # ══════════════════════════════════════════════════════
+
+    def scan_students(self) -> list[StudentEntry]:
+        return self.scan_students_v5()
+
+    def scan_students_v5(self) -> list[StudentEntry]:
+        self._stop = False
+        log_section(_log, "학생 스캔 시작 (V6)")
+        self._info("━━━ 👩 학생 스캔 시작 (V6) ━━━")
+        results:       list[StudentEntry] = []
+        skipped_count  = 0
+        scanned_count  = 0
+
+        try:
+            if not self.enter_student_menu():
+                return []
+            if not self.enter_first_student():
+                return []
+
+            seen_ids:        set[str]       = set()
+            consecutive_dup: int            = 0
+            prev_id:         Optional[str]  = None
+
+            for idx in range(500):
+                if self._stop:
+                    _log.info("스캔 중지 플래그 감지 → 루프 종료")
+                    break
+
+                # ── 1. 학생 식별 ──────────────────────────
+                _log.debug(f"[{idx+1}] 학생 식별 시작")
+                sid = self.identify_student(idx)
+                if sid is None:
+                    self._warn(f"[{idx+1}] 식별 실패 → 스캔 종료")
+                    break
+
+                # ── 2. 중복 / 종료 판정 ───────────────────
+                if sid == prev_id:
+                    consecutive_dup += 1
+                    _log.info(
+                        f"[{idx+1}] 동일 학생 연속: {sid} "
+                        f"({consecutive_dup}/{MAX_CONSECUTIVE_DUP})"
+                    )
+                    if consecutive_dup >= MAX_CONSECUTIVE_DUP:
+                        _log.info("연속 동일 → 마지막 학생 판정, 스캔 종료")
+                        self._info("  ✅ 연속 동일 → 마지막 학생, 종료")
+                        break
+                    self._restore_basic_tab()
+                    self.go_next_student()
+                    continue
+
+                consecutive_dup = 0
+                prev_id = sid
+
+                if sid in seen_ids:
+                    _log.info(f"[{idx+1}] 이미 스캔됨: {sid} → 종료")
+                    self._info(f"  🔁 이미 스캔됨: {sid} — 종료")
+                    break
+                seen_ids.add(sid)
+
+                # ── 3. 만렙 스킵 ──────────────────────────
+                if sid in self._maxed_ids:
+                    entry = self._make_skipped_entry(sid)
+                    results.append(entry)
+                    skipped_count += 1
+                    _log.info(f"[{idx+1:>3}] {entry.label()} — 만렙 스킵")
+                    self._info(f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵")
+                    self._restore_basic_tab()
+                    self.go_next_student()
+                    continue
+
+                # ── 4. 세부 스캔 ──────────────────────────
+                _log.info(f"[{idx+1:>3}] ▶ 스캔 시작: {sid}")
+                ctx = ScanCtx(idx=idx+1, student_id=sid)
+
+                # TEMP 엔트리 생성 — 이 시점부터 각 단계가 채워넣음
+                entry = self.begin_student_scan(sid)
+
+                # 각 단계: 실패해도 나머지 진행 (skip 정책)
+                # 단계마다 entry.scan_state 는 여전히 TEMP
+                self.read_skills(entry)
+                self.read_weapon(entry)
+                self.read_equipment(entry)
+                self.read_level(entry)
+                self.read_student_star(entry)
+                self.read_stats(entry)
+
+                # TEMP → COMMITTED or PARTIAL 검증
+                commit_result = self.finalize_student_entry(
+                    entry, ctx, partial_ok=True
+                )
+
+                # 검증 결과에 따라 results 에 추가 (FAILED 이면 폐기)
+                added = self.commit_student_entry(commit_result, results, idx)
+                if added:
+                    scanned_count += 1
+                    self._log_student(entry, len(results) - 1)
+
+                self._restore_basic_tab()
+                self.go_next_student()
+
+        except Exception as e:
+            _log.exception(f"학생 스캔 중 예외 발생: {e}")
+            self._error(f"학생 스캔 오류: {e}")
+        finally:
+            self._return_lobby()
+
+        summary = (
+            f"학생 스캔 완료: 총 {len(results)}명 "
+            f"(스캔:{scanned_count} / 스킵:{skipped_count})"
+        )
+        _log.info(summary)
+        self._info(f"━━━ 👩 {summary} ━━━")
+        return results
+
+    # ── 만렙 스킵 헬퍼 ───────────────────────────────────
+
+    def _make_skipped_entry(self, student_id: str) -> StudentEntry:
+        if student_id in self._maxed_cache:
+            entry = _dict_to_student_entry(self._maxed_cache[student_id])
+        else:
+            entry = StudentEntry(
+                student_id=student_id,
+                display_name=student_names.display_name(student_id),
+                skipped=True,
+            )
+        entry.skipped = True
+        return entry
+
+    # ══════════════════════════════════════════════════════
+    # 파이프라인 단계 함수
+    # ══════════════════════════════════════════════════════
+
+    # ── 네비게이션 ────────────────────────────────────────
+
+    def enter_student_menu(self) -> bool:
+        self.log("  학생 메뉴 진입...")
+        self._click_r(self.r["lobby"]["student_menu_button"], "student_menu")
+        time.sleep(STUDENT_MENU_WAIT)
+        return True
+
+    def enter_first_student(self) -> bool:
+        self.log("  첫 학생 선택...")
+        btn = self.r["student_menu"].get("first_student_button")
+        if not btn:
+            self.log("  ⚠️ first_student_button 미정의")
+            return False
+        self._click_r(btn, "first_student")
+        time.sleep(0.8)
+        return True
+
+    def go_next_student(self) -> bool:
+        btn = self.r["student"].get("next_student_button")
+        if not btn:
+            self.log("  ⚠️ next_student_button 미정의")
+            return False
+        self._click_r(btn, "next_student")
+        time.sleep(DELAY_NEXT)
+        return True
+
+    # ── 학생 식별 ─────────────────────────────────────────
+
+    def identify_student(self, idx: int = 0) -> Optional[str]:
+        """
+        텍스처 매칭으로 학생 식별.
+        RETRY_IDENTIFY 회 시도 후 실패 시 None.
+        """
+        sr        = self.r["student"]
+        texture_r = sr.get("student_texture_region")
+        ctx       = ScanCtx(idx=idx+1, step="identify")
+
+        if not texture_r:
+            _log.warning(f"{ctx} student_texture_region 미정의 — 식별 불가")
+            return None
+
+        def _try() -> Optional[str]:
+            img = self._capture()
+            if img is None:
+                return None
+            crop = crop_region(img, texture_r)
+            sid, score = match_student_texture(crop)
+            if sid is not None:
+                _log.info(
+                    f"{ctx} 식별 성공: {student_names.display_name(sid)} "
+                    f"(score={score:.3f})"
+                )
+                self._info(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
+                return sid
+            # 식별 실패 → 디버그 덤프
+            _log.debug(f"{ctx} 텍스처 식별 미달 (score={score:.3f})")
+            dump_roi(crop, "identify_fail", score=score, reason="below_thresh")
+            self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
+            return None
+
+        return self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별")
+
+    # ── 스킬 스캔 ─────────────────────────────────────────
+
+    def read_skills(self, entry: StudentEntry) -> None:
+        """
+        스킬 메뉴 진입 → 캡처 1회 → 4개 스킬 crop 재사용.
+        실패 시 해당 필드 None 유지 (skip).
+        """
+        ctx = ScanCtx(student_id=entry.student_id, step="read_skills")
+
+        if not self._tab("skill_menu_button"):
+            _log.warning(f"{ctx} 스킬 탭 이동 실패")
+            return
+
+        img = self._capture()
+        if img is None:
+            _log.warning(f"{ctx} 캡처 실패")
+            self._esc()
+            return
+
+        sr      = self.r["student"]
+        check_r = sr.get("skill_all_view_check_region")
+
+        if check_r:
+            if read_skill_check(crop_region(img, check_r)) == CheckFlag.FALSE:
+                self.log("  🔘 스킬 일괄성장 체크 클릭")
+                self._click_r(check_r, "skill_check")
+                time.sleep(0.3)
+                img = self._capture()
+                if img is None:
+                    _log.warning(f"{ctx} 체크 후 재캡처 실패")
+                    self._esc()
+                    return
+
+        for field_name, region_key, tmpl_key in [
+            ("ex_skill", "EX_skill", "EX_Skill"),
+            ("skill1",   "Skill_1",  "Skill1"),
+            ("skill2",   "Skill_2",  "Skill2"),
+            ("skill3",   "Skill_3",  "Skill3"),
+        ]:
+            region = sr.get(region_key)
+            if region is None:
+                _log.warning(f"{ctx.with_step(field_name)} region 미정의 — 생략")
+                continue
+            crop = crop_region(img, region)
+            raw  = read_skill(crop, tmpl_key)
+            try:
+                setattr(entry, field_name, int(raw))
+            except (TypeError, ValueError):
+                _log.debug(f"{ctx.with_step(field_name)} 값 변환 실패 (raw={raw!r})")
+                dump_roi(crop, f"skill_{field_name}", reason="convert_fail")
+                setattr(entry, field_name, None)
+
+        self.log(
+            f"  🎓 스킬: EX={entry.ex_skill} "
+            f"S1={entry.skill1} S2={entry.skill2} S3={entry.skill3}"
+        )
+        self._esc()
+
+    # ── 무기 스캔 ─────────────────────────────────────────
+
+    def read_weapon(self, entry: StudentEntry) -> None:
+        """
+        기본 화면에서 무기 감지 플래그 crop → 상태 판정.
+        WEAPON_EQUIPPED 일 때만 무기 메뉴 진입.
+        """
+        sr       = self.r["student"]
+        weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
+        if not weapon_r:
+            self.log("  ⚠️ weapon_detect_flag_region 미정의 → NO_WEAPON_SYSTEM")
+            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            return
+
+        img = self._capture()
+        if img is None:
+            entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
+            return
+
+        state, score = detect_weapon_state(crop_region(img, weapon_r))
+        entry.weapon_state = state
+        self.log(f"  🗡 무기 상태: {state.name} (score={score:.3f})")
+
+        if state == WeaponState.NO_WEAPON_SYSTEM:
+            return
+
+        if state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
+            entry.weapon_star  = None
+            entry.weapon_level = None
+            self.log("  🗡 무기 미장착 — 레벨/성작 스킵")
+            return
+
+        # WEAPON_EQUIPPED → 무기 메뉴 진입
+        menu_btn = sr.get("weapon_info_menu_button")
+        if not menu_btn:
+            self.log("  ⚠️ weapon_info_menu_button 미정의")
+            return
+
+        self._click_r(menu_btn, "weapon_info_menu")
+        time.sleep(DELAY_TAB_SWITCH)
+
+        # 무기 메뉴 캡처 1회
+        img = self._capture()
+        if img is None:
+            self._esc()
+            return
+
+        # 성작 + 레벨 crop 재사용
+        star_r = sr.get("weapon_star_region")
+        if star_r:
+            entry.weapon_star = read_weapon_star_v5(crop_region(img, star_r))
+
+        d1 = sr.get("weapon_level_digit_1") or sr.get("weapon_level_digit1")
+        d2 = sr.get("weapon_level_digit_2") or sr.get("weapon_level_digit2")
+        if d1 and d2:
+            entry.weapon_level = read_weapon_level(img, d1, d2)
+            self.log(f"  🗡 무기: {entry.weapon_star}★  Lv.{entry.weapon_level}")
+        else:
+            self.log("  ⚠️ weapon_level_digit 미정의")
+
+        self._esc()
+
+    # ── 장비 스캔 ─────────────────────────────────────────
+
+    def read_equipment(self, entry: StudentEntry) -> None:
+        """
+        장비 탭 진입 → 캡처 1회 → 슬롯 1~4 crop 재사용.
+        impossible 판정 시 전체 스킵.
+        """
+        sr        = self.r["student"]
+        equip_btn = sr.get("equipment_button")
+        if not equip_btn:
+            self.log("  ⚠️ equipment_button 미정의")
+            return
+
+        # 탭 진입 전 pre-check (기본 화면에서)
+        img = self._capture()
+        if img is None:
+            return
+
+        pre = read_equip_check(crop_region(img, equip_btn))
+        if pre == CheckFlag.IMPOSSIBLE:
+            self.log("  🚫 equipment_button=impossible — 장비 스캔 스킵")
+            return
+
+        self._click_r(equip_btn, "equipment_tab")
+        time.sleep(DELAY_TAB_SWITCH)
+
+        # 장비 메뉴 캡처 1회
+        img = self._capture()
+        if img is None:
+            self._esc()
+            return
+
+        check_r = sr.get("equipment_all_view_check_region")
+        if check_r:
+            if read_equip_check_inside(crop_region(img, check_r)) == CheckFlag.FALSE:
+                self.log("  🔘 장비 일괄성장 체크 클릭")
+                self._click_r(check_r, "equip_check")
+                time.sleep(0.3)
+                img = self._capture()   # 체크 후 재캡처
+                if img is None:
+                    self._esc()
+                    return
+
+        sid = entry.student_id or ""
+
+        # 슬롯 1~3: 캡처 이미지 공유
+        for slot in (1, 2, 3):
+            skip_flags = {EquipSlotFlag.EMPTY}
+            if slot in (2, 3):
+                skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
+            self._scan_equip_slot(entry, img, sr, slot,
+                                  skip_flags=skip_flags, scan_level=True)
+
+        # 슬롯 4
+        if has_equip4(sid):
+            self._scan_equip_slot(
+                entry, img, sr, 4,
+                skip_flags={EquipSlotFlag.EMPTY,
+                            EquipSlotFlag.LOVE_LOCKED,
+                            EquipSlotFlag.NULL},
+                scan_level=False,
+            )
+        else:
+            self.log(f"  🎒 장비4: {sid} equip4 없음 — 스킵")
+
+        self._esc()
+
+    def _scan_equip_slot(
+        self,
+        entry: StudentEntry,
+        img: Image.Image,
+        sr: dict,
+        slot: int,
+        skip_flags: set[EquipSlotFlag],
+        scan_level: bool,
+    ) -> None:
+        """단일 장비 슬롯 판독. img는 장비 메뉴 캡처 이미지 (재사용)."""
+        flag_r = (sr.get(f"equip{slot}_flag")
+                  or sr.get(f"equip{slot}_emptyflag")
+                  or sr.get(f"equip{slot}_empty_flag"))
+        if flag_r:
+            slot_flag = read_equip_slot_flag(crop_region(img, flag_r), slot)
+            if slot_flag in skip_flags:
+                self.log(f"  🎒 장비{slot}: {slot_flag.value} — 스킵")
+                setattr(entry, f"equip{slot}", slot_flag.value)
+                return
+
+        tier_r = sr.get(f"equipment_{slot}")
+        if tier_r:
+            tier = read_equip_tier(crop_region(img, tier_r), slot)
+            setattr(entry, f"equip{slot}", tier)
+            self.log(f"  🎒 장비{slot} 티어: {tier}")
+
+        if scan_level:
+            d1 = sr.get(f"equipment_{slot}_level_digit_1")
+            d2 = sr.get(f"equipment_{slot}_level_digit_2")
+            if d1 and d2:
+                lv = read_equip_level(img, slot, d1, d2)
+                setattr(entry, f"equip{slot}_level", lv)
+                self.log(f"  🎒 장비{slot} 레벨: {lv}")
+            else:
+                self.log(f"  ⚠️ equipment_{slot}_level_digit 미정의")
+
+    # ── 레벨 스캔 ─────────────────────────────────────────
+
+    def read_level(self, entry: StudentEntry) -> None:
+        """레벨 탭 진입 → 캡처 1회 → digit crop 재사용."""
+        if entry.level == MAX_STUDENT_LEVEL:
+            self.log(f"  ⏭ 레벨 스캔 생략 (이미 Lv.90)")
+            return
+
+        if not self._tab("levelcheck_button", delay=0.4):
+            return
+
+        img = self._capture()
+        if img is None:
+            self._restore_basic_tab()
+            return
+
+        sr = self.r["student"]
+        d1 = sr.get("level_digit_1")
+        d2 = sr.get("level_digit_2")
+        if not d1 or not d2:
+            self.log("  ⚠️ level_digit region 미정의")
+            self._restore_basic_tab()
+            return
+
+        lv = read_student_level_v5(img, d1, d2)
+        entry.level = lv
+        self.log(f"  📊 레벨: {entry.label()} → Lv.{lv}")
+
+        self._restore_basic_tab()
+
+    # ── 성작 스캔 ─────────────────────────────────────────
+
+    def read_student_star(self, entry: StudentEntry) -> None:
+        """
+        무기 보유 학생은 5★ 확정.
+        그 외 star_menu 탭 진입 → 캡처 1회.
+        """
+        if entry.weapon_state != WeaponState.NO_WEAPON_SYSTEM:
+            entry.student_star = 5
+            self.log(f"  ⏭ 성작 스캔 생략 (무기 보유 → 5★)")
+            return
+
+        sr       = self.r["student"]
+        star_btn = sr.get("star_menu_button")
+        if star_btn:
+            self._click_r(star_btn, "star_menu")
+            time.sleep(0.3)
+
+        img = self._capture()
+        if img is None:
+            return
+
+        region_key = (
+            "student_star_region"
+            if "student_star_region" in sr
+            else "star_region"
+        )
+        star_r = sr.get(region_key)
+        if star_r:
+            entry.student_star = read_student_star_v5(crop_region(img, star_r))
+            self.log(f"  ⭐ 성작: {entry.label()} → {entry.student_star}★")
+
+    # ── 스탯 스캔 ─────────────────────────────────────────
+
+    def read_stats(self, entry: StudentEntry) -> None:
+        """
+        Lv.90 + 5★ 조건 미충족 시 스킵.
+        stat 메뉴 진입 → 캡처 1회 → 3종 crop 재사용.
+        """
+        level_ok = entry.level is not None and entry.level >= STAT_UNLOCK_LEVEL
+        star_ok  = entry.student_star is not None and entry.student_star >= STAT_UNLOCK_STAR
+
+        if not level_ok or not star_ok:
+            self.log(
+                f"  ⏭ 스탯 스캔 생략 "
+                f"(Lv.{entry.level} / {entry.student_star}★)"
+            )
+            return
+
+        if not self._tab("stat_menu_button", delay=0.4):
+            return
+
+        img = self._capture()
+        if img is None:
+            self._esc()
+            return
+
+        sr = self.r["student"]
+        for stat_key, field_name, region_key in [
+            ("hp",   "stat_hp",   "hp"),
+            ("atk",  "stat_atk",  "atk"),
+            ("heal", "stat_heal", "heal"),
+        ]:
+            region = sr.get(region_key)
+            if region:
+                val = read_stat_value(crop_region(img, region), stat_key)
+                setattr(entry, field_name, val)
+            else:
+                self.log(f"  ⚠️ {region_key} region 미정의")
+
+        self.log(
+            f"  📈 스탯: HP={entry.stat_hp} "
+            f"ATK={entry.stat_atk} HEAL={entry.stat_heal}"
+        )
+        self._esc()
+
+    # ── 로그 ──────────────────────────────────────────────
+
+    def _log_student(self, entry: StudentEntry, idx: int) -> None:
+        weapon_info = ""
+        if entry.weapon_state == WeaponState.WEAPON_EQUIPPED:
+            weapon_info = f" | 무기:{entry.weapon_star}★ Lv.{entry.weapon_level}"
+        elif entry.weapon_state == WeaponState.WEAPON_UNLOCKED_NOT_EQUIPPED:
+            weapon_info = " | 무기:미장착"
+
+        equip_info = (
+            f"{entry.equip1}(Lv.{entry.equip1_level})/"
+            f"{entry.equip2}(Lv.{entry.equip2_level})/"
+            f"{entry.equip3}(Lv.{entry.equip3_level})/"
+            f"{entry.equip4}"
+        )
+        self.log(
+            f"  👩 [{idx+1:>3}] {entry.label()}  Lv.{entry.level}  "
+            f"{entry.student_star}★{weapon_info}  "
+            f"EX:{entry.ex_skill} S1:{entry.skill1} "
+            f"S2:{entry.skill2} S3:{entry.skill3}  "
+            f"장비:{equip_info}  "
+            f"스탯(HP:{entry.stat_hp}/ATK:{entry.stat_atk}/HEAL:{entry.stat_heal})"
+        )
+
+    # ── 전체 스캔 ─────────────────────────────────────────
+
+    def run_full_scan(self) -> ScanResult:
+        self._stop = False
+        result = ScanResult()
+        self.log("━━━━━ 전체 스캔 시작 ━━━━━")
+        result.resources = self.scan_resources()
+        result.items     = self.scan_items()
+        if not self._stop:
+            result.equipment = self.scan_equipment()
+        if not self._stop:
+            result.students  = self.scan_students_v5()
+        self.log("━━━━━ 전체 스캔 완료 ━━━━━")
+        return result
