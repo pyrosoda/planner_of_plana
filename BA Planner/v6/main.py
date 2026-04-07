@@ -187,11 +187,14 @@ class App(tk.Tk):
     # scanner 생성
     # ══════════════════════════════════════════════════════
 
-    def _build_scanner(self) -> Scanner:
+    def _build_scanner(self, meta: dict) -> "Scanner":
         """
-        repository 에서 만렙 학생 목록 로드 후 Scanner 생성.
+        repository 에서 만렙 학생 목록 로드 후 Scanner + AutoSaveManager 생성.
         스캔 시작 시마다 호출해 항상 최신 상태 반영.
         """
+        from core.autosave import AutoSaveManager
+        from core.config import BASE_DIR
+
         current_students = self._repo.load_current_students()
         maxed_ids:   set[str]        = set()
         maxed_cache: dict[str, dict] = {}
@@ -204,11 +207,22 @@ class App(tk.Tk):
         if maxed_ids:
             _log.info(f"만렙 스킵 대상: {len(maxed_ids)}명")
 
+        # AutoSaveManager 생성
+        scan_id = meta.get("scan_id", "unknown")
+        asv = AutoSaveManager(
+            scan_id=scan_id,
+            save_dir=BASE_DIR / "scans",
+            on_save_ok=   lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
+            on_save_fail= lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
+        )
+        self._asv = asv   # 스캔 완료 후 final_save 호출을 위해 보관
+
         return Scanner(
             self._regions,
             on_progress=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
             maxed_ids=maxed_ids,
             maxed_cache=maxed_cache,
+            autosave_manager=asv,
         )
 
     # ══════════════════════════════════════════════════════
@@ -233,11 +247,12 @@ class App(tk.Tk):
     def _scan(self, mode: str) -> None:
         """스캔 실행 — 별도 스레드로 구동."""
         meta = build_scan_meta()
-        self._scanner = self._build_scanner()
+        self._asv     = None             # AutoSaveManager 초기화
+        self._scanner = self._build_scanner(meta)   # meta 전달
 
         # 상태 전이: WATCHING → SCANNING
         self._set_state(AppState.SCANNING)
-        self._pause_watcher()                  # ← watcher 일시정지
+        self._pause_watcher()
 
         self._overlay.set_scanning(True)
         self._overlay.hide()
@@ -247,7 +262,6 @@ class App(tk.Tk):
             try:
                 self._run_scan_task(mode, meta)
             finally:
-                # 스캔 종료 후 항상 복구
                 self.after(0, self._on_scan_finished)
 
         self._scan_thread = threading.Thread(
@@ -318,10 +332,26 @@ class App(tk.Tk):
     # ══════════════════════════════════════════════════════
 
     def _auto_save(self, result: ScanResult, meta: dict) -> None:
-        scan_id = meta["scan_id"]
+        from core.serializer import save_scan_json, make_status_report
+        from core.config import BASE_DIR
+
+        scan_id = meta.get("scan_id", "unknown")
         try:
             self._repo.save(result, meta)
             self.after(0, lambda: self._overlay.add_log(f"💾 저장 완료 ({scan_id})"))
+
+            # AutoSaveManager final_save (체크포인트 정리 포함)
+            if self._asv:
+                self._asv.final_save(result, meta)
+            else:
+                # asv 없을 때 fallback 직접 저장
+                json_path = BASE_DIR / "scans" / f"{scan_id}.json"
+                save_scan_json(result, json_path, meta)
+                _log.info(f"스캔 JSON 저장: {json_path}")
+
+            # 상태 요약 리포트
+            for line in make_status_report(result):
+                self.after(0, lambda l=line: self._overlay.add_log(l))
 
             if not result.students:
                 return

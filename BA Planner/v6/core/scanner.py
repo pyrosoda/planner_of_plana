@@ -326,6 +326,142 @@ class StudentEntry:
         filled = sum(1 for f in required_all if getattr(self, f) is not None)
         return round(filled / len(required_all), 3)
 
+    def to_dict(self) -> dict:
+        """
+        저장용 직렬화.
+
+        출력 구조:
+          {
+            "student_id": "shiroko",
+            "level": 90,
+            "level_status": "ok",
+            "level_source": "template",
+            "level_score": null,
+            "student_star": 5,
+            "student_star_status": "inferred",
+            "student_star_source": "inferred",
+            "student_star_note": "weapon_state → 5★ 확정",
+            ...
+            "scan_state": "committed",
+            "confidence": 1.0,
+            "_field_meta": { ... }   ← 전체 메타 백업
+          }
+
+        규칙:
+          - 값 필드는 그대로 유지 (기존 코드 호환)
+          - 각 추적 필드마다 {field}_status / {field}_source / {field}_score /
+            {field}_note 를 플랫하게 추가
+          - _field_meta 에 전체 메타 딕셔너리 중첩 저장 (풀 복원용)
+        """
+        ws = self.weapon_state
+        d: dict = {
+            "student_id":   self.student_id,
+            "display_name": self.display_name,
+            "level":        self.level,
+            "student_star": self.student_star,
+            "weapon_state": ws.value if ws else None,
+            "weapon_star":  self.weapon_star,
+            "weapon_level": self.weapon_level,
+            "ex_skill":     self.ex_skill,
+            "skill1":       self.skill1,
+            "skill2":       self.skill2,
+            "skill3":       self.skill3,
+            "equip1":       self.equip1,
+            "equip2":       self.equip2,
+            "equip3":       self.equip3,
+            "equip4":       self.equip4,
+            "equip1_level": self.equip1_level,
+            "equip2_level": self.equip2_level,
+            "equip3_level": self.equip3_level,
+            "stat_hp":      self.stat_hp,
+            "stat_atk":     self.stat_atk,
+            "stat_heal":    self.stat_heal,
+            "skipped":      self.skipped,
+            "scan_state":   self.scan_state,
+            "confidence":   self.confidence(),
+        }
+
+        # 추적 필드별 플랫 메타 추가
+        _TRACKED = [
+            "level", "student_star",
+            "weapon_state", "weapon_star", "weapon_level",
+            "ex_skill", "skill1", "skill2", "skill3",
+            "equip1", "equip2", "equip3", "equip4",
+            "equip1_level", "equip2_level", "equip3_level",
+            "stat_hp", "stat_atk", "stat_heal",
+        ]
+        for fname in _TRACKED:
+            meta = self._meta.get(fname)
+            if meta:
+                d[f"{fname}_status"] = meta.status
+                d[f"{fname}_source"] = meta.source
+                if meta.score is not None:
+                    d[f"{fname}_score"] = round(meta.score, 3)
+                if meta.note:
+                    d[f"{fname}_note"] = meta.note
+            else:
+                # 메타 없으면 값으로 상태 추론
+                val = getattr(self, fname, None)
+                d[f"{fname}_status"] = (
+                    FieldStatus.OK if val is not None else FieldStatus.FAILED
+                )
+
+        # 전체 메타 백업 (복원용)
+        if self._meta:
+            d["_field_meta"] = self.meta_summary()
+
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "StudentEntry":
+        """
+        저장 데이터 → StudentEntry 복원.
+        _field_meta 가 있으면 메타도 복원.
+        """
+        ws_raw = d.get("weapon_state")
+        try:
+            ws = WeaponState(ws_raw) if ws_raw else None
+        except ValueError:
+            ws = None
+
+        entry = cls(
+            student_id=d.get("student_id"),
+            display_name=d.get("display_name"),
+            level=d.get("level"),
+            student_star=d.get("student_star"),
+            weapon_state=ws,
+            weapon_star=d.get("weapon_star"),
+            weapon_level=d.get("weapon_level"),
+            ex_skill=d.get("ex_skill"),
+            skill1=d.get("skill1"),
+            skill2=d.get("skill2"),
+            skill3=d.get("skill3"),
+            equip1=d.get("equip1"),
+            equip2=d.get("equip2"),
+            equip3=d.get("equip3"),
+            equip4=d.get("equip4"),
+            equip1_level=d.get("equip1_level"),
+            equip2_level=d.get("equip2_level"),
+            equip3_level=d.get("equip3_level"),
+            stat_hp=d.get("stat_hp"),
+            stat_atk=d.get("stat_atk"),
+            stat_heal=d.get("stat_heal"),
+            skipped=d.get("skipped", False),
+            scan_state=d.get("scan_state", ScanState.COMMITTED),
+        )
+
+        # 메타 복원
+        raw_meta = d.get("_field_meta", {})
+        for fname, md in raw_meta.items():
+            entry.set_meta(fname, FieldMeta(
+                status=md.get("status", FieldStatus.OK),
+                source=md.get("source", FieldSource.TEMPLATE),
+                score=md.get("score"),
+                note=md.get("note", ""),
+            ))
+
+        return entry
+
 
 @dataclass
 class EntryCommitResult:
@@ -427,12 +563,14 @@ class Scanner:
         on_progress: Optional[Callable[[str], None]] = None,
         maxed_ids:   Optional[set[str]]  = None,
         maxed_cache: Optional[dict[str, dict]] = None,
+        autosave_manager = None,   # AutoSaveManager | None
     ):
-        self.r           = regions
-        self._on_progress = on_progress   # UI 콜백 (FloatingOverlay.add_log)
-        self._stop        = False
-        self._maxed_ids   = frozenset(maxed_ids or [])
+        self.r             = regions
+        self._on_progress  = on_progress
+        self._stop         = False
+        self._maxed_ids    = frozenset(maxed_ids or [])
         self._maxed_cache: dict[str, dict] = maxed_cache or {}
+        self._asv          = autosave_manager   # AutoSaveManager (없으면 None)
 
         if self._maxed_ids:
             self._info(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
@@ -992,6 +1130,9 @@ class Scanner:
                 if added:
                     scanned_count += 1
                     self._log_student(entry, len(results) - 1)
+                    # ── per-student autosave ──────────────
+                    if self._asv:
+                        self._asv.on_student_committed(entry)
 
                 self._restore_basic_tab()
                 self.go_next_student()
@@ -999,8 +1140,15 @@ class Scanner:
         except Exception as e:
             _log.exception(f"학생 스캔 중 예외 발생: {e}")
             self._error(f"학생 스캔 오류: {e}")
+            # ── emergency save ────────────────────────────
+            if self._asv:
+                partial = ScanResult(students=list(results))
+                self._asv.emergency_save(partial, {})
         finally:
             self._return_lobby()
+            # ── autosave 통계 로그 ────────────────────────
+            if self._asv:
+                self._asv.log_stats()
 
         summary = (
             f"학생 스캔 완료: 총 {len(results)}명 "
@@ -1086,6 +1234,8 @@ class Scanner:
             # 식별 실패 → 디버그 덤프
             _log.debug(f"{ctx} 텍스처 식별 미달 (score={score:.3f})")
             dump_roi(crop, "identify_fail", score=score, reason="below_thresh")
+            if self._asv:
+                self._asv.on_step_error("identify")
             self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
             return None
 
@@ -1147,6 +1297,8 @@ class Scanner:
                 entry.set_meta(field_name,
                                FieldMeta.failed(FieldSource.TEMPLATE,
                                                 note=f"raw={raw!r}"))
+                if self._asv:
+                    self._asv.on_step_error("read_skills", entry.student_id or "")
 
         self.log(
             f"  🎓 스킬: EX={entry.ex_skill} "
@@ -1263,6 +1415,13 @@ class Scanner:
         pre = read_equip_check(crop_region(img, equip_btn))
         if pre == CheckFlag.IMPOSSIBLE:
             self.log("  🚫 equipment_button=impossible — 장비 스캔 스킵")
+            # impossible → 모든 장비 필드를 skipped로 마킹
+            for slot in (1, 2, 3, 4):
+                entry.set_meta(f"equip{slot}",
+                               FieldMeta.skipped("equipment_impossible"))
+                if slot <= 3:
+                    entry.set_meta(f"equip{slot}_level",
+                                   FieldMeta.skipped("equipment_impossible"))
             return
 
         self._click_r(equip_btn, "equipment_tab")
@@ -1319,6 +1478,9 @@ class Scanner:
         scan_level: bool,
     ) -> None:
         """단일 장비 슬롯 판독. img는 장비 메뉴 캡처 이미지 (재사용)."""
+        equip_key = f"equip{slot}"
+        level_key = f"equip{slot}_level"
+
         flag_r = (sr.get(f"equip{slot}_flag")
                   or sr.get(f"equip{slot}_emptyflag")
                   or sr.get(f"equip{slot}_empty_flag"))
@@ -1326,24 +1488,43 @@ class Scanner:
             slot_flag = read_equip_slot_flag(crop_region(img, flag_r), slot)
             if slot_flag in skip_flags:
                 self.log(f"  🎒 장비{slot}: {slot_flag.value} — 스킵")
-                setattr(entry, f"equip{slot}", slot_flag.value)
+                setattr(entry, equip_key, slot_flag.value)
+                entry.set_meta(equip_key,
+                               FieldMeta.skipped(f"slot_flag={slot_flag.value}"))
+                if scan_level:
+                    entry.set_meta(level_key,
+                                   FieldMeta.skipped(f"slot_flag={slot_flag.value}"))
                 return
 
         tier_r = sr.get(f"equipment_{slot}")
         if tier_r:
             tier = read_equip_tier(crop_region(img, tier_r), slot)
-            setattr(entry, f"equip{slot}", tier)
+            setattr(entry, equip_key, tier)
+            entry.set_meta(equip_key,
+                           FieldMeta.ok(FieldSource.TEMPLATE)
+                           if tier and tier != "unknown"
+                           else FieldMeta.uncertain(FieldSource.TEMPLATE,
+                                                    note=f"tier={tier}"))
             self.log(f"  🎒 장비{slot} 티어: {tier}")
+        else:
+            entry.set_meta(equip_key, FieldMeta.region_missing(f"equipment_{slot}"))
 
         if scan_level:
             d1 = sr.get(f"equipment_{slot}_level_digit_1")
             d2 = sr.get(f"equipment_{slot}_level_digit_2")
             if d1 and d2:
                 lv = read_equip_level(img, slot, d1, d2)
-                setattr(entry, f"equip{slot}_level", lv)
+                setattr(entry, level_key, lv)
+                entry.set_meta(level_key,
+                               FieldMeta.ok(FieldSource.TEMPLATE)
+                               if lv is not None
+                               else FieldMeta.failed(FieldSource.TEMPLATE,
+                                                     "digit_read_fail"))
                 self.log(f"  🎒 장비{slot} 레벨: {lv}")
             else:
                 self.log(f"  ⚠️ equipment_{slot}_level_digit 미정의")
+                entry.set_meta(level_key,
+                               FieldMeta.region_missing(f"equipment_{slot}_level_digit"))
 
     # ── 레벨 스캔 ─────────────────────────────────────────
 
@@ -1385,6 +1566,8 @@ class Scanner:
         else:
             entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "digit_read_fail"))
             _log.warning(f"{ctx} 레벨 인식 실패")
+            if self._asv:
+                self._asv.on_step_error("read_level", entry.student_id or "")
 
         self._restore_basic_tab()
 
@@ -1468,6 +1651,8 @@ class Scanner:
             self._esc()
             return
 
+        ctx = ScanCtx(student_id=entry.student_id, step="read_stats")
+
         sr = self.r["student"]
         for stat_key, field_name, region_key in [
             ("hp",   "stat_hp",   "hp"),
@@ -1475,11 +1660,25 @@ class Scanner:
             ("heal", "stat_heal", "heal"),
         ]:
             region = sr.get(region_key)
-            if region:
-                val = read_stat_value(crop_region(img, region), stat_key)
-                setattr(entry, field_name, val)
+            if not region:
+                _log.warning(f"{ctx.with_step(field_name)} region 미정의")
+                entry.set_meta(field_name, FieldMeta.region_missing(region_key))
+                continue
+
+            from core.matcher import read_stat_value_result
+            r = read_stat_value_result(crop_region(img, region), stat_key)
+            setattr(entry, field_name, r.value)
+
+            if r.value is None or r.uncertain:
+                entry.set_meta(field_name,
+                               FieldMeta.uncertain(FieldSource.TEMPLATE,
+                                                   score=r.score,
+                                                   note=f"val={r.value}"))
+                _log.warning(f"{ctx.with_step(field_name)} 스탯 인식 불확실 "
+                             f"(score={r.score:.3f} val={r.value})")
             else:
-                self.log(f"  ⚠️ {region_key} region 미정의")
+                entry.set_meta(field_name,
+                               FieldMeta.ok(FieldSource.TEMPLATE, score=r.score))
 
         self.log(
             f"  📈 스탯: HP={entry.stat_hp} "
@@ -1510,6 +1709,29 @@ class Scanner:
             f"장비:{equip_info}  "
             f"스탯(HP:{entry.stat_hp}/ATK:{entry.stat_atk}/HEAL:{entry.stat_heal})"
         )
+
+        # ── 메타 요약 로그 ────────────────────────────────
+        # uncertain / failed / inferred 필드만 출력
+        uncertain = entry.uncertain_fields()
+        failed    = entry.failed_fields()
+        inferred  = [k for k, v in entry._meta.items()
+                     if v.status == FieldStatus.INFERRED]
+
+        if uncertain:
+            _log.warning(
+                f"  [{idx+1:>3}] {entry.label()} "
+                f"— uncertain: {uncertain}"
+            )
+        if failed:
+            _log.warning(
+                f"  [{idx+1:>3}] {entry.label()} "
+                f"— failed: {failed}"
+            )
+        if inferred:
+            _log.info(
+                f"  [{idx+1:>3}] {entry.label()} "
+                f"— inferred: {inferred}"
+            )
 
     # ── 전체 스캔 ─────────────────────────────────────────
 
