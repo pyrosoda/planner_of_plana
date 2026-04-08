@@ -77,7 +77,7 @@ from core.matcher import (
 )
 
 import core.ocr as ocr
-import core.student_names as student_names
+import core.student_meta as student_meta
 from core.item_names import correct_item_name
 from core.equip4_students import has_equip4
 
@@ -632,7 +632,7 @@ class Scanner:
         """
         entry = StudentEntry(
             student_id=student_id,
-            display_name=student_names.display_name(student_id),
+            display_name=student_meta.display_name(student_id),
             scan_state=ScanState.TEMP,
         )
         _log.debug(f"[TEMP] 시작: {entry.label()}")
@@ -1216,7 +1216,7 @@ class Scanner:
         else:
             entry = StudentEntry(
                 student_id=student_id,
-                display_name=student_names.display_name(student_id),
+                display_name=student_meta.display_name(student_id),
                 skipped=True,
             )
         entry.skipped = True
@@ -1273,10 +1273,10 @@ class Scanner:
             sid, score = match_student_texture(crop)
             if sid is not None:
                 _log.info(
-                    f"{ctx} 식별 성공: {student_names.display_name(sid)} "
+                    f"{ctx} 식별 성공: {student_meta.display_name(sid)} "
                     f"(score={score:.3f})"
                 )
-                self._info(f"  🔍 [{idx+1}] {student_names.display_name(sid)} (score={score:.3f})")
+                self._info(f"  🔍 [{idx+1}] {student_meta.display_name(sid)} (score={score:.3f})")
                 return sid
             # 식별 실패 → 디버그 덤프
             _log.debug(f"{ctx} 텍스처 식별 미달 (score={score:.3f})")

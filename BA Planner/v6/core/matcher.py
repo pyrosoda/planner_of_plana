@@ -646,7 +646,7 @@ def _color_hist_score(crop: Image.Image, tmpl_path: str) -> float:
 
 
 def match_student_texture(crop: Image.Image) -> tuple[Optional[str], float]:
-    import core.student_names as _sn
+    import core.student_meta as _sn
     texture_dir = TEMPLATE_DIR / STUDENT_TEXTURE_DIR
     if not texture_dir.exists():
         return None, 0.0

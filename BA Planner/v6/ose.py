@@ -25,7 +25,7 @@ from core.matcher import (  # noqa: E402
     read_student_star_v5,
     read_weapon_star_v5,
 )
-import core.student_names as student_names  # noqa: E402
+import core.student_meta as student_meta  # noqa: E402
 
 
 @dataclass
@@ -102,7 +102,7 @@ class OfflineStudentExtractor:
         entry.texture_score = round(float(texture_score), 4)
         if sid is not None:
             entry.student_id = sid
-            entry.display_name = student_names.display_name(sid)
+            entry.display_name = student_meta.display_name(sid)
         else:
             notes.append("학생 텍스처 식별 실패 또는 템플릿 부족")
 
