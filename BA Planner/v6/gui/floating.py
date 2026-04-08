@@ -55,12 +55,12 @@ class FloatingOverlay(tk.Toplevel):
             "view_students": on_view_students or (lambda: None),
         }
         self._expanded = False
-        self._scanning = False
         self._visible = False
         self._resources = {}
         self._log_lines: list[str] = []
         self._drag_x = self._drag_y = 0
         self._app_state = AppState.INIT
+        self._stop_event = threading.Event()
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -88,7 +88,7 @@ class FloatingOverlay(tk.Toplevel):
         canvas.pack()
         fill = RED if self._app_state == AppState.ERROR else BLUE
         canvas.create_oval(2, 2, d - 2, d - 2, fill=fill, outline=LBLUE, width=2)
-        if self._scanning or self._app_state == AppState.STOPPING:
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
             canvas.create_oval(d - 14, 2, d - 2, 14, fill=YELLOW, outline="")
         canvas.create_text(
             d // 2,
@@ -179,7 +179,7 @@ class FloatingOverlay(tk.Toplevel):
         ).pack(side="left", padx=4)
 
     def _draw_actions(self, parent):
-        if self._app_state in (AppState.SCANNING, AppState.STOPPING) or self._scanning:
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
             self._action_button(parent, "스캔 중지", RED, TEXT, "stop")
             return
 
@@ -270,13 +270,13 @@ class FloatingOverlay(tk.Toplevel):
 
     def _start_tracker(self):
         def loop():
-            while True:
+            while not self._stop_event.is_set():
                 try:
                     if self._visible:
                         self.after(0, self._reposition)
                 except Exception:
                     pass
-                time.sleep(0.5)
+                self._stop_event.wait(0.5)
 
         threading.Thread(target=loop, daemon=True).start()
 
@@ -298,10 +298,6 @@ class FloatingOverlay(tk.Toplevel):
             self._visible = False
             self.withdraw()
 
-    def set_scanning(self, value: bool):
-        self._scanning = value
-        self.after(0, self._draw)
-
     def set_app_state(self, state: AppState):
         self._app_state = state
         self.after(0, self._draw)
@@ -322,3 +318,7 @@ class FloatingOverlay(tk.Toplevel):
         self._expanded = not self._expanded
         self._draw()
         self._reposition()
+
+    def destroy(self):
+        self._stop_event.set()
+        super().destroy()

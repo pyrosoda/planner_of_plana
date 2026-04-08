@@ -6,6 +6,7 @@ import importlib.util
 import os
 import sys
 import threading
+from tkinter import TclError
 
 import tkinter as tk
 
@@ -33,7 +34,7 @@ from core.log_context import set_debug_dump
 from core.logger import LOG_APP, get_logger, setup_logging
 from core.repository import ScanRepository
 from core.scanner import ScanResult, Scanner
-from core.states import AppState, StateMachine
+from core.states import AppState, StateMachine, can_transition
 from core.template_cache import warmup_all
 from gui.floating import FloatingOverlay
 from gui.student_viewer import open_viewer
@@ -63,14 +64,14 @@ class App(tk.Tk):
         warmup_all()
 
         self._sm = StateMachine(AppState.INIT, name="App")
-        self._state_lock = threading.Lock()
-        self._state = AppState.INIT
         self._scanner: Scanner | None = None
         self._watcher: LobbyWatcher | None = None
         self._result: ScanResult | None = None
         self._scan_thread: threading.Thread | None = None
         self._asv = None
         self._closing = False
+        self._shutdown_requested = False
+        self._destroyed = False
 
         self._overlay = FloatingOverlay(
             self,
@@ -92,20 +93,12 @@ class App(tk.Tk):
         return self._sm.state
 
     def _set_state(self, new: AppState, reason: str = "") -> bool:
-        ok = self._sm.transition(new, reason=reason)
-        if ok:
-            with self._state_lock:
-                self._state = new
-        return ok
+        return self._sm.transition(new, reason=reason)
 
     def _force_state(self, new: AppState, reason: str = "") -> None:
         self._sm.force(new, reason=reason)
-        with self._state_lock:
-            self._state = new
 
     def can_transition(self, from_state: AppState, to_state: AppState) -> bool:
-        from core.states import can_transition
-
         return can_transition(from_state, to_state)
 
     def _transition_to(self, new: AppState, reason: str = "", *, force: bool = False) -> bool:
@@ -123,13 +116,11 @@ class App(tk.Tk):
         self._overlay.set_app_state(new)
 
         if new == AppState.IDLE:
-            self._overlay.set_scanning(False)
             self._stop_watcher()
             self._overlay.hide()
             return
 
         if new == AppState.WATCHING:
-            self._overlay.set_scanning(False)
             self._ensure_watcher_running()
             if self._watcher and self._watcher.in_lobby:
                 self._overlay.show()
@@ -139,7 +130,6 @@ class App(tk.Tk):
 
         if new == AppState.SCANNING:
             self._pause_watcher()
-            self._overlay.set_scanning(True)
             self._overlay.hide()
             return
 
@@ -147,7 +137,6 @@ class App(tk.Tk):
             if self._scanner:
                 self._scanner.stop()
             self._pause_watcher()
-            self._overlay.set_scanning(False)
             self._overlay.add_log("오류 상태 진입. 복구 동작만 허용됩니다.")
             self._overlay.show()
             return
@@ -156,7 +145,6 @@ class App(tk.Tk):
             if self._scanner:
                 self._scanner.stop()
             self._pause_watcher()
-            self._overlay.set_scanning(True)
             self._overlay.add_log("정리 중...")
 
     def _is_scanning(self) -> bool:
@@ -316,6 +304,10 @@ class App(tk.Tk):
         self._scanner = None
         self._scan_thread = None
 
+        if self._shutdown_requested:
+            self._finish_shutdown(reason="scan_thread_finished")
+            return
+
         if self.state == AppState.STOPPING:
             next_state = AppState.WATCHING if self._config.get("target_hwnd") else AppState.IDLE
             self._transition_to(next_state, reason="stop_cleanup_finished")
@@ -324,9 +316,6 @@ class App(tk.Tk):
         if self.state == AppState.SCANNING:
             self._transition_to(AppState.WATCHING, reason="scan_finished")
             return
-
-        if self.state == AppState.ERROR:
-            self._overlay.set_scanning(False)
 
     def _stop_scan(self) -> None:
         if self.state not in (AppState.SCANNING, AppState.PAUSED):
@@ -418,8 +407,34 @@ class App(tk.Tk):
         if self._closing:
             return
         self._closing = True
+        self._shutdown_requested = True
         self._transition_to(AppState.STOPPING, reason="app_close")
+        self._wait_for_shutdown()
+
+    def _wait_for_shutdown(self) -> None:
+        if self._destroyed:
+            return
+
+        thread = self._scan_thread
+        if thread and thread.is_alive():
+            self.after(100, self._wait_for_shutdown)
+            return
+
+        self._finish_shutdown(reason="shutdown_ready")
+
+    def _finish_shutdown(self, reason: str) -> None:
+        if self._destroyed:
+            return
+
+        if self.state != AppState.STOPPING:
+            self._transition_to(AppState.STOPPING, reason=reason)
+
         self._stop_watcher()
+        self._destroyed = True
+        try:
+            self._overlay.destroy()
+        except TclError:
+            pass
         self.destroy()
 
     def run(self) -> None:
