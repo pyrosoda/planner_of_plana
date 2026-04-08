@@ -571,6 +571,7 @@ class Scanner:
         self._maxed_ids    = frozenset(maxed_ids or [])
         self._maxed_cache: dict[str, dict] = maxed_cache or {}
         self._asv          = autosave_manager   # AutoSaveManager (없으면 None)
+        self._student_basic_img: Optional[Image.Image] = None
 
         if self._maxed_ids:
             self._info(f"⏭ 만렙 스킵 대상: {len(self._maxed_ids)}명")
@@ -773,6 +774,21 @@ class Scanner:
                     return None
         self._error("캡처 실패")
         return None
+
+    def _invalidate_student_basic_capture(self) -> None:
+        self._student_basic_img = None
+
+    def _get_student_basic_capture(
+        self,
+        *,
+        refresh: bool = False,
+    ) -> Optional[Image.Image]:
+        if refresh or self._student_basic_img is None:
+            img = self._capture()
+            if img is None:
+                return None
+            self._student_basic_img = img
+        return self._student_basic_img
 
     def _rect(self) -> Optional[tuple[int, int, int, int]]:
         return get_window_rect()
@@ -1250,7 +1266,7 @@ class Scanner:
             return None
 
         def _try() -> Optional[str]:
-            img = self._capture()
+            img = self._get_student_basic_capture(refresh=True)
             if img is None:
                 return None
             crop = crop_region(img, texture_r)
@@ -1355,7 +1371,7 @@ class Scanner:
             entry.set_meta("weapon_state", FieldMeta.region_missing("weapon_detect_flag_region"))
             return
 
-        img = self._capture()
+        img = self._get_student_basic_capture()
         if img is None:
             entry.weapon_state = WeaponState.NO_WEAPON_SYSTEM
             entry.set_meta("weapon_state", FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
@@ -1443,7 +1459,7 @@ class Scanner:
             return
 
         # 탭 진입 전 pre-check (기본 화면에서)
-        img = self._capture()
+        img = self._get_student_basic_capture()
         if img is None:
             return
 
@@ -1584,7 +1600,7 @@ class Scanner:
         img = self._capture()
         if img is None:
             self._restore_basic_tab()
-            entry.set_meta("level", FieldMeta.failed(FieldSource.OCR, "capture_fail"))
+            entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
             return
 
         sr = self.r["student"]

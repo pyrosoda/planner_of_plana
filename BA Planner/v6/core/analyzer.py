@@ -10,7 +10,7 @@ core/analyzer.py — 분석기 계층
 만렙 기준 (2026-04 현재)
   · level          : 90
   · student_star   : 5  (무기 보유 시 확정 5)
-  · weapon_level   : 50  (전용무기 4성 장착 기준)
+  · weapon_level   : 60  (전용무기 4성 장착 기준)
   · ex_skill       : 5
   · skill1~3       : 10
   · equip1~3_level : 70
@@ -148,7 +148,7 @@ def is_student_maxed(student: dict) -> bool:
       · ex_skill == 5,  skill1~3 == 10
       · equip1~3_level == 70
       · equip4 대상 학생: equip4 == "T2"
-      · weapon_equipped: weapon_level == 50
+      · weapon_equipped: weapon_level == 60
       · 스탯 해금 상태: stat_hp/atk/heal == 25
     """
     sid = student.get("student_id", "")
