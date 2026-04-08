@@ -61,6 +61,11 @@ class FloatingOverlay(tk.Toplevel):
         self._drag_x = self._drag_y = 0
         self._app_state = AppState.INIT
         self._stop_event = threading.Event()
+        self._status_label: tk.Label | None = None
+        self._pyrox_label: tk.Label | None = None
+        self._credit_label: tk.Label | None = None
+        self._log_label: tk.Label | None = None
+        self._actions_frame: tk.Frame | None = None
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -74,6 +79,11 @@ class FloatingOverlay(tk.Toplevel):
     def _draw(self):
         for w in self.winfo_children():
             w.destroy()
+        self._status_label = None
+        self._pyrox_label = None
+        self._credit_label = None
+        self._log_label = None
+        self._actions_frame = None
 
         if self._expanded:
             self._draw_expanded()
@@ -137,74 +147,44 @@ class FloatingOverlay(tk.Toplevel):
         self._draw_actions(frame)
         self._draw_log(frame)
         self._draw_footer(frame)
+        self._refresh_dynamic_content()
 
     def _draw_status(self, parent):
-        labels = {
-            AppState.INIT: "초기화 중",
-            AppState.IDLE: "대상 창 선택 필요",
-            AppState.WATCHING: "로비 감시 중",
-            AppState.SCANNING: "스캔 실행 중",
-            AppState.PAUSED: "일시정지",
-            AppState.ERROR: "오류 상태",
-            AppState.STOPPING: "정리 중",
-        }
         row = tk.Frame(parent, bg=CARD)
         row.pack(fill="x", padx=6, pady=(6, 2))
-        tk.Label(
+        self._status_label = tk.Label(
             row,
-            text=f"상태: {labels.get(self._app_state, self._app_state.name)}",
+            text="",
             bg=CARD,
             fg=TEXT,
             font=(FONT, 9, "bold"),
-        ).pack(anchor="w", padx=8, pady=4)
+        )
+        self._status_label.pack(anchor="w", padx=8, pady=4)
 
     def _draw_resources(self, parent):
         res = tk.Frame(parent, bg=CARD)
         res.pack(fill="x", padx=6, pady=(0, 2))
-        pyrox = self._resources.get("청휘석") or "-"
-        credit = self._resources.get("크레딧") or "-"
-        tk.Label(
+        self._pyrox_label = tk.Label(
             res,
-            text=f"청휘석 {pyrox}",
+            text="",
             bg=CARD,
             fg=YELLOW,
             font=(FONT, 10, "bold"),
-        ).pack(side="left", padx=8, pady=4)
-        tk.Label(
+        )
+        self._pyrox_label.pack(side="left", padx=8, pady=4)
+        self._credit_label = tk.Label(
             res,
-            text=f"크레딧 {credit}",
+            text="",
             bg=CARD,
             fg=TEXT,
             font=(FONT, 10, "bold"),
-        ).pack(side="left", padx=4)
+        )
+        self._credit_label.pack(side="left", padx=4)
 
     def _draw_actions(self, parent):
-        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-            self._action_button(parent, "스캔 중지", RED, TEXT, "stop")
-            return
-
-        if self._app_state == AppState.ERROR:
-            self._action_button(parent, "복구 / 창 다시 선택", ORANGE, BG, "recover")
-            self._action_button(parent, "학생 뷰어", YELLOW, BG, "view_students")
-            return
-
-        if self._app_state == AppState.IDLE:
-            self._action_button(parent, "창 선택", ORANGE, BG, "settings")
-            return
-
-        if self._app_state == AppState.WATCHING:
-            buttons = [
-                ("아이템 스캔", LBLUE, "items"),
-                ("장비 스캔", PURPLE, "equipment"),
-                ("학생 스캔", GREEN, "students"),
-                ("전체 스캔", ORANGE, "all"),
-                ("학생 뷰어", YELLOW, "view_students"),
-            ]
-            for text, color, key in buttons:
-                self._action_button(parent, text, color, BG, key)
-            return
-
-        self._action_button(parent, "창 선택", ORANGE, BG, "settings")
+        self._actions_frame = tk.Frame(parent, bg=BG)
+        self._actions_frame.pack(fill="x")
+        self._rebuild_actions()
 
     def _action_button(self, parent, text: str, bg: str, fg: str, key: str):
         tk.Button(
@@ -223,17 +203,67 @@ class FloatingOverlay(tk.Toplevel):
         log_f = tk.Frame(parent, bg=CARD, height=56)
         log_f.pack(fill="x", padx=6, pady=(4, 0))
         log_f.pack_propagate(False)
-        log_txt = "\n".join(self._log_lines[-3:]) if self._log_lines else "대기 중..."
-        tk.Label(
+        self._log_label = tk.Label(
             log_f,
-            text=log_txt,
+            text="",
             bg=CARD,
             fg=SUB,
             font=(FONT, 8),
             justify="left",
             anchor="nw",
             wraplength=210,
-        ).pack(padx=6, pady=4, fill="both")
+        )
+        self._log_label.pack(padx=6, pady=4, fill="both")
+
+    def _state_text(self) -> str:
+        labels = {
+            AppState.INIT: "초기화 중",
+            AppState.IDLE: "대상 창 선택 필요",
+            AppState.WATCHING: "로비 감시 중",
+            AppState.SCANNING: "스캔 실행 중",
+            AppState.PAUSED: "일시정지",
+            AppState.ERROR: "오류 상태",
+            AppState.STOPPING: "정리 중",
+        }
+        return f"상태: {labels.get(self._app_state, self._app_state.name)}"
+
+    def _action_specs(self) -> list[tuple[str, str, str, str]]:
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            return [("스캔 중지", RED, TEXT, "stop")]
+        if self._app_state == AppState.ERROR:
+            return [
+                ("복구 / 창 다시 선택", ORANGE, BG, "recover"),
+                ("학생 뷰어", YELLOW, BG, "view_students"),
+            ]
+        if self._app_state == AppState.IDLE:
+            return [("창 선택", ORANGE, BG, "settings")]
+        if self._app_state == AppState.WATCHING:
+            return [
+                ("아이템 스캔", LBLUE, BG, "items"),
+                ("장비 스캔", PURPLE, BG, "equipment"),
+                ("학생 스캔", GREEN, BG, "students"),
+                ("전체 스캔", ORANGE, BG, "all"),
+                ("학생 뷰어", YELLOW, BG, "view_students"),
+            ]
+        return [("창 선택", ORANGE, BG, "settings")]
+
+    def _rebuild_actions(self) -> None:
+        if self._actions_frame is None:
+            return
+        for w in self._actions_frame.winfo_children():
+            w.destroy()
+        for text, color, fg, key in self._action_specs():
+            self._action_button(self._actions_frame, text, color, fg, key)
+
+    def _refresh_dynamic_content(self) -> None:
+        if self._status_label is not None:
+            self._status_label.config(text=self._state_text())
+        if self._pyrox_label is not None:
+            self._pyrox_label.config(text=f"청휘석 {self._resources.get('청휘석') or '-'}")
+        if self._credit_label is not None:
+            self._credit_label.config(text=f"크레딧 {self._resources.get('크레딧') or '-'}")
+        if self._log_label is not None:
+            self._log_label.config(text="\n".join(self._log_lines[-3:]) if self._log_lines else "대기 중...")
 
     def _draw_footer(self, parent):
         tk.Button(
@@ -299,20 +329,26 @@ class FloatingOverlay(tk.Toplevel):
             self.withdraw()
 
     def set_app_state(self, state: AppState):
+        prev = self._app_state
         self._app_state = state
-        self.after(0, self._draw)
+        if not self._expanded:
+            self.after(0, self._draw)
+            return
+        self.after(0, self._refresh_dynamic_content)
+        if prev != state:
+            self.after(0, self._rebuild_actions)
 
     def update_resources(self, res: dict):
         self._resources = res
         if self._expanded:
-            self.after(0, self._draw)
+            self.after(0, self._refresh_dynamic_content)
 
     def add_log(self, msg: str):
         self._log_lines.append(msg)
         if len(self._log_lines) > 30:
             self._log_lines = self._log_lines[-30:]
         if self._expanded:
-            self.after(0, self._draw)
+            self.after(0, self._refresh_dynamic_content)
 
     def _toggle(self):
         self._expanded = not self._expanded
