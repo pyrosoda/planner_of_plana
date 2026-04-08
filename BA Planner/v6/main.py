@@ -54,6 +54,7 @@ from core.db_writer     import build_scan_meta
 from core.repository    import ScanRepository
 from core.analyzer      import analyze_scan_summary, is_student_maxed
 from core.template_cache import warmup_all
+from core.states import AppState, StateMachine, ScanPhase
 from core.logger import setup_logging, get_logger, LOG_APP
 from core.log_context import set_debug_dump
 import core.student_names as student_names
@@ -98,7 +99,9 @@ class App(tk.Tk):
         # 누락 파일은 WARNING 로그, 시작은 계속 진행.
         warmup_all()
 
-        self._state:   AppState             = AppState.IDLE
+        # StateMachine — 검증+로깅 전이 관리자
+        self._sm:      StateMachine         = StateMachine(AppState.INIT, name="App")
+        self._state:   AppState             = AppState.IDLE  # 하위 호환 프로퍼티용
         self._scanner: Scanner | None       = None
         self._watcher: LobbyWatcher | None  = None
         self._result:  ScanResult | None    = None
@@ -124,19 +127,37 @@ class App(tk.Tk):
     # 상태 전이
     # ══════════════════════════════════════════════════════
 
-    def _set_state(self, new: AppState) -> None:
+    def _set_state(self, new: AppState, reason: str = "") -> bool:
+        """
+        상태 전이 — StateMachine 을 통해 검증 + 로그.
+        허용되지 않은 전이는 False 반환 (경고 로그 자동).
+        하위 호환을 위해 self._state 도 동기화.
+        """
+        ok = self._sm.transition(new, reason=reason)
+        if ok:
+            with self._state_lock:
+                self._state = new
+        return ok
+
+    def _force_state(self, new: AppState, reason: str = "") -> None:
+        """비상용 강제 전이 (종료 시퀀스 등)."""
+        self._sm.force(new, reason=reason)
         with self._state_lock:
-            old = self._state
             self._state = new
-        _log.info(f"상태 전이: {old.name} → {new.name}")
 
     @property
     def state(self) -> AppState:
-        with self._state_lock:
-            return self._state
+        return self._sm.state
 
     def _is_scanning(self) -> bool:
-        return self.state == AppState.SCANNING
+        return self._sm.is_in(AppState.SCANNING)
+
+    def _is_stopping(self) -> bool:
+        return self._sm.is_in(AppState.STOPPING)
+
+    def _can_scan(self) -> bool:
+        """스캔 시작 가능 상태인지 확인."""
+        return self._sm.is_in(AppState.WATCHING)
 
     # ══════════════════════════════════════════════════════
     # watcher lifecycle
@@ -147,6 +168,9 @@ class App(tk.Tk):
         watcher 시작.
         기존 watcher 가 있으면 반드시 stop() 후 재생성.
         """
+        if self._is_stopping():
+            return
+
         self._stop_watcher()
 
         lobby_region = self._regions["lobby"]["detect_flag"]
@@ -157,7 +181,7 @@ class App(tk.Tk):
             on_window_move=lambda *a: self.after(0, self._overlay._reposition),
         )
         self._watcher.start()
-        self._set_state(AppState.WATCHING)
+        self._set_state(AppState.WATCHING, reason="watcher_started")
 
     def _stop_watcher(self) -> None:
         """watcher 안전 종료."""
@@ -232,28 +256,34 @@ class App(tk.Tk):
     def _request_scan(self, mode: str) -> None:
         """
         스캔 버튼 핸들러.
-        SCANNING 중이거나 IDLE(창 미선택) 이면 무시.
+        StateMachine 의 _can_scan() 으로 유효성 확인.
         """
-        current = self.state
-        if current == AppState.SCANNING:
+        if self._is_scanning():
             self._overlay.add_log("⚠️ 이미 스캔 중이야")
             return
-        if current == AppState.IDLE:
-            self._overlay.add_log("⚠️ 창을 먼저 선택해줘")
+        if self._is_stopping():
             return
-
+        if not self._can_scan():
+            self._overlay.add_log(
+                "⚠️ 창을 먼저 선택해줘"
+                if self._sm.is_in(AppState.IDLE) else
+                "⚠️ 현재 상태에서는 스캔할 수 없어"
+            )
+            return
         self._scan(mode)
 
     def _scan(self, mode: str) -> None:
         """스캔 실행 — 별도 스레드로 구동."""
-        meta = build_scan_meta()
-        self._asv     = None             # AutoSaveManager 초기화
-        self._scanner = self._build_scanner(meta)   # meta 전달
+        meta          = build_scan_meta()
+        self._asv     = None
+        self._scanner = self._build_scanner(meta)
 
-        # 상태 전이: WATCHING → SCANNING
-        self._set_state(AppState.SCANNING)
+        # WATCHING → SCANNING 전이 (허용 확인 포함)
+        if not self._set_state(AppState.SCANNING, reason=f"mode={mode}"):
+            _log.error("SCANNING 전이 실패 — 스캔 취소")
+            return
+
         self._pause_watcher()
-
         self._overlay.set_scanning(True)
         self._overlay.hide()
         self.update_idletasks()
@@ -273,8 +303,12 @@ class App(tk.Tk):
 
     def _run_scan_task(self, mode: str, meta: dict) -> None:
         """스캔 워크플로우 — 스캐너 스레드에서 실행."""
-        result = ScanResult()
+        result  = ScanResult()
         scanner = self._scanner
+
+        def _not_stopped() -> bool:
+            """scanner._stop 직접 참조 대신 메서드로 캡슐화."""
+            return not scanner._stop
 
         try:
             if mode in ("items", "all"):
@@ -284,12 +318,12 @@ class App(tk.Tk):
                 n = len(result.items)
                 self.after(0, lambda: self._overlay.add_log(f"✅ 아이템 {n}개"))
 
-            if mode in ("equipment", "all") and not scanner._stop:
+            if mode in ("equipment", "all") and _not_stopped():
                 result.equipment = scanner.scan_equipment()
                 n = len(result.equipment)
                 self.after(0, lambda: self._overlay.add_log(f"✅ 장비 {n}개"))
 
-            if mode in ("students", "all") and not scanner._stop:
+            if mode in ("students", "all") and _not_stopped():
                 result.students = scanner.scan_students()
                 total   = len(result.students)
                 skipped = sum(1 for s in result.students if s.skipped)
@@ -303,19 +337,17 @@ class App(tk.Tk):
             import traceback
             traceback.print_exc()
             self.after(0, lambda: self._overlay.add_log(f"❌ 스캔 오류: {e}"))
-            self._set_state(AppState.ERROR)
+            self._set_state(AppState.ERROR, reason=str(e))
 
     def _on_scan_finished(self) -> None:
         """스캔 완료/중단 후 UI 스레드에서 호출."""
         self._overlay.set_scanning(False)
 
-        # 오류 상태가 아니면 WATCHING 으로 복귀
-        if self.state != AppState.ERROR:
-            self._set_state(AppState.WATCHING)
+        if not self._sm.is_in(AppState.ERROR, AppState.STOPPING):
+            self._set_state(AppState.WATCHING, reason="scan_finished")
 
-        self._resume_watcher()                 # ← watcher 재개
+        self._resume_watcher()
 
-        # 로비에 있으면 오버레이 다시 표시
         if self._watcher and self._watcher.in_lobby:
             self._overlay.show()
 
@@ -391,15 +423,16 @@ class App(tk.Tk):
     def _open_window_picker(self) -> None:
         """
         창 선택 UI 오픈.
-        SCANNING 중에는 차단.
+        SCANNING / STOPPING 중에는 차단.
         """
         if self._is_scanning():
             self._overlay.add_log("⚠️ 스캔 중에는 창 재설정 불가")
             return
+        if self._is_stopping():
+            return
 
-        # watcher 중단 후 창 선택 대기
         self._stop_watcher()
-        self._set_state(AppState.IDLE)
+        self._set_state(AppState.IDLE, reason="window_picker_open")
         self._overlay.hide()
         clear_target()
 

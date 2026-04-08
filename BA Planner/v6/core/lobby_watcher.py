@@ -23,10 +23,10 @@ core/lobby_watcher.py — BA Analyzer v6
 
 import threading
 import time
-from enum import Enum, auto
 from typing import Callable, Optional
 
 from core.logger import get_logger, LOG_WATCHER
+from core.states import WatcherState
 from core.capture import (
     capture_window_background,
     get_window_rect,
@@ -38,13 +38,6 @@ from core.matcher import is_lobby
 _log = get_logger(LOG_WATCHER)
 
 
-# ── 상태 정의 ─────────────────────────────────────────────
-
-class WatcherState(Enum):
-    IDLE    = auto()   # start() 전
-    RUNNING = auto()   # 정상 감지 중
-    PAUSED  = auto()   # scanner 실행 중 — 감지 루프 skip
-    STOPPED = auto()   # stop() 호출 후
 
 
 # ── LobbyWatcher ──────────────────────────────────────────
