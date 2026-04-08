@@ -579,6 +579,20 @@ class Scanner:
         self._stop = True
         _log.info("스캔 중지 요청")
 
+    def clear_stop(self) -> None:
+        self._stop = False
+
+    def _stop_requested(self) -> bool:
+        return self._stop
+
+    def _wait(self, seconds: float, step: float = 0.05) -> bool:
+        end = time.monotonic() + max(0.0, seconds)
+        while time.monotonic() < end:
+            if self._stop_requested():
+                return False
+            time.sleep(min(step, end - time.monotonic()))
+        return not self._stop_requested()
+
     # ── 로그 헬퍼 ─────────────────────────────────────────
     # logger + UI 콜백을 동시에 처리
 
@@ -748,12 +762,15 @@ class Scanner:
     def _capture(self, retry: int = RETRY_CAPTURE) -> Optional[Image.Image]:
         """캡처 + retry. 실패 시 None."""
         for i in range(retry + 1):
+            if self._stop_requested():
+                return None
             img = capture_window_background()
             if img is not None:
                 return img
             if i < retry:
                 _log.debug(f"캡처 재시도 ({i+1}/{retry})")
-                time.sleep(0.1)
+                if not self._wait(0.1):
+                    return None
         self._error("캡처 실패")
         return None
 
@@ -776,12 +793,15 @@ class Scanner:
         모두 실패 시 None 반환.
         """
         for i in range(max_attempts):
+            if self._stop_requested():
+                return None
             result = fn()
             if result is not None:
                 return result
             if i < max_attempts - 1:
                 self.log(f"  ↩ {label} 재시도 ({i+2}/{max_attempts})")
-                time.sleep(delay)
+                if not self._wait(delay):
+                    return None
         return None
 
     # ── UI 전환 중앙화 ────────────────────────────────────
@@ -808,13 +828,16 @@ class Scanner:
             return False
         ok = self._click_r(region, region_key)
         if delay > 0:
-            time.sleep(delay)
+            if not self._wait(delay):
+                return False
         return ok
 
     def _esc(self, n: int = 1, delay: float = DELAY_ESC) -> None:
         """ESC n회 전송."""
         hwnd = self._hwnd()
         for _ in range(n):
+            if self._stop_requested():
+                return
             if hwnd:
                 send_escape(hwnd, delay=delay)
             else:
@@ -825,7 +848,7 @@ class Scanner:
         sr = self.r["student"]
         if "basic_info_button" in sr:
             self._click_r(sr["basic_info_button"], "basic_info_tab")
-            time.sleep(0.3)
+            self._wait(0.3)
         else:
             self._esc()
 
@@ -868,8 +891,7 @@ class Scanner:
             return False
         self.log("📂 메뉴 열기...")
         self._click_r(self.r["lobby"]["menu_button"], "menu_button")
-        time.sleep(0.7)
-        return True
+        return self._wait(0.7)
 
     def _go_to(self, btn_key: str, label: str) -> bool:
         btn = self.r["menu"].get(btn_key)
@@ -878,8 +900,7 @@ class Scanner:
             return False
         self.log(f"  → {label} 진입...")
         self._click_r(btn, label)
-        time.sleep(1.0)
-        return True
+        return self._wait(1.0)
 
     def _return_lobby(self) -> None:
         self.log("🏠 로비 복귀...")
@@ -913,7 +934,7 @@ class Scanner:
         self.log(f"{icon} 그리드 스캔 시작 (슬롯 {len(slots)}개)")
 
         for scroll_i in range(MAX_SCROLLS):
-            if self._stop:
+            if self._stop_requested():
                 break
 
             # ── 1회 캡처 → 이후 crop 재사용 ──────────────
@@ -933,12 +954,13 @@ class Scanner:
 
             new_this = 0
             for slot in slots:
-                if self._stop:
+                if self._stop_requested():
                     break
 
                 click_ry = slot["y1"] + (slot["y2"] - slot["y1"]) * 0.4
                 safe_click(rect, slot["cx"], click_ry, f"{source}_slot")
-                time.sleep(DELAY_AFTER_CLICK)
+                if not self._wait(DELAY_AFTER_CLICK):
+                    break
 
                 # 슬롯 클릭 후 1회 캡처
                 img2 = self._capture()
@@ -974,7 +996,8 @@ class Scanner:
             before = crop_region(before_img, grid_r) if before_img else None
 
             scroll_at(rect, scroll_cx, scroll_cy, scroll_amount)
-            time.sleep(0.15)
+            if not self._wait(0.15):
+                break
 
             after_img = self._capture()
             if after_img is None:
@@ -993,7 +1016,6 @@ class Scanner:
     # ── 아이템 / 장비 공개 스캔 ──────────────────────────
 
     def scan_items(self) -> list[ItemEntry]:
-        self._stop = False
         self.log("━━━ 📦 아이템 스캔 시작 ━━━")
         try:
             ocr.load()
@@ -1001,7 +1023,8 @@ class Scanner:
                 return []
             if not self._go_to("item_entry_button", "아이템"):
                 return []
-            time.sleep(0.5)
+            if not self._wait(0.5):
+                return []
             result = self._scan_grid("item", "item", SCROLL_ITEM)
             self.log(f"━━━ 📦 아이템 스캔 완료: {len(result)}개 ━━━")
             return result
@@ -1013,7 +1036,6 @@ class Scanner:
             ocr.unload()
 
     def scan_equipment(self) -> list[ItemEntry]:
-        self._stop = False
         self.log("━━━ 🔧 장비 스캔 시작 ━━━")
         try:
             ocr.load()
@@ -1021,7 +1043,8 @@ class Scanner:
                 return []
             if not self._go_to("equipment_entry_button", "장비"):
                 return []
-            time.sleep(0.5)
+            if not self._wait(0.5):
+                return []
             result = self._scan_grid("equipment", "equipment", SCROLL_EQUIP)
             self.log(f"━━━ 🔧 장비 스캔 완료: {len(result)}개 ━━━")
             return result
@@ -1040,7 +1063,6 @@ class Scanner:
         return self.scan_students_v5()
 
     def scan_students_v5(self) -> list[StudentEntry]:
-        self._stop = False
         log_section(_log, "학생 스캔 시작 (V6)")
         self._info("━━━ 👩 학생 스캔 시작 (V6) ━━━")
         results:       list[StudentEntry] = []
@@ -1058,7 +1080,7 @@ class Scanner:
             prev_id:         Optional[str]  = None
 
             for idx in range(500):
-                if self._stop:
+                if self._stop_requested():
                     _log.info("스캔 중지 플래그 감지 → 루프 종료")
                     break
 
@@ -1114,11 +1136,23 @@ class Scanner:
                 # 각 단계: 실패해도 나머지 진행 (skip 정책)
                 # 단계마다 entry.scan_state 는 여전히 TEMP
                 self.read_skills(entry)
+                if self._stop_requested():
+                    break
                 self.read_weapon(entry)
+                if self._stop_requested():
+                    break
                 self.read_equipment(entry)
+                if self._stop_requested():
+                    break
                 self.read_level(entry)
+                if self._stop_requested():
+                    break
                 self.read_student_star(entry)
+                if self._stop_requested():
+                    break
                 self.read_stats(entry)
+                if self._stop_requested():
+                    break
 
                 # TEMP → COMMITTED or PARTIAL 검증
                 commit_result = self.finalize_student_entry(
@@ -1181,8 +1215,7 @@ class Scanner:
     def enter_student_menu(self) -> bool:
         self.log("  학생 메뉴 진입...")
         self._click_r(self.r["lobby"]["student_menu_button"], "student_menu")
-        time.sleep(STUDENT_MENU_WAIT)
-        return True
+        return self._wait(STUDENT_MENU_WAIT)
 
     def enter_first_student(self) -> bool:
         self.log("  첫 학생 선택...")
@@ -1191,8 +1224,7 @@ class Scanner:
             self.log("  ⚠️ first_student_button 미정의")
             return False
         self._click_r(btn, "first_student")
-        time.sleep(0.8)
-        return True
+        return self._wait(0.8)
 
     def go_next_student(self) -> bool:
         btn = self.r["student"].get("next_student_button")
@@ -1200,8 +1232,7 @@ class Scanner:
             self.log("  ⚠️ next_student_button 미정의")
             return False
         self._click_r(btn, "next_student")
-        time.sleep(DELAY_NEXT)
-        return True
+        return self._wait(DELAY_NEXT)
 
     # ── 학생 식별 ─────────────────────────────────────────
 
@@ -1267,7 +1298,9 @@ class Scanner:
             if read_skill_check(crop_region(img, check_r)) == CheckFlag.FALSE:
                 self.log("  🔘 스킬 일괄성장 체크 클릭")
                 self._click_r(check_r, "skill_check")
-                time.sleep(0.3)
+                if not self._wait(0.3):
+                    self._esc()
+                    return
                 img = self._capture()
                 if img is None:
                     _log.warning(f"{ctx} 체크 후 재캡처 실패")
@@ -1359,7 +1392,9 @@ class Scanner:
             return
 
         self._click_r(menu_btn, "weapon_info_menu")
-        time.sleep(DELAY_TAB_SWITCH)
+        if not self._wait(DELAY_TAB_SWITCH):
+            self._esc()
+            return
 
         img = self._capture()
         if img is None:
@@ -1425,7 +1460,9 @@ class Scanner:
             return
 
         self._click_r(equip_btn, "equipment_tab")
-        time.sleep(DELAY_TAB_SWITCH)
+        if not self._wait(DELAY_TAB_SWITCH):
+            self._esc()
+            return
 
         # 장비 메뉴 캡처 1회
         img = self._capture()
@@ -1438,7 +1475,9 @@ class Scanner:
             if read_equip_check_inside(crop_region(img, check_r)) == CheckFlag.FALSE:
                 self.log("  🔘 장비 일괄성장 체크 클릭")
                 self._click_r(check_r, "equip_check")
-                time.sleep(0.3)
+                if not self._wait(0.3):
+                    self._esc()
+                    return
                 img = self._capture()   # 체크 후 재캡처
                 if img is None:
                     self._esc()
@@ -1592,7 +1631,8 @@ class Scanner:
         star_btn = sr.get("star_menu_button")
         if star_btn:
             self._click_r(star_btn, "star_menu")
-            time.sleep(0.3)
+            if not self._wait(0.3):
+                return
 
         img = self._capture()
         if img is None:
@@ -1736,14 +1776,14 @@ class Scanner:
     # ── 전체 스캔 ─────────────────────────────────────────
 
     def run_full_scan(self) -> ScanResult:
-        self._stop = False
+        self.clear_stop()
         result = ScanResult()
         self.log("━━━━━ 전체 스캔 시작 ━━━━━")
         result.resources = self.scan_resources()
         result.items     = self.scan_items()
-        if not self._stop:
+        if not self._stop_requested():
             result.equipment = self.scan_equipment()
-        if not self._stop:
+        if not self._stop_requested():
             result.students  = self.scan_students_v5()
         self.log("━━━━━ 전체 스캔 완료 ━━━━━")
         return result

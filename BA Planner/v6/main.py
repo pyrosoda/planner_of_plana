@@ -4,6 +4,7 @@ Blue Archive Analyzer v6 entry point.
 
 import importlib.util
 import os
+import queue
 import sys
 import threading
 from tkinter import TclError
@@ -72,6 +73,7 @@ class App(tk.Tk):
         self._closing = False
         self._shutdown_requested = False
         self._destroyed = False
+        self._ui_queue: queue.Queue[tuple] = queue.Queue()
 
         self._overlay = FloatingOverlay(
             self,
@@ -86,6 +88,7 @@ class App(tk.Tk):
 
         clear_target()
         self._transition_to(AppState.IDLE, reason="startup_ready")
+        self.after(50, self._drain_ui_queue)
         self.after(300, self._open_window_picker)
 
     @property
@@ -160,10 +163,33 @@ class App(tk.Tk):
         lobby_region = self._regions["lobby"]["detect_flag"]
         return LobbyWatcher(
             lobby_region=lobby_region,
-            on_enter=lambda: self.after(0, self._on_lobby_enter),
-            on_leave=lambda: self.after(0, self._on_lobby_leave),
-            on_window_move=lambda *_a: self.after(0, self._overlay._reposition),
+            on_enter=lambda: self._dispatch_ui(self._on_lobby_enter),
+            on_leave=lambda: self._dispatch_ui(self._on_lobby_leave),
+            on_window_move=lambda *_a: self._dispatch_ui(self._overlay._reposition),
         )
+
+    def _dispatch_ui(self, callback, *args, **kwargs) -> bool:
+        if self._destroyed or self._shutdown_requested:
+            return False
+        self._ui_queue.put((callback, args, kwargs))
+        return True
+
+    def _drain_ui_queue(self) -> None:
+        if self._destroyed:
+            return
+        while True:
+            try:
+                callback, args, kwargs = self._ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                callback(*args, **kwargs)
+            except TclError:
+                if not self._destroyed:
+                    raise
+            except Exception:
+                _log.exception("ui callback failed")
+        self.after(50, self._drain_ui_queue)
 
     def _ensure_watcher_running(self) -> None:
         if self._is_stopping():
@@ -174,13 +200,16 @@ class App(tk.Tk):
             return
         if self._watcher.state == WatcherState.PAUSED:
             self._watcher.resume()
+        elif self._watcher.state == WatcherState.RUNNING and self._watcher.is_alive:
+            return
         elif self._watcher.state not in (WatcherState.RUNNING,):
             self._watcher.start()
 
     def _stop_watcher(self) -> None:
         if self._watcher is not None:
-            self._watcher.stop()
-            self._watcher = None
+            stopped = self._watcher.stop()
+            if stopped:
+                self._watcher = None
 
     def _pause_watcher(self) -> None:
         if self._watcher and self._watcher.state == WatcherState.RUNNING:
@@ -210,13 +239,13 @@ class App(tk.Tk):
         self._asv = AutoSaveManager(
             scan_id=scan_id,
             save_dir=BASE_DIR / "scans",
-            on_save_ok=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
-            on_save_fail=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
+            on_save_ok=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
+            on_save_fail=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
         )
 
         return Scanner(
             self._regions,
-            on_progress=lambda msg: self.after(0, lambda m=msg: self._overlay.add_log(m)),
+            on_progress=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
             maxed_ids=maxed_ids,
             maxed_cache=maxed_cache,
             autosave_manager=self._asv,
@@ -243,6 +272,8 @@ class App(tk.Tk):
         meta = build_scan_meta()
         self._result = None
         self._scanner = self._build_scanner(meta)
+        if self._scanner:
+            self._scanner.clear_stop()
 
         if not self._transition_to(AppState.SCANNING, reason=f"scan_requested:{mode}"):
             _log.error("failed to enter scanning state")
@@ -254,7 +285,7 @@ class App(tk.Tk):
             try:
                 self._run_scan_task(mode, meta)
             finally:
-                self.after(0, self._on_scan_finished)
+                self._dispatch_ui(self._on_scan_finished)
 
         self._scan_thread = threading.Thread(target=task, name=f"Scanner-{mode}", daemon=True)
         self._scan_thread.start()
@@ -271,22 +302,20 @@ class App(tk.Tk):
         try:
             if mode in ("items", "all"):
                 result.resources = scanner.scan_resources()
-                self.after(0, lambda: self._overlay.update_resources(result.resources))
+                self._dispatch_ui(self._overlay.update_resources, result.resources)
                 result.items = scanner.scan_items()
-                self.after(0, lambda: self._overlay.add_log(f"아이템 {len(result.items)}개"))
+                self._dispatch_ui(self._overlay.add_log, f"아이템 {len(result.items)}개")
 
             if mode in ("equipment", "all") and not_stopped():
                 result.equipment = scanner.scan_equipment()
-                self.after(0, lambda: self._overlay.add_log(f"장비 {len(result.equipment)}개"))
+                self._dispatch_ui(self._overlay.add_log, f"장비 {len(result.equipment)}개")
 
             if mode in ("students", "all") and not_stopped():
                 result.students = scanner.scan_students()
                 skipped = sum(1 for s in result.students if s.skipped)
-                self.after(
-                    0,
-                    lambda: self._overlay.add_log(
-                        f"학생 {len(result.students)}명 (스킵 {skipped})"
-                    ),
+                self._dispatch_ui(
+                    self._overlay.add_log,
+                    f"학생 {len(result.students)}명 (스킵 {skipped})",
                 )
 
             self._result = result
@@ -297,8 +326,8 @@ class App(tk.Tk):
             traceback.print_exc()
             if self._asv:
                 self._asv.emergency_save(result, meta)
-            self.after(0, lambda: self._overlay.add_log(f"스캔 오류: {exc}"))
-            self.after(0, lambda: self._transition_to(AppState.ERROR, reason=str(exc)))
+            self._dispatch_ui(self._overlay.add_log, f"스캔 오류: {exc}")
+            self._dispatch_ui(self._transition_to, AppState.ERROR, str(exc))
 
     def _on_scan_finished(self) -> None:
         self._scanner = None
@@ -329,18 +358,18 @@ class App(tk.Tk):
 
         scan_id = meta.get("scan_id", "unknown")
         try:
-            self._repo.save(result, meta)
-            self.after(0, lambda: self._overlay.add_log(f"저장 완료 ({scan_id})"))
-
             if self._asv:
-                self._asv.final_save(result, meta)
+                if not self._asv.final_save(result, meta):
+                    raise RuntimeError("최종 저장 파일 작성 실패")
             else:
                 json_path = BASE_DIR / "scans" / f"{scan_id}.json"
                 save_scan_json(result, json_path, meta)
                 _log.info(f"scan json saved: {json_path}")
+            self._repo.save(result, meta)
+            self._dispatch_ui(self._overlay.add_log, f"저장 완료 ({scan_id})")
 
             for line in make_status_report(result):
-                self.after(0, lambda l=line: self._overlay.add_log(l))
+                self._dispatch_ui(self._overlay.add_log, line)
 
             if not result.students:
                 return
@@ -351,26 +380,22 @@ class App(tk.Tk):
             summary = analyze_scan_summary(current_students, this_changes, scan_id)
 
             if summary.total_field_changes:
-                self.after(
-                    0,
-                    lambda: self._overlay.add_log(
-                        f"변경 {summary.total_field_changes}건 ({summary.changed_students}명)"
-                    ),
+                self._dispatch_ui(
+                    self._overlay.add_log,
+                    f"변경 {summary.total_field_changes}건 ({summary.changed_students}명)",
                 )
 
             if summary.low_confidence:
-                self.after(
-                    0,
-                    lambda: self._overlay.add_log(
-                        f"낮은 신뢰도 학생 {len(summary.low_confidence)}명"
-                    ),
+                self._dispatch_ui(
+                    self._overlay.add_log,
+                    f"낮은 신뢰도 학생 {len(summary.low_confidence)}명",
                 )
         except Exception as exc:
             import traceback
 
             traceback.print_exc()
-            self.after(0, lambda: self._overlay.add_log(f"저장 실패: {exc}"))
-            self.after(0, lambda: self._transition_to(AppState.ERROR, reason=f"save_failed:{exc}"))
+            self._dispatch_ui(self._overlay.add_log, f"저장 실패: {exc}")
+            self._dispatch_ui(self._transition_to, AppState.ERROR, f"save_failed:{exc}")
 
     def _open_window_picker(self) -> None:
         if self.state in (AppState.SCANNING, AppState.STOPPING):

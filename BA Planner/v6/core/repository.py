@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import os
 from typing import Any
 
 from core.merge import (
@@ -56,7 +57,9 @@ def _read_json(path: Path, default: Any = None) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 # ── 변환 헬퍼 ─────────────────────────────────────────────
@@ -316,8 +319,6 @@ class ScanRepository:
 
     # ── 4. SQLite upsert ──────────────────────────────────
     def _save_db(self, result: ScanResult, meta: dict) -> None:
-        try:
-            from core.db_writer import save_scan
-            save_scan(result, meta)
-        except Exception as e:
-            print(f"[Repo] SQLite 저장 실패 (무시하고 계속): {e}")
+        from core.db_writer import save_scan
+
+        save_scan(result, meta)

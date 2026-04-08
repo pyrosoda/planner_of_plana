@@ -108,6 +108,10 @@ class LobbyWatcher:
         with self._state_lock:
             return self._state
 
+    @property
+    def is_alive(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
     # ── lifecycle ─────────────────────────────────────────
 
     def start(self) -> None:
@@ -126,14 +130,14 @@ class LobbyWatcher:
         self._thread.start()
         _log.info("시작")
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
         """
         감지 루프 종료.
         thread.join(timeout) 으로 안전하게 대기.
         """
         with self._state_lock:
             if self._state == WatcherState.STOPPED:
-                return
+                return not self.is_alive
             self._state = WatcherState.STOPPED
 
         # pause 중이어도 루프가 종료 조건 확인할 수 있도록 event set
@@ -142,12 +146,13 @@ class LobbyWatcher:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=self.JOIN_TIMEOUT)
             if self._thread.is_alive():
-                _log.warning("thread join 시간 초과 — 강제 종료 불가 (daemon)")
-            else:
-                _log.info("thread 종료 완료")
+                _log.warning("thread join 시간 초과 — watcher 생존 상태 유지")
+                return False
+            _log.info("thread 종료 완료")
 
         self._thread = None
         _log.info("중지")
+        return True
 
     def pause(self) -> None:
         """
