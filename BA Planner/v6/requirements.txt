@@ -4,3 +4,4 @@ pygetwindow>=0.0.9
 pyautogui>=0.9.54
 easyocr>=1.7.0
 numpy>=1.24.0
+PySide6>=6.7.0

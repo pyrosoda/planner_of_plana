@@ -38,7 +38,7 @@ from core.scanner import ScanResult, Scanner
 from core.states import AppState, StateMachine, can_transition
 from core.template_cache import warmup_all
 from gui.floating import FloatingOverlay
-from gui.student_viewer import open_viewer
+from gui.viewer_launcher import open_student_viewer
 from gui.window_picker import WindowPicker
 
 _log = get_logger(LOG_APP)
@@ -83,7 +83,7 @@ class App(tk.Tk):
             on_scan_all=lambda: self._request_scan("all"),
             on_stop=self._stop_scan,
             on_settings=self._open_settings,
-            on_view_students=lambda: open_viewer(self),
+            on_view_students=lambda: open_student_viewer(self),
         )
 
         clear_target()

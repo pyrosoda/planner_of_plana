@@ -599,7 +599,7 @@ class StudentViewer(tk.Toplevel):
 
         self._canvas_frame = tk.Canvas(self, bg=C["bg"], highlightthickness=0)
         self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._on_scrollbar)
-        self._canvas_frame.configure(yscrollcommand=self._on_canvas_scroll)
+        self._canvas_frame.configure(yscrollcommand=self._scrollbar.set)
         self._scrollbar.pack(side="right", fill="y")
         self._canvas_frame.pack(side="left", fill="both", expand=True)
 
@@ -777,7 +777,6 @@ class StudentViewer(tk.Toplevel):
 
     def _on_canvas_scroll(self, first, last) -> None:
         self._scrollbar.set(first, last)
-        self._refresh_virtual_grid()
 
     def _on_mousewheel(self, event) -> str:
         delta = -1 * (event.delta // 120)
