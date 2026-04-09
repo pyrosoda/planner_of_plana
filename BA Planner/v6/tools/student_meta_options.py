@@ -33,6 +33,11 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "Tokiwadai",
         "ETC",
     ),
+    "rarity": (
+        "1",
+        "2",
+        "3",
+    ),
     "attack_type": (
         "Explosive",
         "Piercing",
@@ -45,6 +50,10 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "Special",
         "Elastic",
     ),
+    "ex_skill_name": (),
+    "normal_skill_name": (),
+    "passive_skill_name": (),
+    "sub_skill_name": (),
     "growth_material_main": (),
     "growth_material_sub": (),
     "equipment_slot_1": (
@@ -143,4 +152,9 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "C",
         "D",
     ),
+    "has_favorite_item": (
+        "yes",
+        "no",
+    ),
+    "favorite_item_name": (),
 }

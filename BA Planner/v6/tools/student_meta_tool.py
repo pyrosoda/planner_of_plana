@@ -26,8 +26,13 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "group", "label": "Group", "required": True},
     {"name": "variant", "label": "Variant"},
     {"name": "school", "label": "School"},
+    {"name": "rarity", "label": "Rarity"},
     {"name": "attack_type", "label": "Attack Type"},
     {"name": "defense_type", "label": "Defense Type"},
+    {"name": "ex_skill_name", "label": "EX Skill"},
+    {"name": "normal_skill_name", "label": "Normal Skill"},
+    {"name": "passive_skill_name", "label": "Passive Skill"},
+    {"name": "sub_skill_name", "label": "Sub Skill"},
     {"name": "growth_material_main", "label": "Main Growth Mat"},
     {"name": "growth_material_sub", "label": "Sub Growth Mat"},
     {"name": "equipment_slot_1", "label": "Equipment 1"},
@@ -42,6 +47,8 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "terrain_outdoor", "label": "Outdoor"},
     {"name": "terrain_urban", "label": "Urban"},
     {"name": "terrain_indoor", "label": "Indoor"},
+    {"name": "has_favorite_item", "label": "Favorite Item"},
+    {"name": "favorite_item_name", "label": "Favorite Item Name"},
 ]
 
 

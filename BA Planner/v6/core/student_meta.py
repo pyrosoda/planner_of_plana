@@ -22,8 +22,13 @@ class StudentMeta(TypedDict):
     group: str                   # 같은 캐릭터임을 나타내는 그룹 키 ("시즈코")
     variant: str | None          # 코스튬/변형 태그 (없으면 None)
     school: NotRequired[str | None]
+    rarity: NotRequired[str | None]
     attack_type: NotRequired[str | None]
     defense_type: NotRequired[str | None]
+    ex_skill_name: NotRequired[str | None]
+    normal_skill_name: NotRequired[str | None]
+    passive_skill_name: NotRequired[str | None]
+    sub_skill_name: NotRequired[str | None]
     growth_material_main: NotRequired[str | None]
     growth_material_sub: NotRequired[str | None]
     equipment_slot_1: NotRequired[str | None]
@@ -38,6 +43,8 @@ class StudentMeta(TypedDict):
     terrain_outdoor: NotRequired[str | None]
     terrain_urban: NotRequired[str | None]
     terrain_indoor: NotRequired[str | None]
+    has_favorite_item: NotRequired[str | None]
+    favorite_item_name: NotRequired[str | None]
 
 
 EDITABLE_FIELDS: tuple[str, ...] = (
@@ -46,8 +53,13 @@ EDITABLE_FIELDS: tuple[str, ...] = (
     "group",
     "variant",
     "school",
+    "rarity",
     "attack_type",
     "defense_type",
+    "ex_skill_name",
+    "normal_skill_name",
+    "passive_skill_name",
+    "sub_skill_name",
     "growth_material_main",
     "growth_material_sub",
     "equipment_slot_1",
@@ -62,7 +74,76 @@ EDITABLE_FIELDS: tuple[str, ...] = (
     "terrain_outdoor",
     "terrain_urban",
     "terrain_indoor",
+    "has_favorite_item",
+    "favorite_item_name",
 )
+
+
+FAVORITE_ITEM_STUDENT_IDS: frozenset[str] = frozenset({
+    "shiroko",
+    "serika",
+    "nonomi",
+    "hoshino",
+    "misaki",
+    "saori",
+    "aru",
+    "zunko",
+    "izumi",
+    "hina_swimsuit",
+    "izumi_swimsuit",
+    "hina",
+    "iori_swimsuit",
+    "chinatsu",
+    "haruna_sportswear",
+    "kirara",
+    "asuna_bunny_girl",
+    "yuuka",
+    "hare",
+    "utaha",
+    "neru",
+    "eimi",
+    "sumire",
+    "aris_maid",
+    "hibiki",
+    "toki",
+    "kotori",
+    "midori",
+    "koyuki",
+    "momoi",
+    "aris",
+    "yuzu",
+    "asuna",
+    "tsurugi",
+    "hinata",
+    "suzumi",
+    "hifumi_swimsuit",
+    "hanako",
+    "hanae_christmas",
+    "yoshimi",
+    "mari",
+    "mashiro",
+    "hasumi",
+    "kazusa_band",
+    "cherino_hot_springs",
+    "momiji",
+    "wakamo",
+    "mimori",
+    "chise_swimsuit",
+    "kaho",
+    "kaede",
+    "chise",
+    "shizuko",
+    "wakamo_swimsuit",
+    "renge",
+    "umika",
+    "michiru",
+    "miyako",
+    "miyu",
+    "saki",
+    "moe",
+    "shun_kid",
+    "saya_casual",
+})
 
 
 # ── 학생 메타데이터 DB ────────────────────────────────────
@@ -797,12 +878,32 @@ def school(student_id: str) -> str | None:
     return field(student_id, "school")
 
 
+def rarity(student_id: str) -> str | None:
+    return field(student_id, "rarity")
+
+
 def attack_type(student_id: str) -> str | None:
     return field(student_id, "attack_type")
 
 
 def defense_type(student_id: str) -> str | None:
     return field(student_id, "defense_type")
+
+
+def ex_skill_name(student_id: str) -> str | None:
+    return field(student_id, "ex_skill_name")
+
+
+def normal_skill_name(student_id: str) -> str | None:
+    return field(student_id, "normal_skill_name")
+
+
+def passive_skill_name(student_id: str) -> str | None:
+    return field(student_id, "passive_skill_name")
+
+
+def sub_skill_name(student_id: str) -> str | None:
+    return field(student_id, "sub_skill_name")
 
 
 def growth_material_main(student_id: str) -> str | None:
@@ -855,3 +956,18 @@ def terrain_urban(student_id: str) -> str | None:
 
 def terrain_indoor(student_id: str) -> str | None:
     return field(student_id, "terrain_indoor")
+
+
+def has_favorite_item(student_id: str) -> str | None:
+    explicit = field(student_id, "has_favorite_item")
+    if explicit is not None:
+        return explicit
+    return "yes" if student_id in FAVORITE_ITEM_STUDENT_IDS else "no"
+
+
+def favorite_item_name(student_id: str) -> str | None:
+    return field(student_id, "favorite_item_name")
+
+
+def favorite_item_enabled(student_id: str) -> bool:
+    return has_favorite_item(student_id) == "yes"
