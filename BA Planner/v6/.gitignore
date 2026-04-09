@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+
+.edge-headless/
+debug/
+logs/
+scan_results/
+
+.cache_*
+cache/

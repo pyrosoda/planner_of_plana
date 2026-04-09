@@ -11,15 +11,20 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import core.student_meta as student_meta
 from core.config import get_storage_paths
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QIcon, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFormLayout,
     QFrame,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -30,6 +35,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QVBoxLayout,
     QWidget,
+    QScrollArea,
 )
 
 try:
@@ -41,6 +47,16 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
+
+from gui.student_filters import (
+    FILTER_FIELD_LABELS,
+    FILTER_FIELD_ORDER,
+    active_filter_count,
+    build_filter_options,
+    matches_student_filters,
+    summarize_filters,
+)
+from gui.student_stats import StatsDialog
 
 
 def get_qt_ui_scale(
@@ -80,6 +96,8 @@ def scale_px(value: int | float, scale: float) -> int:
 class StudentRecord:
     student_id: str
     display_name: str
+    owned: bool
+    farmable: str | None
     level: int | None
     star: int
     weapon_state: str | None
@@ -96,6 +114,16 @@ class StudentRecord:
     equip1_level: int | None
     equip2_level: int | None
     equip3_level: int | None
+    school: str | None
+    rarity: str | None
+    attack_type: str | None
+    defense_type: str | None
+    combat_class: str | None
+    role: str | None
+    position: str | None
+    weapon_type: str | None
+    cover_type: str | None
+    range_type: str | None
 
     @property
     def title(self) -> str:
@@ -103,7 +131,7 @@ class StudentRecord:
 
 
 def load_students() -> list[StudentRecord]:
-    records: list[StudentRecord] = []
+    records_by_id: dict[str, StudentRecord] = {}
     paths = get_storage_paths()
     db_path = paths.db_path
     current_json = paths.current_students_json
@@ -115,27 +143,34 @@ def load_students() -> list[StudentRecord]:
             rows = conn.execute("SELECT * FROM students ORDER BY student_id").fetchall()
             conn.close()
             for row in rows:
-                records.append(_row_to_record(dict(row)))
-            if records:
-                return records
+                record = _row_to_record(dict(row), owned=True)
+                records_by_id[record.student_id] = record
         except Exception:
             pass
 
-    if current_json.exists():
+    if not records_by_id and current_json.exists():
         try:
             payload = json.loads(current_json.read_text(encoding="utf-8"))
             for value in payload.values():
-                records.append(_row_to_record(value))
+                record = _row_to_record(value, owned=True)
+                records_by_id[record.student_id] = record
         except Exception:
             pass
 
-    return records
+    for student_id in student_meta.all_ids():
+        if student_id not in records_by_id:
+            records_by_id[student_id] = _row_to_record({"student_id": student_id}, owned=False)
+
+    return list(records_by_id.values())
 
 
-def _row_to_record(row: dict) -> StudentRecord:
+def _row_to_record(row: dict, owned: bool) -> StudentRecord:
+    student_id = row.get("student_id") or ""
     return StudentRecord(
-        student_id=row.get("student_id") or "",
-        display_name=row.get("display_name") or row.get("student_id") or "",
+        student_id=student_id,
+        display_name=row.get("display_name") or student_id or "",
+        owned=owned,
+        farmable=row.get("farmable") or student_meta.field(student_id, "farmable"),
         level=row.get("level"),
         star=int(row.get("student_star") or 0),
         weapon_state=row.get("weapon_state"),
@@ -152,6 +187,16 @@ def _row_to_record(row: dict) -> StudentRecord:
         equip1_level=row.get("equip1_level"),
         equip2_level=row.get("equip2_level"),
         equip3_level=row.get("equip3_level"),
+        school=row.get("school") or student_meta.field(student_id, "school"),
+        rarity=row.get("rarity") or student_meta.field(student_id, "rarity"),
+        attack_type=row.get("attack_type") or student_meta.field(student_id, "attack_type"),
+        defense_type=row.get("defense_type") or student_meta.field(student_id, "defense_type"),
+        combat_class=row.get("combat_class") or student_meta.field(student_id, "combat_class"),
+        role=row.get("role") or student_meta.field(student_id, "role"),
+        position=row.get("position") or student_meta.field(student_id, "position"),
+        weapon_type=row.get("weapon_type") or student_meta.field(student_id, "weapon_type"),
+        cover_type=row.get("cover_type") or student_meta.field(student_id, "cover_type"),
+        range_type=row.get("range_type") or student_meta.field(student_id, "range_type"),
     )
 
 
@@ -200,6 +245,31 @@ def make_placeholder_icon(size: int = 128) -> QIcon:
     return QIcon(pixmap)
 
 
+def make_unowned_icon(student_id: str, size: int = 128) -> QIcon:
+    source = portrait_path(student_id)
+    if source and source.exists():
+        pixmap = QPixmap(str(source))
+        if not pixmap.isNull():
+            return QIcon(_make_dimmed_pixmap(pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation), size))
+    return QIcon(_make_dimmed_pixmap(QPixmap(size, size), size, fill="#1a2430"))
+
+
+def _make_dimmed_pixmap(pixmap: QPixmap, size: int, fill: str | None = None) -> QPixmap:
+    canvas = QPixmap(size, size)
+    canvas.fill(QColor(fill or "#101a24"))
+    painter = QPainter(canvas)
+    x = max(0, (size - pixmap.width()) // 2)
+    y = max(0, (size - pixmap.height()) // 2)
+    painter.setOpacity(0.35)
+    painter.drawPixmap(x, y, pixmap)
+    painter.setOpacity(1.0)
+    painter.fillRect(canvas.rect(), QColor(0, 0, 0, 96))
+    painter.setPen(QColor("#d8e7f3"))
+    painter.drawText(canvas.rect(), Qt.AlignCenter, "UNOWNED")
+    painter.end()
+    return canvas
+
+
 class ThumbSignals(QObject):
     loaded = Signal(str, str)
 
@@ -214,6 +284,89 @@ class ThumbTask(QRunnable):
     def run(self) -> None:
         path = ensure_thumbnail(self.student_id, self.size)
         self.signals.loaded.emit(self.student_id, str(path) if path else "")
+
+
+class FilterDialog(QDialog):
+    def __init__(
+        self,
+        parent: QWidget,
+        filter_options: dict[str, list],
+        selected_filters: dict[str, set[str]],
+        ui_scale: float,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Student Filters")
+        self.resize(scale_px(740, ui_scale), scale_px(760, ui_scale))
+        self._checkboxes: dict[str, list[tuple[str, QCheckBox]]] = {}
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            scale_px(16, ui_scale),
+            scale_px(16, ui_scale),
+            scale_px(16, ui_scale),
+            scale_px(16, ui_scale),
+        )
+        layout.setSpacing(scale_px(12, ui_scale))
+
+        intro = QLabel("Select one or more values in each attribute. Students must match every populated attribute.")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(scale_px(10, ui_scale))
+
+        for key in FILTER_FIELD_ORDER:
+            options = filter_options.get(key) or []
+            if not options:
+                continue
+            group = QGroupBox(FILTER_FIELD_LABELS[key])
+            group_layout = QGridLayout(group)
+            group_layout.setContentsMargins(
+                scale_px(12, ui_scale),
+                scale_px(12, ui_scale),
+                scale_px(12, ui_scale),
+                scale_px(12, ui_scale),
+            )
+            group_layout.setHorizontalSpacing(scale_px(12, ui_scale))
+            group_layout.setVerticalSpacing(scale_px(8, ui_scale))
+            pairs: list[tuple[str, QCheckBox]] = []
+            for index, option in enumerate(options):
+                checkbox = QCheckBox(option.label)
+                checkbox.setChecked(option.value in selected_filters.get(key, set()))
+                group_layout.addWidget(checkbox, index // 3, index % 3)
+                pairs.append((option.value, checkbox))
+            self._checkboxes[key] = pairs
+            body_layout.addWidget(group)
+
+        body_layout.addStretch(1)
+        scroll.setWidget(body)
+        layout.addWidget(scroll, 1)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Apply
+            | QDialogButtonBox.StandardButton.Reset
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.accept)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).clicked.connect(self.reject)
+        buttons.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(self._reset)
+        layout.addWidget(buttons)
+
+    def selected_filters(self) -> dict[str, set[str]]:
+        return {
+            key: {value for value, checkbox in pairs if checkbox.isChecked()}
+            for key, pairs in self._checkboxes.items()
+        }
+
+    def _reset(self) -> None:
+        for pairs in self._checkboxes.values():
+            for _value, checkbox in pairs:
+                checkbox.setChecked(False)
 
 
 class StudentViewerWindow(QMainWindow):
@@ -232,7 +385,10 @@ class StudentViewerWindow(QMainWindow):
         self._item_by_id: dict[str, QListWidgetItem] = {}
         self._thumb_loading: set[str] = set()
         self._placeholder_icon = make_placeholder_icon(self._thumb_size)
+        self._unowned_icon_cache: dict[str, QIcon] = {}
         self._large_pixmap: QPixmap | None = None
+        self._selected_filters: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
+        self._filter_options = build_filter_options(self._all_students)
 
         self._build_ui()
         self._apply_filters()
@@ -275,24 +431,22 @@ class StudentViewerWindow(QMainWindow):
         self._search.textChanged.connect(self._apply_filters)
         header_layout.addWidget(self._search, 2)
 
-        self._star_filter = QComboBox()
-        self._star_filter.addItem("All stars", "all")
-        self._star_filter.addItem("5 star", 5)
-        self._star_filter.addItem("4 star", 4)
-        self._star_filter.addItem("3 star", 3)
-        self._star_filter.currentIndexChanged.connect(self._apply_filters)
-        header_layout.addWidget(self._star_filter)
+        self._show_unowned = QCheckBox("Show unowned")
+        self._show_unowned.setChecked(True)
+        self._show_unowned.stateChanged.connect(self._apply_filters)
+        header_layout.addWidget(self._show_unowned)
 
-        self._weapon_filter = QComboBox()
-        self._weapon_filter.addItem("All weapons", "all")
-        self._weapon_filter.addItem("Equipped", "weapon_equipped")
-        self._weapon_filter.addItem("Unlocked", "weapon_unlocked_not_equipped")
-        self._weapon_filter.addItem("None", "no_weapon_system")
-        self._weapon_filter.currentIndexChanged.connect(self._apply_filters)
-        header_layout.addWidget(self._weapon_filter)
+        self._filter_button = QPushButton("Filters")
+        self._filter_button.clicked.connect(self._open_filter_dialog)
+        header_layout.addWidget(self._filter_button)
+
+        self._stats_button = QPushButton("Stats")
+        self._stats_button.clicked.connect(self._open_stats_dialog)
+        header_layout.addWidget(self._stats_button)
 
         self._sort_mode = QComboBox()
         self._sort_mode.addItem("Star desc", "star_desc")
+        self._sort_mode.addItem("Star asc", "star_asc")
         self._sort_mode.addItem("Level desc", "level_desc")
         self._sort_mode.addItem("Name asc", "name_asc")
         self._sort_mode.currentIndexChanged.connect(self._apply_filters)
@@ -303,6 +457,11 @@ class StudentViewerWindow(QMainWindow):
         header_layout.addWidget(refresh_button)
 
         layout.addWidget(header)
+
+        self._filter_summary = QLabel("No filters applied")
+        self._filter_summary.setWordWrap(True)
+        self._filter_summary.setObjectName("filterSummary")
+        layout.addWidget(self._filter_summary)
 
         splitter = QSplitter(Qt.Horizontal)
         layout.addWidget(splitter, 1)
@@ -390,6 +549,7 @@ class StudentViewerWindow(QMainWindow):
             QFrame#header {{ background: #101a24; border: 1px solid #1b2a38; border-radius: {scale_px(12, self._ui_scale)}px; }}
             QLabel#title {{ font-size: {scale_px(22, self._ui_scale)}px; font-weight: 700; color: #73c0ff; }}
             QLabel#count {{ color: #7b95aa; }}
+            QLabel#filterSummary {{ color: #7b95aa; padding-left: {scale_px(4, self._ui_scale)}px; }}
             QLineEdit, QComboBox, QPushButton {{
                 background: #16212d;
                 border: 1px solid #243648;
@@ -426,35 +586,45 @@ class StudentViewerWindow(QMainWindow):
 
     def _reload_data(self) -> None:
         self._all_students = load_students()
+        self._filter_options = build_filter_options(self._all_students)
+        self._unowned_icon_cache.clear()
         self._apply_filters()
 
     def _apply_filters(self) -> None:
         query = self._search.text().strip().lower()
-        star_filter = self._star_filter.currentData()
-        weapon_filter = self._weapon_filter.currentData()
         sort_mode = self._sort_mode.currentData()
 
-        items = list(self._all_students)
-        if star_filter != "all":
-            items = [record for record in items if record.star == int(star_filter)]
-        if weapon_filter != "all":
-            items = [record for record in items if (record.weapon_state or "") == weapon_filter]
-        if query:
-            items = [
-                record
-                for record in items
-                if query in record.title.lower() or query in record.student_id.lower()
-            ]
+        items = [
+            record
+            for record in self._all_students
+            if matches_student_filters(record, self._selected_filters, query)
+            and (self._show_unowned.isChecked() or record.owned)
+        ]
 
         if sort_mode == "star_desc":
             items.sort(key=lambda record: (-record.star, -(record.level or 0), record.title.lower()))
+        elif sort_mode == "star_asc":
+            items.sort(key=lambda record: (record.star, record.level or 0, record.title.lower()))
         elif sort_mode == "level_desc":
             items.sort(key=lambda record: (-(record.level or 0), -record.star, record.title.lower()))
         else:
             items.sort(key=lambda record: record.title.lower())
 
         self._filtered_students = items
+        self._filter_summary.setText(summarize_filters(self._selected_filters, self._filter_options))
+        active_count = active_filter_count(self._selected_filters)
+        self._filter_button.setText(f"Filters ({active_count})" if active_count else "Filters")
         self._rebuild_list()
+
+    def _open_filter_dialog(self) -> None:
+        dialog = FilterDialog(self, self._filter_options, self._selected_filters, self._ui_scale)
+        if dialog.exec() == QDialog.Accepted:
+            self._selected_filters = dialog.selected_filters()
+            self._apply_filters()
+
+    def _open_stats_dialog(self) -> None:
+        dialog = StatsDialog(self, self._filtered_students, self._ui_scale)
+        dialog.exec()
 
     def _rebuild_list(self) -> None:
         selected_id = self._current_student_id()
@@ -463,14 +633,20 @@ class StudentViewerWindow(QMainWindow):
         self._thumb_loading.clear()
 
         for record in self._filtered_students:
-            item = QListWidgetItem(self._placeholder_icon, f"{record.title}\nLv.{record.level or '-'}  {'*' * record.star}")
+            subtitle = f"Lv.{record.level or '-'}  {'*' * record.star}" if record.owned else "Not owned"
+            icon = self._placeholder_icon if record.owned else self._unowned_icon(record.student_id)
+            item = QListWidgetItem(icon, f"{record.title}\n{subtitle}")
             item.setData(Qt.UserRole, record.student_id)
             item.setToolTip(record.student_id)
+            if not record.owned:
+                item.setForeground(QColor("#7b95aa"))
             self._list.addItem(item)
             self._item_by_id[record.student_id] = item
-            self._queue_thumb(record.student_id)
+            if record.owned:
+                self._queue_thumb(record.student_id)
 
-        self._count_label.setText(f"{len(self._filtered_students)} shown / {len(self._all_students)} total")
+        owned_count = sum(1 for record in self._all_students if record.owned)
+        self._count_label.setText(f"{len(self._filtered_students)} shown / {len(self._all_students)} total ({owned_count} owned)")
 
         if self._filtered_students:
             restore = self._item_by_id.get(selected_id or "")
@@ -512,36 +688,42 @@ class StudentViewerWindow(QMainWindow):
 
     def _populate_detail(self, record: StudentRecord) -> None:
         self._name.setText(record.title)
-        self._subtitle.setText(record.student_id)
-        self._stat_labels["level"].setText(str(record.level or "-"))
-        self._stat_labels["star"].setText(str(record.star or "-"))
-        self._stat_labels["weapon"].setText(record.weapon_state or "-")
-        self._stat_labels["weapon_level"].setText(str(record.weapon_level or "-"))
-        self._stat_labels["ex"].setText(str(record.ex_skill or "-"))
-        self._stat_labels["s1"].setText(str(record.skill1 or "-"))
-        self._stat_labels["s2"].setText(str(record.skill2 or "-"))
-        self._stat_labels["s3"].setText(str(record.skill3 or "-"))
+        self._subtitle.setText(f"{record.student_id}  |  {'Owned' if record.owned else 'Not owned'}")
+        self._stat_labels["level"].setText(str(record.level or "-") if record.owned else "")
+        self._stat_labels["star"].setText(str(record.star or "-") if record.owned else "")
+        self._stat_labels["weapon"].setText(record.weapon_state or "-" if record.owned else "")
+        self._stat_labels["weapon_level"].setText(str(record.weapon_level or "-") if record.owned else "")
+        self._stat_labels["ex"].setText(str(record.ex_skill or "-") if record.owned else "")
+        self._stat_labels["s1"].setText(str(record.skill1 or "-") if record.owned else "")
+        self._stat_labels["s2"].setText(str(record.skill2 or "-") if record.owned else "")
+        self._stat_labels["s3"].setText(str(record.skill3 or "-") if record.owned else "")
 
-        self._equip_labels["equip1"].setText(self._equip_text(record.equip1, record.equip1_level))
-        self._equip_labels["equip2"].setText(self._equip_text(record.equip2, record.equip2_level))
-        self._equip_labels["equip3"].setText(self._equip_text(record.equip3, record.equip3_level))
-        self._equip_labels["equip4"].setText(record.equip4 or "-")
+        self._equip_labels["equip1"].setText(self._equip_text(record.equip1, record.equip1_level) if record.owned else "")
+        self._equip_labels["equip2"].setText(self._equip_text(record.equip2, record.equip2_level) if record.owned else "")
+        self._equip_labels["equip3"].setText(self._equip_text(record.equip3, record.equip3_level) if record.owned else "")
+        self._equip_labels["equip4"].setText((record.equip4 or "-") if record.owned else "")
 
         hero_path = portrait_path(record.student_id)
         if hero_path and hero_path.exists():
             pixmap = QPixmap(str(hero_path))
             if not pixmap.isNull():
-                self._large_pixmap = pixmap.scaled(
+                scaled = pixmap.scaled(
                     self._hero.size(),
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation,
                 )
+                self._large_pixmap = _make_dimmed_pixmap(scaled, max(self._hero.width(), self._hero.height())) if not record.owned else scaled
                 self._hero.setPixmap(self._large_pixmap)
+                self._hero.setText("")
                 return
 
         self._large_pixmap = None
-        self._hero.setPixmap(QPixmap())
-        self._hero.setText("No portrait")
+        if record.owned:
+            self._hero.setPixmap(QPixmap())
+            self._hero.setText("No portrait")
+        else:
+            self._hero.setPixmap(self._unowned_icon(record.student_id).pixmap(self._hero.size()))
+            self._hero.setText("")
 
     def _clear_detail(self) -> None:
         self._name.setText("Select a student")
@@ -558,6 +740,13 @@ class StudentViewerWindow(QMainWindow):
         if item is None:
             return None
         return item.data(Qt.UserRole)
+
+    def _unowned_icon(self, student_id: str) -> QIcon:
+        cached = self._unowned_icon_cache.get(student_id)
+        if cached is None:
+            cached = make_unowned_icon(student_id, self._thumb_size)
+            self._unowned_icon_cache[student_id] = cached
+        return cached
 
     @staticmethod
     def _equip_text(tier: str | None, level: int | None) -> str:

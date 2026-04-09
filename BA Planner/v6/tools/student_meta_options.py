@@ -173,6 +173,10 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "yes",
         "no",
     ),
+    "farmable": (
+        "yes",
+        "no",
+    ),
     "passive_stat": (
         "AccuracyPoint",
         "AttackPower",

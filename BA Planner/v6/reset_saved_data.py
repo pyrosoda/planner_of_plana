@@ -38,12 +38,25 @@ HISTORY_FILES = {
 DIRECTORIES_TO_CLEAR = (
     DATA_DIR / "scans",
     STORAGE.scans_dir,
+    BASE_DIR / "debug",
+    BASE_DIR / "logs",
+    BASE_DIR / "scan_results",
+    BASE_DIR / "cache",
+    BASE_DIR / ".edge-headless",
+    BASE_DIR / "__pycache__",
+    BASE_DIR / "core" / "__pycache__",
+    BASE_DIR / "gui" / "__pycache__",
+    BASE_DIR / "tools" / "__pycache__",
 )
 
 DB_SIDE_CARS = (
     STORAGE.db_path,
     Path(f"{STORAGE.db_path}-wal"),
     Path(f"{STORAGE.db_path}-shm"),
+)
+
+ROOT_CACHE_GLOBS = (
+    ".cache_*",
 )
 
 
@@ -67,6 +80,13 @@ def _clear_directory(directory: Path) -> None:
 def reset_saved_data() -> None:
     for db_file in DB_SIDE_CARS:
         db_file.unlink(missing_ok=True)
+
+    for pattern in ROOT_CACHE_GLOBS:
+        for cache_file in BASE_DIR.glob(pattern):
+            if cache_file.is_dir():
+                shutil.rmtree(cache_file, ignore_errors=True)
+            else:
+                cache_file.unlink(missing_ok=True)
 
     for directory in DIRECTORIES_TO_CLEAR:
         _clear_directory(directory)

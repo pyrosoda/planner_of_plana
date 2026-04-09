@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.equip4_students import has_equip4, EQUIP4_MAX_TIER
+from core.student_meta import FAVORITE_ITEM_MAX_TIER, favorite_item_enabled
 
 # ── 만렙 기준 상수 ────────────────────────────────────────
 MAX_LEVEL        = 90
@@ -93,7 +93,7 @@ def _scored_fields_for(student: dict) -> list[str]:
     sid = student.get("student_id", "")
 
     # equip4: 해당 학생만 채점
-    if has_equip4(sid):
+    if favorite_item_enabled(sid):
         fields.append("equip4")
 
     # 무기 보유 시 weapon 필드 채점
@@ -171,8 +171,8 @@ def is_student_maxed(student: dict) -> bool:
         if _int(student.get(eql)) != MAX_EQUIP_LEVEL: return False
 
     # equip4: 해당 학생만 T2 확인
-    if has_equip4(sid):
-        if str(student.get("equip4", "")) != EQUIP4_MAX_TIER: return False
+    if favorite_item_enabled(sid):
+        if str(student.get("equip4", "")) != FAVORITE_ITEM_MAX_TIER: return False
 
     # 무기
     ws = student.get("weapon_state")

@@ -13,6 +13,15 @@ from pathlib import Path
 from typing import Optional
 
 from core.config import get_storage_paths
+from gui.student_filters import (
+    FILTER_FIELD_LABELS,
+    FILTER_FIELD_ORDER,
+    active_filter_count,
+    build_filter_options,
+    enrich_student_row,
+    matches_student_filters,
+    summarize_filters,
+)
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 try:
@@ -73,14 +82,14 @@ def load_students() -> list[dict]:
             rows = conn.execute("SELECT * FROM students ORDER BY student_id").fetchall()
             conn.close()
             if rows:
-                return [dict(row) for row in rows]
+                return [enrich_student_row(dict(row)) for row in rows]
         except Exception as exc:
             print(f"[Viewer] DB load failed: {exc}")
 
     if current_json.exists():
         try:
             data = json.loads(current_json.read_text(encoding="utf-8"))
-            return list(data.values())
+            return [enrich_student_row(value) for value in data.values()]
         except Exception as exc:
             print(f"[Viewer] JSON load failed: {exc}")
 
@@ -400,10 +409,10 @@ class StudentViewer(tk.Toplevel):
         self._filter_after: Optional[str] = None
         self._resize_after: Optional[str] = None
 
-        self._filter_star = tk.StringVar(value="all")
-        self._filter_weapon = tk.StringVar(value="all")
         self._sort_mode = tk.StringVar(value="star_desc")
         self._search_var = tk.StringVar(value="")
+        self._selected_filters: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
+        self._filter_options: dict[str, list] = {}
 
         self._build_ui()
         self._search_var.trace_add("write", self._on_filter_change)

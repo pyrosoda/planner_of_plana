@@ -79,7 +79,6 @@ from core.matcher import (
 import core.ocr as ocr
 import core.student_meta as student_meta
 from core.item_names import correct_item_name
-from core.equip4_students import has_equip4
 
 
 # ══════════════════════════════════════════════════════════
@@ -1614,7 +1613,7 @@ class Scanner:
                                   skip_flags=skip_flags, scan_level=True)
 
         # 슬롯 4
-        if has_equip4(sid):
+        if student_meta.favorite_item_enabled(sid):
             self._scan_equip_slot(
                 entry, img, sr, 4,
                 skip_flags={EquipSlotFlag.EMPTY,
