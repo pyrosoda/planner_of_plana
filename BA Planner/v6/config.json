@@ -1,11 +1,7 @@
 {
-  "target_hwnd": 1116710,
+  "target_hwnd": 3869450,
   "target_title": "Blue Archive",
   "profiles": [
-    {
-      "name": "기본 프로필",
-      "key": "profile_c67c445a"
-    },
     {
       "name": "거모이는존재한다",
       "key": "profile_dd633a06"

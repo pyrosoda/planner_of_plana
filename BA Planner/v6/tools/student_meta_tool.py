@@ -51,6 +51,21 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "terrain_indoor", "label": "Indoor"},
     {"name": "weapon3_terrain_boost", "label": "Weapon 3* Terrain Boost"},
     {"name": "has_favorite_item", "label": "Favorite Item"},
+    {"name": "passive_stat", "label": "Passive Stat"},
+    {"name": "weapon_passive_stat", "label": "Weapon Passive Stat"},
+    {"name": "extra_passive_stat", "label": "Extra Passive Stat"},
+    {"name": "skill_buff", "label": "Buff Skill"},
+    {"name": "skill_debuff", "label": "Debuff Skill"},
+    {"name": "skill_cc", "label": "Crowd Control"},
+    {"name": "skill_special", "label": "Special Effect"},
+    {"name": "skill_heal_targets", "label": "Heal Targets"},
+    {"name": "skill_dispel_targets", "label": "Dispel Targets"},
+    {"name": "skill_reposition_targets", "label": "Move Skill"},
+    {"name": "skill_summon_types", "label": "Summon Skill"},
+    {"name": "skill_ignore_cover", "label": "EX Ignore Cover"},
+    {"name": "skill_is_area_damage", "label": "EX Area Damage"},
+    {"name": "skill_buff_specials", "label": "Special Student Buff"},
+    {"name": "skill_knockback", "label": "Knockback / Pull"},
 ]
 
 LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
@@ -133,6 +148,15 @@ def _display(field_name: str, value: object) -> str:
     return "" if value is None else str(value)
 
 
+def _form_value(field_name: str, raw: str) -> object | None:
+    value = _normalize_value(raw)
+    if value is None:
+        return None
+    if field_name in LIST_FIELDS:
+        return _as_list(value)
+    return value
+
+
 def _sorted_unique(values: list[str]) -> tuple[str, ...]:
     return tuple(sorted({v for v in values if v}))
 
@@ -185,7 +209,7 @@ def get_students() -> dict[str, dict]:
     return {sid: dict(meta) for sid, meta in module.STUDENTS.items()}
 
 
-def upsert_student(student_id: str, updates: dict[str, str | None]) -> dict[str, object]:
+def upsert_student(student_id: str, updates: dict[str, object | None]) -> dict[str, object]:
     module = _reload_module()
     students = dict(module.STUDENTS)
     current = dict(students.get(student_id, {}))
@@ -392,14 +416,14 @@ def command_get(args: argparse.Namespace) -> int:
 
 
 def command_upsert(args: argparse.Namespace) -> int:
-    updates: dict[str, str | None] = {}
+    updates: dict[str, object | None] = {}
     for spec in FIELD_SPECS:
         name = spec["name"]
         if name == "student_id":
             continue
         raw = getattr(args, name)
         if raw is not None:
-            updates[name] = _normalize_value(raw)
+            updates[name] = _form_value(str(name), raw)
     pprint.pprint(upsert_student(args.student_id, updates), sort_dicts=False)
     print(f"saved: {args.student_id}")
     return 0
@@ -425,7 +449,7 @@ class StudentMetaToolApp:
         self.field_options = build_field_options(self.students)
         self.selected_student_id: str | None = None
         self.vars: dict[str, tk.StringVar] = {}
-        self.widgets: dict[str, ttk.Combobox] = {}
+        self.widgets: dict[str, ttk.Widget] = {}
         self.attribute_var = tk.StringVar(value=LABELS[ANALYTICS_FIELDS[0]])
         self.attribute_value_var = tk.StringVar(value="")
         self.student_sort_var = tk.StringVar(value=STUDENT_SORTS[0])
@@ -505,7 +529,10 @@ class StudentMetaToolApp:
             ttk.Label(form, text=display, width=18).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
             var = tk.StringVar()
             self.vars[name] = var
-            widget = ttk.Combobox(form, textvariable=var, values=self.field_options.get(name, ("",)), state="readonly")
+            if name in LIST_FIELDS:
+                widget = ttk.Entry(form, textvariable=var)
+            else:
+                widget = ttk.Combobox(form, textvariable=var, values=self.field_options.get(name, ("",)), state="readonly")
             widget.grid(row=row, column=1, sticky="ew", pady=4)
             self.widgets[name] = widget
         action_bar = ttk.Frame(right)
@@ -648,7 +675,7 @@ class StudentMetaToolApp:
         for spec in FIELD_SPECS:
             name = str(spec["name"])
             if name != "student_id":
-                self.vars[name].set(_display(name, meta.get(name)))
+                self.vars[name].set(_display(name, _resolved_field_value(student_id, meta, name)))
         self.status_var.set(f"Loaded: {student_id}")
 
     def _on_select_student(self, _event=None) -> None:
@@ -664,7 +691,8 @@ class StudentMetaToolApp:
     def _refresh_field_options(self) -> None:
         self.field_options = build_field_options(self.students)
         for field_name, widget in self.widgets.items():
-            widget["values"] = self.field_options.get(field_name, ("",))
+            if isinstance(widget, ttk.Combobox):
+                widget["values"] = self.field_options.get(field_name, ("",))
 
     def _duplicate_current(self) -> None:
         current_id = self.vars["student_id"].get().strip()
@@ -674,16 +702,16 @@ class StudentMetaToolApp:
         self.vars["student_id"].set(f"{current_id}_copy")
         self.status_var.set("Duplicated into new draft")
 
-    def _collect_form_data(self) -> tuple[str, dict[str, str | None]]:
+    def _collect_form_data(self) -> tuple[str, dict[str, object | None]]:
         student_id = self.vars["student_id"].get().strip()
         if not student_id:
             raise ValueError("student_id is required")
-        updates: dict[str, str | None] = {}
+        updates: dict[str, object | None] = {}
         for spec in FIELD_SPECS:
             name = str(spec["name"])
             if name == "student_id":
                 continue
-            value = _normalize_value(self.vars[name].get())
+            value = _form_value(name, self.vars[name].get())
             if spec.get("required") and value is None:
                 raise ValueError(f"{spec['label']} is required")
             if value is not None:
