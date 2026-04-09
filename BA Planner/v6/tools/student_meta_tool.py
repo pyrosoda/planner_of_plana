@@ -37,6 +37,10 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "defense_type", "label": "Defense Type"},
     {"name": "growth_material_main", "label": "Main Growth Mat"},
     {"name": "growth_material_sub", "label": "Sub Growth Mat"},
+    {"name": "growth_material_main_ex_levels", "label": "Main Oparts EX"},
+    {"name": "growth_material_main_skill_levels", "label": "Main Oparts Skills"},
+    {"name": "growth_material_sub_ex_levels", "label": "Sub Oparts EX"},
+    {"name": "growth_material_sub_skill_levels", "label": "Sub Oparts Skills"},
     {"name": "equipment_slot_1", "label": "Equipment 1"},
     {"name": "equipment_slot_2", "label": "Equipment 2"},
     {"name": "equipment_slot_3", "label": "Equipment 3"},
@@ -87,6 +91,8 @@ LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
     "skill_knockback": "Knockback / Pull",
 }
 LIST_FIELDS = {
+    "growth_material_main_ex_levels", "growth_material_main_skill_levels",
+    "growth_material_sub_ex_levels", "growth_material_sub_skill_levels",
     "passive_stat", "weapon_passive_stat", "extra_passive_stat", "skill_buff", "skill_debuff",
     "skill_cc", "skill_special", "skill_heal_targets", "skill_dispel_targets",
     "skill_reposition_targets", "skill_summon_types", "skill_buff_specials",

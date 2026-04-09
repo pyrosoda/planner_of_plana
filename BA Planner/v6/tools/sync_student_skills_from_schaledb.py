@@ -29,6 +29,10 @@ SCALAR_FIELDS: tuple[str, ...] = (
     "defense_type",
     "growth_material_main",
     "growth_material_sub",
+    "growth_material_main_ex_levels",
+    "growth_material_main_skill_levels",
+    "growth_material_sub_ex_levels",
+    "growth_material_sub_skill_levels",
     "equipment_slot_1",
     "equipment_slot_2",
     "equipment_slot_3",
@@ -264,10 +268,64 @@ def _growth_materials(student: dict[str, Any], items: dict[str, dict[str, Any]])
     return main, sub
 
 
+def _opart_amounts_for_family(
+    material_rows: Any,
+    amount_rows: Any,
+    family_name: str | None,
+    items: dict[str, dict[str, Any]],
+) -> list[int]:
+    material_list = material_rows if isinstance(material_rows, list) else []
+    amount_list = amount_rows if isinstance(amount_rows, list) else []
+    results: list[int] = []
+    for idx, materials in enumerate(material_list):
+        row_materials = materials if isinstance(materials, list) else []
+        row_amounts = amount_list[idx] if idx < len(amount_list) and isinstance(amount_list[idx], list) else []
+        total = 0
+        for material_idx, material_id in enumerate(row_materials):
+            if not isinstance(material_id, int):
+                continue
+            if _artifact_family_name(material_id, items) != family_name:
+                continue
+            if material_idx < len(row_amounts):
+                total += int(row_amounts[material_idx])
+        results.append(total)
+    return results
+
+
+def _growth_material_level_amounts(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, list[int]]:
+    main_name, sub_name = _growth_materials(student, items)
+    return {
+        "growth_material_main_ex_levels": _opart_amounts_for_family(
+            student.get("SkillExMaterial"),
+            student.get("SkillExMaterialAmount"),
+            main_name,
+            items,
+        ),
+        "growth_material_main_skill_levels": _opart_amounts_for_family(
+            student.get("SkillMaterial"),
+            student.get("SkillMaterialAmount"),
+            main_name,
+            items,
+        ),
+        "growth_material_sub_ex_levels": _opart_amounts_for_family(
+            student.get("SkillExMaterial"),
+            student.get("SkillExMaterialAmount"),
+            sub_name,
+            items,
+        ),
+        "growth_material_sub_skill_levels": _opart_amounts_for_family(
+            student.get("SkillMaterial"),
+            student.get("SkillMaterialAmount"),
+            sub_name,
+            items,
+        ),
+    }
+
+
 def _scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
     equipment = list(student.get("Equipment") or [])
     growth_main, growth_sub = _growth_materials(student, items)
-    return {
+    result = {
         "school": SCHOOL_MAP.get(str(student.get("School")), student.get("School")),
         "rarity": str(student.get("StarGrade")) if student.get("StarGrade") is not None else None,
         "recruit_type": _recruit_type(student),
@@ -289,6 +347,8 @@ def _scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) ->
         "terrain_indoor": _terrain_rank(student.get("IndoorBattleAdaptation")),
         "weapon3_terrain_boost": WEAPON_BOOST_MAP.get(str((student.get("Weapon") or {}).get("AdaptationType"))),
     }
+    result.update(_growth_material_level_amounts(student, items))
+    return result
 
 
 def _stat_prefix(effect: dict[str, Any]) -> str | None:
