@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 where py >nul 2>nul
 if %errorlevel%==0 (
-    py student_viewer.py
+    py -3.11 student_viewer.py
 ) else (
     python student_viewer.py
 )

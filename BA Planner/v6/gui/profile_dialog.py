@@ -21,7 +21,8 @@ class ProfileDialog(tk.Toplevel):
         self._profiles = sorted(profiles, key=str.casefold)
         self._ui_scale = get_ui_scale(self, base_width=520, base_height=420)
 
-        self.transient(master)
+        if master is not None and str(master.state()) != "withdrawn":
+            self.transient(master)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
@@ -34,6 +35,15 @@ class ProfileDialog(tk.Toplevel):
         self._build(last_profile)
         self.bind("<Return>", lambda _e: self._confirm_selection())
         self.bind("<Escape>", lambda _e: self._cancel())
+        self._show_dialog()
+
+    def _show_dialog(self) -> None:
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(250, lambda: self.attributes("-topmost", False))
+        self.focus_force()
 
     def _build(self, last_profile: str | None) -> None:
         wrap = tk.Frame(self, bg="#101722", padx=scale_px(18, self._ui_scale), pady=scale_px(18, self._ui_scale))

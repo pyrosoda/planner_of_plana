@@ -2939,3 +2939,6 @@
 2026-04-09 00:32:48  DEBUG  [LobbyWatcher] [ba.matcher] is_lobby: 1.000
 2026-04-09 00:32:48  DEBUG  [LobbyWatcher] [ba.matcher] is_lobby: 1.000
 2026-04-09 00:32:48  DEBUG  [LobbyWatcher] [ba.matcher] is_lobby: 1.000
+2026-04-09 22:57:00  INFO   [MainThread] [ba] [Logger] 로그 파일: C:\Users\brigh\planner_of_plana\BA Planner\v6\logs\ba_2026-04-09.log  (콘솔=INFO 파일=DEBUG)
+2026-04-09 23:23:38  INFO   [MainThread] [ba] [Logger] 로그 파일: C:\Users\brigh\planner_of_plana\BA Planner\v6\logs\ba_2026-04-09.log  (콘솔=INFO 파일=DEBUG)
+2026-04-09 23:32:48  INFO   [MainThread] [ba] [Logger] 로그 파일: C:\Users\brigh\planner_of_plana\BA Planner\v6\logs\ba_2026-04-09.log  (콘솔=INFO 파일=DEBUG)

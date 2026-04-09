@@ -7,6 +7,7 @@ import os
 import queue
 import sys
 import threading
+import traceback
 from tkinter import TclError
 
 import tkinter as tk
@@ -23,31 +24,40 @@ REQUIRED = {
 }
 missing = [pkg for mod, pkg in REQUIRED.items() if not importlib.util.find_spec(mod)]
 if missing:
-    print(f"pip install {' '.join(missing)}")
+    print(f"Missing required packages: {', '.join(missing)}")
+    print(f"Run: {sys.executable} -m pip install {' '.join(missing)}")
+    print(f"Or:  {sys.executable} -m pip install -r requirements.txt")
     sys.exit(1)
 
-from core.analyzer import analyze_scan_summary, is_student_maxed
-from core.capture import clear_target, set_target_window
-from core.config import (
-    activate_profile,
-    get_active_profile_name,
-    list_profiles,
-    load_config,
-    load_regions,
-    save_config,
-)
-from core.db_writer import build_scan_meta
-from core.lobby_watcher import LobbyWatcher, WatcherState
-from core.log_context import set_debug_dump
-from core.logger import LOG_APP, get_logger, setup_logging
-from core.repository import ScanRepository
-from core.scanner import ScanResult, Scanner
-from core.states import AppState, StateMachine, can_transition
-from core.template_cache import warmup_all
-from gui.floating import FloatingOverlay
-from gui.profile_dialog import choose_profile
-from gui.viewer_launcher import open_student_viewer
-from gui.window_picker import WindowPicker
+try:
+    from core.analyzer import analyze_scan_summary, is_student_maxed
+    from core.capture import clear_target, set_target_window
+    from core.config import (
+        activate_profile,
+        get_active_profile_name,
+        list_profiles,
+        load_config,
+        load_regions,
+        save_config,
+    )
+    from core.db_writer import build_scan_meta
+    from core.lobby_watcher import LobbyWatcher, WatcherState
+    from core.log_context import set_debug_dump
+    from core.logger import LOG_APP, get_logger, setup_logging
+    from core.repository import ScanRepository
+    from core.scanner import ScanResult, Scanner
+    from core.states import AppState, StateMachine, can_transition
+    from core.template_cache import warmup_all
+    from gui.floating import FloatingOverlay
+    from gui.profile_dialog import choose_profile
+    from gui.viewer_launcher import open_student_viewer
+    from gui.window_picker import WindowPicker
+except ModuleNotFoundError as exc:
+    missing_module = exc.name or "unknown module"
+    print(f"Startup import failed: missing module '{missing_module}'")
+    print(f"Run: {sys.executable} -m pip install -r requirements.txt")
+    traceback.print_exc()
+    sys.exit(1)
 
 _log = get_logger(LOG_APP)
 
@@ -60,17 +70,27 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_close_requested)
 
         setup_logging()
+        _log.info("app init: loading regions")
         self._regions = load_regions()
+        profiles = list_profiles()
+        last_profile = get_active_profile_name()
+        _log.info(
+            "app init: opening profile dialog (profiles=%d, last_profile=%s)",
+            len(profiles),
+            last_profile or "<none>",
+        )
         selected_profile = choose_profile(
             self,
-            list_profiles(),
-            last_profile=get_active_profile_name(),
+            profiles,
+            last_profile=last_profile,
         )
         if not selected_profile:
+            _log.info("app init: profile selection cancelled")
             self._destroyed = True
             self.destroy()
             return
 
+        _log.info("app init: selected profile '%s'", selected_profile)
         self._storage = activate_profile(selected_profile)
         self._config = load_config()
         self._profile_name = self._storage.profile_name
