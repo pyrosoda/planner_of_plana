@@ -11,6 +11,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.config import get_storage_paths
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
@@ -39,8 +40,6 @@ except ImportError:
     HAS_PIL = False
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "ba_planner.db"
-CURRENT_JSON = BASE_DIR / "data" / "current" / "students.json"
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
 
 
@@ -95,10 +94,13 @@ class StudentRecord:
 
 def load_students() -> list[StudentRecord]:
     records: list[StudentRecord] = []
+    paths = get_storage_paths()
+    db_path = paths.db_path
+    current_json = paths.current_students_json
 
-    if DB_PATH.exists():
+    if db_path.exists():
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT * FROM students ORDER BY student_id").fetchall()
             conn.close()
@@ -109,9 +111,9 @@ def load_students() -> list[StudentRecord]:
         except Exception:
             pass
 
-    if CURRENT_JSON.exists():
+    if current_json.exists():
         try:
-            payload = json.loads(CURRENT_JSON.read_text(encoding="utf-8"))
+            payload = json.loads(current_json.read_text(encoding="utf-8"))
             for value in payload.values():
                 records.append(_row_to_record(value))
         except Exception:

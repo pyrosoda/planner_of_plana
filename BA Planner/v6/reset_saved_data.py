@@ -17,11 +17,13 @@ import argparse
 import shutil
 from pathlib import Path
 
-from core.db import DB_PATH, init_db
+from core.config import get_storage_paths
+from core.db import init_db
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+STORAGE = get_storage_paths()
+DATA_DIR = STORAGE.data_dir
 
 CURRENT_FILES = {
     DATA_DIR / "current" / "students.json": {},
@@ -35,13 +37,13 @@ HISTORY_FILES = {
 
 DIRECTORIES_TO_CLEAR = (
     DATA_DIR / "scans",
-    BASE_DIR / "scans",
+    STORAGE.scans_dir,
 )
 
 DB_SIDE_CARS = (
-    DB_PATH,
-    Path(f"{DB_PATH}-wal"),
-    Path(f"{DB_PATH}-shm"),
+    STORAGE.db_path,
+    Path(f"{STORAGE.db_path}-wal"),
+    Path(f"{STORAGE.db_path}-shm"),
 )
 
 
@@ -75,7 +77,7 @@ def reset_saved_data() -> None:
     for path, empty_value in HISTORY_FILES.items():
         _reset_json_file(path, empty_value)
 
-    init_db(DB_PATH)
+    init_db(STORAGE.db_path)
 
 
 def _build_parser() -> argparse.ArgumentParser:

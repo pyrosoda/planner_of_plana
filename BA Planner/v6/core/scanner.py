@@ -561,15 +561,19 @@ class Scanner:
         self,
         regions: dict,
         on_progress: Optional[Callable[[str], None]] = None,
+        on_progress_state: Optional[Callable[[dict], None]] = None,
         maxed_ids:   Optional[set[str]]  = None,
         maxed_cache: Optional[dict[str, dict]] = None,
+        student_total_hint: Optional[int] = None,
         autosave_manager = None,   # AutoSaveManager | None
     ):
         self.r             = regions
         self._on_progress  = on_progress
+        self._on_progress_state = on_progress_state
         self._stop         = False
         self._maxed_ids    = frozenset(maxed_ids or [])
         self._maxed_cache: dict[str, dict] = maxed_cache or {}
+        self._student_total_hint = student_total_hint if student_total_hint and student_total_hint > 0 else None
         self._asv          = autosave_manager   # AutoSaveManager (없으면 None)
         self._student_basic_img: Optional[Image.Image] = None
 
@@ -604,6 +608,22 @@ class Scanner:
         _log.info(msg)
         if self._on_progress:
             self._on_progress(msg)
+
+    def _emit_progress_state(
+        self,
+        *,
+        current: int | None = None,
+        total: int | None = None,
+        note: str = "",
+    ) -> None:
+        if self._on_progress_state:
+            self._on_progress_state(
+                {
+                    "current": current,
+                    "total": total,
+                    "note": note,
+                }
+            )
 
     def _warn(self, msg: str) -> None:
         _log.warning(msg)
@@ -1078,12 +1098,81 @@ class Scanner:
     def scan_students(self) -> list[StudentEntry]:
         return self.scan_students_v5()
 
+    def scan_current_student(self) -> list[StudentEntry]:
+        self._info("━━━ 👤 현재 학생 스캔 시작 ━━━")
+        self._emit_progress_state(current=0, total=1, note="현재 학생")
+        results: list[StudentEntry] = []
+
+        try:
+            sid = self.identify_student(0)
+            if sid is None:
+                self._warn("[현재 학생] 식별 실패")
+                return []
+
+            if sid in self._maxed_ids:
+                entry = self._make_skipped_entry(sid)
+                results.append(entry)
+                self._emit_progress_state(current=1, total=1, note="현재 학생")
+                self._info(f"  ⏭ {entry.label()} — 만렙 스킵")
+                return results
+
+            ctx = ScanCtx(idx=1, student_id=sid)
+            entry = self.begin_student_scan(sid)
+
+            self.read_skills(entry)
+            if self._stop_requested():
+                return results
+            self.read_weapon(entry)
+            if self._stop_requested():
+                return results
+            self.read_equipment(entry)
+            if self._stop_requested():
+                return results
+            self.read_level(entry)
+            if self._stop_requested():
+                return results
+            self.read_student_star(entry)
+            if self._stop_requested():
+                return results
+            self.read_stats(entry)
+            if self._stop_requested():
+                return results
+
+            commit_result = self.finalize_student_entry(entry, ctx, partial_ok=True)
+            added = self.commit_student_entry(commit_result, results, 0)
+            if added:
+                self._emit_progress_state(current=1, total=1, note="현재 학생")
+                self._log_student(entry, 0)
+                if self._asv:
+                    self._asv.on_student_committed(entry)
+        except Exception as e:
+            _log.exception(f"현재 학생 스캔 중 예외 발생: {e}")
+            self._error(f"현재 학생 스캔 오류: {e}")
+            if self._asv:
+                partial = ScanResult(students=list(results))
+                self._asv.emergency_save(partial, {})
+        finally:
+            self._restore_basic_tab()
+            if self._asv:
+                self._asv.log_stats()
+
+        summary = f"현재 학생 스캔 완료: 총 {len(results)}명"
+        self._emit_progress_state(current=len(results), total=1, note="현재 학생")
+        _log.info(summary)
+        self._info(f"━━━ 👤 {summary} ━━━")
+        return results
+
     def scan_students_v5(self) -> list[StudentEntry]:
         log_section(_log, "학생 스캔 시작 (V6)")
         self._info("━━━ 👩 학생 스캔 시작 (V6) ━━━")
         results:       list[StudentEntry] = []
         skipped_count  = 0
         scanned_count  = 0
+        self._emit_progress_state(
+            current=0,
+            total=self._student_total_hint,
+            note="학생 스캔",
+        )
 
         try:
             if not self.enter_student_menu():
@@ -1136,6 +1225,11 @@ class Scanner:
                     entry = self._make_skipped_entry(sid)
                     results.append(entry)
                     skipped_count += 1
+                    self._emit_progress_state(
+                        current=len(results),
+                        total=self._student_total_hint,
+                        note="학생 스캔",
+                    )
                     _log.info(f"[{idx+1:>3}] {entry.label()} — 만렙 스킵")
                     self._info(f"  ⏭ [{idx+1:>3}] {entry.label()} — 만렙 스킵")
                     self._restore_basic_tab()
@@ -1179,6 +1273,11 @@ class Scanner:
                 added = self.commit_student_entry(commit_result, results, idx)
                 if added:
                     scanned_count += 1
+                    self._emit_progress_state(
+                        current=len(results),
+                        total=self._student_total_hint,
+                        note="학생 스캔",
+                    )
                     self._log_student(entry, len(results) - 1)
                     # ── per-student autosave ──────────────
                     if self._asv:
@@ -1203,6 +1302,11 @@ class Scanner:
         summary = (
             f"학생 스캔 완료: 총 {len(results)}명 "
             f"(스캔:{scanned_count} / 스킵:{skipped_count})"
+        )
+        self._emit_progress_state(
+            current=len(results),
+            total=max(self._student_total_hint or 0, len(results)) or None,
+            note="학생 스캔",
         )
         _log.info(summary)
         self._info(f"━━━ 👩 {summary} ━━━")

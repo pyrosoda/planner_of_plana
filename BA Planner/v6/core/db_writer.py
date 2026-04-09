@@ -15,7 +15,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
-from core.db import get_connection, init_db, DB_PATH, APP_VERSION
+from core.config import get_active_profile_name
+from core.db import get_connection, get_db_path, init_db, APP_VERSION
 from core.scanner import ScanResult, StudentEntry, ItemEntry
 from core.matcher import WeaponState
 from core.capture import get_window_rect
@@ -82,6 +83,7 @@ def build_scan_meta(dt: datetime | None = None) -> dict:
         "scanned_at":  _fmt(dt),
         "app_version": APP_VERSION,
         "window_size": window_size,
+        "profile_name": get_active_profile_name(),
     }
 
 
@@ -212,7 +214,7 @@ def _upsert_student(
 def save_scan(
     result: ScanResult,
     meta: dict | None = None,
-    path: Path = DB_PATH,
+    path: Path | None = None,
 ) -> str:
     """
     ScanResult 전체를 DB에 저장.
@@ -227,6 +229,7 @@ def save_scan(
     -------
     scan_id : 저장된 세션 ID
     """
+    path = path or get_db_path()
     init_db(path)
 
     if meta is None:
@@ -291,7 +294,8 @@ def save_scan(
 
 # ── 조회 함수 ─────────────────────────────────────────────
 
-def load_scan_meta(scan_id: str, path: Path = DB_PATH) -> dict | None:
+def load_scan_meta(scan_id: str, path: Path | None = None) -> dict | None:
+    path = path or get_db_path()
     """scan_id로 메타데이터 조회."""
     conn = get_connection(path)
     try:
@@ -303,7 +307,8 @@ def load_scan_meta(scan_id: str, path: Path = DB_PATH) -> dict | None:
         conn.close()
 
 
-def load_student(student_id: str, path: Path = DB_PATH) -> dict | None:
+def load_student(student_id: str, path: Path | None = None) -> dict | None:
+    path = path or get_db_path()
     """student_id로 최신 상태 조회."""
     conn = get_connection(path)
     try:
@@ -319,12 +324,13 @@ def load_student_history(
     student_id: str,
     field: str | None = None,
     limit: int = 100,
-    path: Path = DB_PATH,
+    path: Path | None = None,
 ) -> list[dict]:
     """
     학생 변경 이력 조회.
     field 를 지정하면 해당 필드만 필터링.
     """
+    path = path or get_db_path()
     conn = get_connection(path)
     try:
         if field:
@@ -346,7 +352,8 @@ def load_student_history(
         conn.close()
 
 
-def load_all_students(path: Path = DB_PATH) -> list[dict]:
+def load_all_students(path: Path | None = None) -> list[dict]:
+    path = path or get_db_path()
     """전체 학생 최신 상태 목록 조회."""
     conn = get_connection(path)
     try:
@@ -358,7 +365,8 @@ def load_all_students(path: Path = DB_PATH) -> list[dict]:
         conn.close()
 
 
-def load_scan_changes(scan_id: str, path: Path = DB_PATH) -> list[dict]:
+def load_scan_changes(scan_id: str, path: Path | None = None) -> list[dict]:
+    path = path or get_db_path()
     """특정 스캔 세션에서 발생한 모든 변경 이력 조회."""
     conn = get_connection(path)
     try:

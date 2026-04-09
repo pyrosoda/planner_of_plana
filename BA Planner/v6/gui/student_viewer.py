@@ -12,6 +12,7 @@ import tkinter as tk
 from pathlib import Path
 from typing import Optional
 
+from core.config import get_storage_paths
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 try:
@@ -23,8 +24,6 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "templates" / "students_portraits"
-CURRENT_JSON = BASE_DIR / "data" / "current" / "students.json"
-DB_PATH = BASE_DIR / "ba_planner.db"
 
 C = {
     "bg": "#080c14",
@@ -63,9 +62,13 @@ _img_cache: dict[str, Optional[ImageTk.PhotoImage]] = {}
 
 
 def load_students() -> list[dict]:
-    if DB_PATH.exists():
+    paths = get_storage_paths()
+    db_path = paths.db_path
+    current_json = paths.current_students_json
+
+    if db_path.exists():
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT * FROM students ORDER BY student_id").fetchall()
             conn.close()
@@ -74,9 +77,9 @@ def load_students() -> list[dict]:
         except Exception as exc:
             print(f"[Viewer] DB load failed: {exc}")
 
-    if CURRENT_JSON.exists():
+    if current_json.exists():
         try:
-            data = json.loads(CURRENT_JSON.read_text(encoding="utf-8"))
+            data = json.loads(current_json.read_text(encoding="utf-8"))
             return list(data.values())
         except Exception as exc:
             print(f"[Viewer] JSON load failed: {exc}")

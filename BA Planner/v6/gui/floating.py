@@ -5,6 +5,7 @@ Floating overlay tied to the selected Blue Archive window.
 import threading
 import time
 import tkinter as tk
+from tkinter import ttk
 from typing import Callable
 
 from core.capture import get_window_rect
@@ -28,6 +29,8 @@ FLOAT_RY = 0.45
 CIRCLE_D = 60
 EXPAND_W = 230
 EXPAND_H = 300
+SCAN_CARD_W = 360
+SCAN_CARD_H = 150
 
 
 class FloatingOverlay(tk.Toplevel):
@@ -37,6 +40,7 @@ class FloatingOverlay(tk.Toplevel):
         on_scan_items: Callable,
         on_scan_equipment: Callable,
         on_scan_students: Callable,
+        on_scan_current_student: Callable,
         on_scan_all: Callable,
         on_stop: Callable,
         on_settings: Callable,
@@ -48,6 +52,7 @@ class FloatingOverlay(tk.Toplevel):
             "items": on_scan_items,
             "equipment": on_scan_equipment,
             "students": on_scan_students,
+            "current_student": on_scan_current_student,
             "all": on_scan_all,
             "stop": on_stop,
             "settings": on_settings,
@@ -60,21 +65,46 @@ class FloatingOverlay(tk.Toplevel):
         self._log_lines: list[str] = []
         self._drag_x = self._drag_y = 0
         self._app_state = AppState.INIT
+        self._in_lobby = True
         self._stop_event = threading.Event()
         self._status_label: tk.Label | None = None
         self._pyrox_label: tk.Label | None = None
         self._credit_label: tk.Label | None = None
         self._log_label: tk.Label | None = None
         self._actions_frame: tk.Frame | None = None
+        self._scan_title_label: tk.Label | None = None
+        self._scan_message_label: tk.Label | None = None
+        self._scan_progress_label: tk.Label | None = None
+        self._scan_progress: ttk.Progressbar | None = None
+        self._scan_progress_current: int | None = None
+        self._scan_progress_total: int | None = None
+        self._scan_progress_note = ""
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
         self.attributes("-alpha", 0.93)
         self.configure(bg=BG)
         self.withdraw()
+        self._init_progress_style()
 
         self._draw()
         self._start_tracker()
+
+    def _init_progress_style(self) -> None:
+        style = ttk.Style(self)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(
+            "Scan.Horizontal.TProgressbar",
+            troughcolor="#10202d",
+            bordercolor="#10202d",
+            background=LBLUE,
+            lightcolor=LBLUE,
+            darkcolor=BLUE,
+            thickness=12,
+        )
 
     def _draw(self):
         for w in self.winfo_children():
@@ -84,11 +114,84 @@ class FloatingOverlay(tk.Toplevel):
         self._credit_label = None
         self._log_label = None
         self._actions_frame = None
+        self._scan_title_label = None
+        self._scan_message_label = None
+        self._scan_progress_label = None
 
-        if self._expanded:
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self._draw_scan_overlay()
+        elif self._expanded:
             self._draw_expanded()
         else:
             self._draw_collapsed()
+
+    def _draw_scan_overlay(self):
+        rect = get_window_rect()
+        if rect is None:
+            self.geometry(f"{SCAN_CARD_W}x{SCAN_CARD_H}")
+        else:
+            _, _, width, height = rect
+            self.geometry(f"{max(width, 1)}x{max(height, 1)}")
+
+        root = tk.Frame(self, bg="#08131d")
+        root.pack(fill="both", expand=True)
+
+        card = tk.Frame(
+            root,
+            bg=CARD,
+            highlightbackground=LBLUE,
+            highlightthickness=2,
+        )
+        card.place(relx=0.5, rely=0.5, anchor="center", width=SCAN_CARD_W, height=SCAN_CARD_H)
+
+        self._scan_title_label = tk.Label(
+            card,
+            text="학생 스캔 진행 중",
+            bg=CARD,
+            fg=TEXT,
+            font=(FONT, 14, "bold"),
+        )
+        self._scan_title_label.pack(pady=(18, 10))
+
+        self._scan_progress = ttk.Progressbar(
+            card,
+            mode="indeterminate",
+            style="Scan.Horizontal.TProgressbar",
+        )
+        self._scan_progress.pack(fill="x", padx=24)
+
+        self._scan_progress_label = tk.Label(
+            card,
+            text="진행률 계산 중...",
+            bg=CARD,
+            fg=TEXT,
+            font=(FONT, 9, "bold"),
+        )
+        self._scan_progress_label.pack(pady=(8, 0))
+
+        self._scan_message_label = tk.Label(
+            card,
+            text="스캔을 준비하고 있습니다...",
+            bg=CARD,
+            fg=SUB,
+            font=(FONT, 10),
+            justify="center",
+            wraplength=SCAN_CARD_W - 48,
+        )
+        self._scan_message_label.pack(padx=24, pady=(12, 12))
+
+        tk.Button(
+            card,
+            text="중지",
+            bg=RED,
+            fg=TEXT,
+            font=(FONT, 10, "bold"),
+            relief="flat",
+            cursor="hand2",
+            command=self._cbs["stop"],
+        ).pack(ipadx=18, ipady=3)
+
+        self._refresh_dynamic_content()
 
     def _draw_collapsed(self):
         d = CIRCLE_D
@@ -238,10 +341,17 @@ class FloatingOverlay(tk.Toplevel):
         if self._app_state == AppState.IDLE:
             return [("창 선택", ORANGE, BG, "settings")]
         if self._app_state == AppState.WATCHING:
+            if not self._in_lobby:
+                return [
+                    ("현재 학생 스캔", GREEN, BG, "current_student"),
+                    ("학생 뷰어", YELLOW, BG, "view_students"),
+                    ("창 선택", ORANGE, BG, "settings"),
+                ]
             return [
                 ("아이템 스캔", LBLUE, BG, "items"),
                 ("장비 스캔", PURPLE, BG, "equipment"),
                 ("학생 스캔", GREEN, BG, "students"),
+                ("현재 학생 스캔", BLUE, TEXT, "current_student"),
                 ("전체 스캔", ORANGE, BG, "all"),
                 ("학생 뷰어", YELLOW, BG, "view_students"),
             ]
@@ -264,6 +374,66 @@ class FloatingOverlay(tk.Toplevel):
             self._credit_label.config(text=f"크레딧 {self._resources.get('크레딧') or '-'}")
         if self._log_label is not None:
             self._log_label.config(text="\n".join(self._log_lines[-3:]) if self._log_lines else "대기 중...")
+        if self._scan_title_label is not None:
+            self._scan_title_label.config(
+                text="스캔 정리 중" if self._app_state == AppState.STOPPING else "학생 스캔 진행 중"
+            )
+        if self._scan_progress is not None:
+            known_total = (
+                self._scan_progress_current is not None
+                and self._scan_progress_total is not None
+                and self._scan_progress_total > 0
+            )
+            if known_total:
+                current = min(self._scan_progress_current, self._scan_progress_total)
+                self._scan_progress.stop()
+                self._scan_progress.configure(
+                    mode="determinate",
+                    maximum=self._scan_progress_total,
+                    value=current,
+                )
+            else:
+                self._scan_progress.configure(mode="indeterminate")
+                self._scan_progress.start(10)
+        if self._scan_progress_label is not None:
+            if (
+                self._scan_progress_current is not None
+                and self._scan_progress_total is not None
+                and self._scan_progress_total > 0
+            ):
+                current = min(self._scan_progress_current, self._scan_progress_total)
+                pct = round((current / self._scan_progress_total) * 100)
+                prefix = f"{self._scan_progress_note}  " if self._scan_progress_note else ""
+                self._scan_progress_label.config(
+                    text=f"{prefix}{current} / {self._scan_progress_total} ({pct}%)"
+                )
+            else:
+                self._scan_progress_label.config(
+                    text=self._scan_progress_note or "진행률 계산 중..."
+                )
+        if self._scan_message_label is not None:
+            self._scan_message_label.config(
+                text=self._log_lines[-1] if self._log_lines else "스캔을 준비하고 있습니다..."
+            )
+
+    def set_scan_progress(
+        self,
+        current: int | None = None,
+        total: int | None = None,
+        note: str = "",
+    ) -> None:
+        self._scan_progress_current = current
+        self._scan_progress_total = total
+        self._scan_progress_note = note
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self.after(0, self._refresh_dynamic_content)
+
+    def reset_scan_progress(self) -> None:
+        self._scan_progress_current = None
+        self._scan_progress_total = None
+        self._scan_progress_note = ""
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self.after(0, self._refresh_dynamic_content)
 
     def _draw_footer(self, parent):
         tk.Button(
@@ -283,7 +453,11 @@ class FloatingOverlay(tk.Toplevel):
             return
 
         left, top, width, height = rect
-        if self._expanded:
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            ox = left
+            oy = top
+            tw, th = width, height
+        elif self._expanded:
             ox = int(left + width * FLOAT_RX)
             oy = int(top + height * FLOAT_RY) - EXPAND_H // 2
             tw, th = EXPAND_W, EXPAND_H
@@ -331,11 +505,25 @@ class FloatingOverlay(tk.Toplevel):
     def set_app_state(self, state: AppState):
         prev = self._app_state
         self._app_state = state
-        if not self._expanded:
+        if prev in (AppState.SCANNING, AppState.STOPPING) and self._scan_progress is not None:
+            self._scan_progress.stop()
+        if not self._expanded and state not in (AppState.SCANNING, AppState.STOPPING):
             self.after(0, self._draw)
             return
         self.after(0, self._refresh_dynamic_content)
         if prev != state:
+            self.after(0, self._rebuild_actions)
+        if prev != state and (
+            prev in (AppState.SCANNING, AppState.STOPPING)
+            or state in (AppState.SCANNING, AppState.STOPPING)
+        ):
+            self.after(0, self._draw)
+            self.after(0, self._reposition)
+
+    def set_lobby_state(self, in_lobby: bool) -> None:
+        prev = self._in_lobby
+        self._in_lobby = in_lobby
+        if self._app_state == AppState.WATCHING and prev != in_lobby:
             self.after(0, self._rebuild_actions)
 
     def update_resources(self, res: dict):
@@ -347,14 +535,18 @@ class FloatingOverlay(tk.Toplevel):
         self._log_lines.append(msg)
         if len(self._log_lines) > 30:
             self._log_lines = self._log_lines[-30:]
-        if self._expanded:
+        if self._expanded or self._app_state in (AppState.SCANNING, AppState.STOPPING):
             self.after(0, self._refresh_dynamic_content)
 
     def _toggle(self):
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            return
         self._expanded = not self._expanded
         self._draw()
         self._reposition()
 
     def destroy(self):
         self._stop_event.set()
+        if self._scan_progress is not None:
+            self._scan_progress.stop()
         super().destroy()

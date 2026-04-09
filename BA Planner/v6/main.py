@@ -28,7 +28,14 @@ if missing:
 
 from core.analyzer import analyze_scan_summary, is_student_maxed
 from core.capture import clear_target, set_target_window
-from core.config import load_config, load_regions, save_config
+from core.config import (
+    activate_profile,
+    get_active_profile_name,
+    list_profiles,
+    load_config,
+    load_regions,
+    save_config,
+)
 from core.db_writer import build_scan_meta
 from core.lobby_watcher import LobbyWatcher, WatcherState
 from core.log_context import set_debug_dump
@@ -38,6 +45,7 @@ from core.scanner import ScanResult, Scanner
 from core.states import AppState, StateMachine, can_transition
 from core.template_cache import warmup_all
 from gui.floating import FloatingOverlay
+from gui.profile_dialog import choose_profile
 from gui.viewer_launcher import open_student_viewer
 from gui.window_picker import WindowPicker
 
@@ -53,8 +61,21 @@ class App(tk.Tk):
 
         setup_logging()
         self._regions = load_regions()
+        selected_profile = choose_profile(
+            self,
+            list_profiles(),
+            last_profile=get_active_profile_name(),
+        )
+        if not selected_profile:
+            self._destroyed = True
+            self.destroy()
+            return
+
+        self._storage = activate_profile(selected_profile)
         self._config = load_config()
-        self._repo = ScanRepository()
+        self._profile_name = self._storage.profile_name
+        self.title(f"BA Analyzer v6 - {self._profile_name}")
+        self._repo = ScanRepository(base_dir=self._storage.data_dir)
 
         if self._config.get("debug_dump", False):
             from core.config import BASE_DIR
@@ -80,6 +101,7 @@ class App(tk.Tk):
             on_scan_items=lambda: self._request_scan("items"),
             on_scan_equipment=lambda: self._request_scan("equipment"),
             on_scan_students=lambda: self._request_scan("students"),
+            on_scan_current_student=lambda: self._request_scan("student_current"),
             on_scan_all=lambda: self._request_scan("all"),
             on_stop=self._stop_scan,
             on_settings=self._open_settings,
@@ -126,14 +148,16 @@ class App(tk.Tk):
         if new == AppState.WATCHING:
             self._ensure_watcher_running()
             if self._watcher and self._watcher.in_lobby:
+                self._overlay.set_lobby_state(True)
                 self._overlay.show()
             else:
-                self._overlay.hide()
+                self._overlay.set_lobby_state(False)
+                self._overlay.show()
             return
 
         if new == AppState.SCANNING:
             self._pause_watcher()
-            self._overlay.hide()
+            self._overlay.show()
             return
 
         if new == AppState.ERROR:
@@ -149,6 +173,7 @@ class App(tk.Tk):
                 self._scanner.stop()
             self._pause_watcher()
             self._overlay.add_log("정리 중...")
+            self._overlay.show()
 
     def _is_scanning(self) -> bool:
         return self.state == AppState.SCANNING
@@ -216,16 +241,19 @@ class App(tk.Tk):
             self._watcher.pause()
 
     def _on_lobby_enter(self) -> None:
+        self._overlay.set_lobby_state(True)
         if self.state in (AppState.WATCHING, AppState.ERROR):
             self._overlay.show()
 
     def _on_lobby_leave(self) -> None:
-        if self.state != AppState.SCANNING:
+        self._overlay.set_lobby_state(False)
+        if self.state == AppState.WATCHING:
+            self._overlay.show()
+        elif self.state != AppState.SCANNING:
             self._overlay.hide()
 
     def _build_scanner(self, meta: dict) -> Scanner:
         from core.autosave import AutoSaveManager
-        from core.config import BASE_DIR
 
         current_students = self._repo.load_current_students()
         maxed_ids: set[str] = set()
@@ -238,7 +266,7 @@ class App(tk.Tk):
         scan_id = meta.get("scan_id", "unknown")
         self._asv = AutoSaveManager(
             scan_id=scan_id,
-            save_dir=BASE_DIR / "scans",
+            save_dir=self._storage.scans_dir,
             on_save_ok=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
             on_save_fail=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
         )
@@ -246,8 +274,15 @@ class App(tk.Tk):
         return Scanner(
             self._regions,
             on_progress=lambda msg: self._dispatch_ui(self._overlay.add_log, msg),
+            on_progress_state=lambda state: self._dispatch_ui(
+                self._overlay.set_scan_progress,
+                state.get("current"),
+                state.get("total"),
+                state.get("note", ""),
+            ),
             maxed_ids=maxed_ids,
             maxed_cache=maxed_cache,
+            student_total_hint=len(current_students) or None,
             autosave_manager=self._asv,
         )
 
@@ -271,6 +306,7 @@ class App(tk.Tk):
     def _scan(self, mode: str) -> None:
         meta = build_scan_meta()
         self._result = None
+        self._overlay.reset_scan_progress()
         self._scanner = self._build_scanner(meta)
         if self._scanner:
             self._scanner.clear_stop()
@@ -318,6 +354,14 @@ class App(tk.Tk):
                     f"학생 {len(result.students)}명 (스킵 {skipped})",
                 )
 
+            if mode == "student_current" and not_stopped():
+                result.students = scanner.scan_current_student()
+                skipped = sum(1 for s in result.students if s.skipped)
+                self._dispatch_ui(
+                    self._overlay.add_log,
+                    f"현재 학생 {len(result.students)}명 (스킵 {skipped})",
+                )
+
             self._result = result
             self._auto_save(result, meta)
         except Exception as exc:
@@ -332,6 +376,7 @@ class App(tk.Tk):
     def _on_scan_finished(self) -> None:
         self._scanner = None
         self._scan_thread = None
+        self._overlay.reset_scan_progress()
 
         if self._shutdown_requested:
             self._finish_shutdown(reason="scan_thread_finished")
@@ -353,7 +398,6 @@ class App(tk.Tk):
         self._transition_to(AppState.STOPPING, reason="user_stop_requested")
 
     def _auto_save(self, result: ScanResult, meta: dict) -> None:
-        from core.config import BASE_DIR
         from core.serializer import make_status_report, save_scan_json
 
         scan_id = meta.get("scan_id", "unknown")
@@ -362,7 +406,7 @@ class App(tk.Tk):
                 if not self._asv.final_save(result, meta):
                     raise RuntimeError("최종 저장 파일 작성 실패")
             else:
-                json_path = BASE_DIR / "scans" / f"{scan_id}.json"
+                json_path = self._storage.scans_dir / f"{scan_id}.json"
                 save_scan_json(result, json_path, meta)
                 _log.info(f"scan json saved: {json_path}")
             self._repo.save(result, meta)
