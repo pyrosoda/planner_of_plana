@@ -10,6 +10,7 @@ from typing import Callable
 
 from core.capture import get_window_rect
 from core.states import AppState
+from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 BG = "#0d1b2a"
 CARD = "#152435"
@@ -79,6 +80,7 @@ class FloatingOverlay(tk.Toplevel):
         self._scan_progress_current: int | None = None
         self._scan_progress_total: int | None = None
         self._scan_progress_note = ""
+        self._ui_scale = get_ui_scale(self, base_width=1600, base_height=1080)
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -103,7 +105,7 @@ class FloatingOverlay(tk.Toplevel):
             background=LBLUE,
             lightcolor=LBLUE,
             darkcolor=BLUE,
-            thickness=12,
+            thickness=scale_px(12, self._ui_scale),
         )
 
     def _draw(self):
@@ -128,7 +130,7 @@ class FloatingOverlay(tk.Toplevel):
     def _draw_scan_overlay(self):
         rect = get_window_rect()
         if rect is None:
-            self.geometry(f"{SCAN_CARD_W}x{SCAN_CARD_H}")
+            self.geometry(f"{scale_px(SCAN_CARD_W, self._ui_scale)}x{scale_px(SCAN_CARD_H, self._ui_scale)}")
         else:
             _, _, width, height = rect
             self.geometry(f"{max(width, 1)}x{max(height, 1)}")
@@ -142,59 +144,68 @@ class FloatingOverlay(tk.Toplevel):
             highlightbackground=LBLUE,
             highlightthickness=2,
         )
-        card.place(relx=0.5, rely=0.5, anchor="center", width=SCAN_CARD_W, height=SCAN_CARD_H)
+        card.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            width=scale_px(SCAN_CARD_W, self._ui_scale),
+            height=scale_px(SCAN_CARD_H, self._ui_scale),
+        )
 
         self._scan_title_label = tk.Label(
             card,
             text="학생 스캔 진행 중",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 14, "bold"),
+            font=scale_font((FONT, 14, "bold"), self._ui_scale),
         )
-        self._scan_title_label.pack(pady=(18, 10))
+        self._scan_title_label.pack(pady=(scale_px(18, self._ui_scale), scale_px(10, self._ui_scale)))
 
         self._scan_progress = ttk.Progressbar(
             card,
             mode="indeterminate",
             style="Scan.Horizontal.TProgressbar",
         )
-        self._scan_progress.pack(fill="x", padx=24)
+        self._scan_progress.pack(fill="x", padx=scale_px(24, self._ui_scale))
 
         self._scan_progress_label = tk.Label(
             card,
             text="진행률 계산 중...",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 9, "bold"),
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
         )
-        self._scan_progress_label.pack(pady=(8, 0))
+        self._scan_progress_label.pack(pady=(scale_px(8, self._ui_scale), 0))
 
         self._scan_message_label = tk.Label(
             card,
             text="스캔을 준비하고 있습니다...",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 10),
+            font=scale_font((FONT, 10), self._ui_scale),
             justify="center",
-            wraplength=SCAN_CARD_W - 48,
+            wraplength=scale_px(SCAN_CARD_W - 48, self._ui_scale),
         )
-        self._scan_message_label.pack(padx=24, pady=(12, 12))
+        self._scan_message_label.pack(
+            padx=scale_px(24, self._ui_scale),
+            pady=(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale)),
+        )
 
         tk.Button(
             card,
             text="중지",
             bg=RED,
             fg=TEXT,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
             relief="flat",
             cursor="hand2",
             command=self._cbs["stop"],
-        ).pack(ipadx=18, ipady=3)
+        ).pack(ipadx=scale_px(18, self._ui_scale), ipady=scale_px(3, self._ui_scale))
 
         self._refresh_dynamic_content()
 
     def _draw_collapsed(self):
-        d = CIRCLE_D
+        d = scale_px(CIRCLE_D, self._ui_scale)
         self.geometry(f"{d}x{d}")
 
         canvas = tk.Canvas(self, width=d, height=d, bg=BG, highlightthickness=0)
@@ -208,12 +219,12 @@ class FloatingOverlay(tk.Toplevel):
             d // 2,
             text="BA",
             fill=TEXT,
-            font=(FONT, 14, "bold"),
+            font=scale_font((FONT, 14, "bold"), self._ui_scale),
         )
         canvas.bind("<Button-1>", lambda _e: self._toggle())
 
     def _draw_expanded(self):
-        self.geometry(f"{EXPAND_W}x{EXPAND_H}")
+        self.geometry(f"{scale_px(EXPAND_W, self._ui_scale)}x{scale_px(EXPAND_H, self._ui_scale)}")
 
         frame = tk.Frame(
             self,
@@ -230,18 +241,18 @@ class FloatingOverlay(tk.Toplevel):
             text="BA Analyzer",
             bg=BLUE,
             fg=TEXT,
-            font=(FONT, 11, "bold"),
-        ).pack(side="left", padx=10, pady=6)
+            font=scale_font((FONT, 11, "bold"), self._ui_scale),
+        ).pack(side="left", padx=scale_px(10, self._ui_scale), pady=scale_px(6, self._ui_scale))
         tk.Button(
             hdr,
             text="x",
             bg=BLUE,
             fg=TEXT,
-            font=("Arial", 10),
+            font=scale_font(("Arial", 10), self._ui_scale),
             relief="flat",
             cursor="hand2",
             command=self._toggle,
-        ).pack(side="right", padx=6)
+        ).pack(side="right", padx=scale_px(6, self._ui_scale))
         hdr.bind("<ButtonPress-1>", self._drag_start)
         hdr.bind("<B1-Motion>", self._drag_move)
 
@@ -254,35 +265,35 @@ class FloatingOverlay(tk.Toplevel):
 
     def _draw_status(self, parent):
         row = tk.Frame(parent, bg=CARD)
-        row.pack(fill="x", padx=6, pady=(6, 2))
+        row.pack(fill="x", padx=scale_px(6, self._ui_scale), pady=(scale_px(6, self._ui_scale), scale_px(2, self._ui_scale)))
         self._status_label = tk.Label(
             row,
             text="",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 9, "bold"),
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
         )
-        self._status_label.pack(anchor="w", padx=8, pady=4)
+        self._status_label.pack(anchor="w", padx=scale_px(8, self._ui_scale), pady=scale_px(4, self._ui_scale))
 
     def _draw_resources(self, parent):
         res = tk.Frame(parent, bg=CARD)
-        res.pack(fill="x", padx=6, pady=(0, 2))
+        res.pack(fill="x", padx=scale_px(6, self._ui_scale), pady=(0, scale_px(2, self._ui_scale)))
         self._pyrox_label = tk.Label(
             res,
             text="",
             bg=CARD,
             fg=YELLOW,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
         )
-        self._pyrox_label.pack(side="left", padx=8, pady=4)
+        self._pyrox_label.pack(side="left", padx=scale_px(8, self._ui_scale), pady=scale_px(4, self._ui_scale))
         self._credit_label = tk.Label(
             res,
             text="",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
         )
-        self._credit_label.pack(side="left", padx=4)
+        self._credit_label.pack(side="left", padx=scale_px(4, self._ui_scale))
 
     def _draw_actions(self, parent):
         self._actions_frame = tk.Frame(parent, bg=BG)
@@ -295,28 +306,28 @@ class FloatingOverlay(tk.Toplevel):
             text=text,
             bg=bg,
             fg=fg,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
             relief="flat",
-            pady=5,
+            pady=scale_px(5, self._ui_scale),
             cursor="hand2",
             command=self._cbs[key],
-        ).pack(fill="x", padx=6, pady=2)
+        ).pack(fill="x", padx=scale_px(6, self._ui_scale), pady=scale_px(2, self._ui_scale))
 
     def _draw_log(self, parent):
-        log_f = tk.Frame(parent, bg=CARD, height=56)
-        log_f.pack(fill="x", padx=6, pady=(4, 0))
+        log_f = tk.Frame(parent, bg=CARD, height=scale_px(56, self._ui_scale))
+        log_f.pack(fill="x", padx=scale_px(6, self._ui_scale), pady=(scale_px(4, self._ui_scale), 0))
         log_f.pack_propagate(False)
         self._log_label = tk.Label(
             log_f,
             text="",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 8),
+            font=scale_font((FONT, 8), self._ui_scale),
             justify="left",
             anchor="nw",
-            wraplength=210,
+            wraplength=scale_px(210, self._ui_scale),
         )
-        self._log_label.pack(padx=6, pady=4, fill="both")
+        self._log_label.pack(padx=scale_px(6, self._ui_scale), pady=scale_px(4, self._ui_scale), fill="both")
 
     def _state_text(self) -> str:
         labels = {
@@ -441,11 +452,11 @@ class FloatingOverlay(tk.Toplevel):
             text="설정",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 9),
+            font=scale_font((FONT, 9), self._ui_scale),
             relief="flat",
             cursor="hand2",
             command=self._cbs["settings"],
-        ).pack(fill="x", padx=6, pady=(2, 6))
+        ).pack(fill="x", padx=scale_px(6, self._ui_scale), pady=(scale_px(2, self._ui_scale), scale_px(6, self._ui_scale)))
 
     def _reposition(self):
         rect = get_window_rect()
@@ -459,12 +470,14 @@ class FloatingOverlay(tk.Toplevel):
             tw, th = width, height
         elif self._expanded:
             ox = int(left + width * FLOAT_RX)
-            oy = int(top + height * FLOAT_RY) - EXPAND_H // 2
-            tw, th = EXPAND_W, EXPAND_H
+            scaled_expand_h = scale_px(EXPAND_H, self._ui_scale)
+            oy = int(top + height * FLOAT_RY) - scaled_expand_h // 2
+            tw, th = scale_px(EXPAND_W, self._ui_scale), scaled_expand_h
         else:
             ox = int(left + width * FLOAT_RX)
-            oy = int(top + height * FLOAT_RY) - CIRCLE_D // 2
-            tw, th = CIRCLE_D, CIRCLE_D
+            scaled_circle_d = scale_px(CIRCLE_D, self._ui_scale)
+            oy = int(top + height * FLOAT_RY) - scaled_circle_d // 2
+            tw, th = scaled_circle_d, scaled_circle_d
 
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()

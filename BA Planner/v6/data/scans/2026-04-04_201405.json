@@ -3347,7 +3347,7 @@
         "stat_heal": 0
       },
       {
-        "student_id": "zunko",
+        "student_id": "junko",
         "display_name": "준코",
         "level": 90,
         "student_star": 5,
@@ -3738,7 +3738,7 @@
         "stat_heal": 0
       },
       {
-        "student_id": "zunko_new_year",
+        "student_id": "junko_new_year",
         "display_name": "준코(새해)",
         "level": 90,
         "student_star": 5,

@@ -3,21 +3,25 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
+import json
 import pprint
 import sys
 import tkinter as tk
+from collections import Counter
 from pathlib import Path
 from tkinter import messagebox, ttk
-
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from core.config import get_storage_paths
+from gui.ui_scale import get_ui_scale, scale_px
+from tools.student_meta_options import FIELD_OPTIONS
 
 MODULE_NAME = "core.student_meta"
 MODULE_PATH = ROOT_DIR / "core" / "student_meta.py"
-from tools.student_meta_options import FIELD_OPTIONS
+PLAN_FILE = "item_plan_adjustments.json"
 
 FIELD_SPECS: list[dict[str, object]] = [
     {"name": "student_id", "label": "Student ID", "required": True},
@@ -29,11 +33,8 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "rarity", "label": "Rarity"},
     {"name": "recruit_type", "label": "Recruit Type"},
     {"name": "attack_type", "label": "Attack Type"},
+    {"name": "attack_type_trait", "label": "Attack Type Trait"},
     {"name": "defense_type", "label": "Defense Type"},
-    {"name": "ex_skill_name", "label": "EX Skill"},
-    {"name": "normal_skill_name", "label": "Normal Skill"},
-    {"name": "passive_skill_name", "label": "Passive Skill"},
-    {"name": "sub_skill_name", "label": "Sub Skill"},
     {"name": "growth_material_main", "label": "Main Growth Mat"},
     {"name": "growth_material_sub", "label": "Sub Growth Mat"},
     {"name": "equipment_slot_1", "label": "Equipment 1"},
@@ -50,8 +51,43 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "terrain_indoor", "label": "Indoor"},
     {"name": "weapon3_terrain_boost", "label": "Weapon 3* Terrain Boost"},
     {"name": "has_favorite_item", "label": "Favorite Item"},
-    {"name": "favorite_item_name", "label": "Favorite Item Name"},
 ]
+
+LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
+    "passive_stat": "Passive Stat",
+    "weapon_passive_stat": "Weapon Passive Stat",
+    "extra_passive_stat": "Extra Passive Stat",
+    "skill_buff": "Buff Skill",
+    "skill_debuff": "Debuff Skill",
+    "skill_cc": "Crowd Control",
+    "skill_special": "Special Effect",
+    "skill_heal_targets": "Heal Targets",
+    "skill_dispel_targets": "Dispel Targets",
+    "skill_reposition_targets": "Move Skill",
+    "skill_summon_types": "Summon Skill",
+    "skill_ignore_cover": "EX Ignore Cover",
+    "skill_is_area_damage": "EX Area Damage",
+    "skill_buff_specials": "Special Student Buff",
+    "skill_knockback": "Knockback / Pull",
+}
+LIST_FIELDS = {
+    "passive_stat", "weapon_passive_stat", "extra_passive_stat", "skill_buff", "skill_debuff",
+    "skill_cc", "skill_special", "skill_heal_targets", "skill_dispel_targets",
+    "skill_reposition_targets", "skill_summon_types", "skill_buff_specials",
+}
+ANALYTICS_FIELDS = (
+    "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
+    "growth_material_main", "growth_material_sub", "equipment_slot_1", "equipment_slot_2",
+    "equipment_slot_3", "combat_class", "cover_type", "range_type", "role", "weapon_type",
+    "position", "terrain_outdoor", "terrain_urban", "terrain_indoor", "weapon3_terrain_boost",
+    "has_favorite_item", "passive_stat", "weapon_passive_stat", "extra_passive_stat",
+    "skill_buff", "skill_debuff", "skill_cc", "skill_special", "skill_heal_targets",
+    "skill_dispel_targets", "skill_reposition_targets", "skill_summon_types",
+    "skill_ignore_cover", "skill_is_area_damage", "skill_buff_specials", "skill_knockback",
+)
+STUDENT_SORTS = ("Value A-Z", "Value Z-A", "Match First")
+ITEM_SORTS = ("Shortage First", "Adjusted Asc", "Adjusted Desc", "Name A-Z")
+ITEM_FILTERS = ("All Items", "Shortage Only", "Zero Or Less", "Positive Only")
 
 
 def _load_module():
@@ -59,41 +95,64 @@ def _load_module():
 
 
 def _reload_module():
-    module = _load_module()
-    return importlib.reload(module)
+    return importlib.reload(_load_module())
 
 
 def _normalize_value(value: str | None) -> str | None:
     if value is None:
         return None
-    trimmed = value.strip()
-    if trimmed == "":
+    value = value.strip()
+    if not value or value.lower() in {"none", "null", "-"}:
         return None
-    if trimmed.lower() in {"none", "null", "-"}:
-        return None
-    return trimmed
+    return value
+
+
+def _as_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                parsed = ast.literal_eval(text)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, (list, tuple)):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+        return [x.strip() for x in text.split(",") if x.strip()]
+    return [str(value).strip()]
+
+
+def _display(field_name: str, value: object) -> str:
+    if field_name in LIST_FIELDS:
+        return ", ".join(_as_list(value))
+    return "" if value is None else str(value)
 
 
 def _sorted_unique(values: list[str]) -> tuple[str, ...]:
-    return tuple(sorted({value for value in values if value}))
+    return tuple(sorted({v for v in values if v}))
 
 
-def _collect_existing_field_values(students: dict[str, dict], field_name: str) -> tuple[str, ...]:
+def _collect_field_values(students: dict[str, dict], field_name: str) -> tuple[str, ...]:
     if field_name == "student_id":
-        return _sorted_unique(list(students.keys()))
-    return _sorted_unique(
-        [str(meta.get(field_name)) for meta in students.values() if meta.get(field_name)]
-    )
+        return _sorted_unique(list(students))
+    out: list[str] = []
+    for meta in students.values():
+        raw = meta.get(field_name)
+        out.extend(_as_list(raw) if field_name in LIST_FIELDS else ([str(raw)] if raw else []))
+    return _sorted_unique(out)
 
 
 def build_field_options(students: dict[str, dict]) -> dict[str, tuple[str, ...]]:
     options: dict[str, tuple[str, ...]] = {}
     for spec in FIELD_SPECS:
-        field_name = str(spec["name"])
-        base_values = list(FIELD_OPTIONS.get(field_name, ()))
-        dynamic_values = list(_collect_existing_field_values(students, field_name))
-        merged = _sorted_unique(base_values + dynamic_values)
-        options[field_name] = ("",) + merged
+        name = str(spec["name"])
+        merged = _sorted_unique(list(FIELD_OPTIONS.get(name, ())) + list(_collect_field_values(students, name)))
+        options[name] = ("",) + merged
     return options
 
 
@@ -101,10 +160,9 @@ def _replace_students_block(source: str, rendered_assignment: str) -> str:
     tree = ast.parse(source)
     target = None
     for node in tree.body:
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.target.id == "STUDENTS":
-                target = node
-                break
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "STUDENTS":
+            target = node
+            break
         if isinstance(node, ast.Assign):
             for single_target in node.targets:
                 if isinstance(single_target, ast.Name) and single_target.id == "STUDENTS":
@@ -112,23 +170,14 @@ def _replace_students_block(source: str, rendered_assignment: str) -> str:
                     break
     if target is None:
         raise RuntimeError("STUDENTS assignment not found in core.student_meta")
-
     lines = source.splitlines()
-    start = target.lineno - 1
-    end = target.end_lineno
-    replaced = lines[:start] + rendered_assignment.rstrip("\n").splitlines() + lines[end:]
-    return "\n".join(replaced) + "\n"
+    return "\n".join(lines[: target.lineno - 1] + rendered_assignment.rstrip("\n").splitlines() + lines[target.end_lineno :]) + "\n"
 
 
 def _write_students(students: dict[str, dict]) -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    rendered = "STUDENTS: dict[str, StudentMeta] = " + pprint.pformat(
-        students,
-        width=100,
-        sort_dicts=False,
-    )
-    updated = _replace_students_block(source, rendered)
-    MODULE_PATH.write_text(updated, encoding="utf-8")
+    rendered = "STUDENTS: dict[str, StudentMeta] = " + pprint.pformat(students, width=100, sort_dicts=False)
+    MODULE_PATH.write_text(_replace_students_block(source, rendered), encoding="utf-8")
 
 
 def get_students() -> dict[str, dict]:
@@ -140,19 +189,14 @@ def upsert_student(student_id: str, updates: dict[str, str | None]) -> dict[str,
     module = _reload_module()
     students = dict(module.STUDENTS)
     current = dict(students.get(student_id, {}))
+    candidate = dict(current) | updates
     required = {"display_name", "template_name", "group"}
-    candidate = dict(current)
-    candidate.update(updates)
     if not required.issubset(candidate):
-        missing = ", ".join(sorted(required - set(candidate)))
-        raise ValueError(f"required fields missing: {missing}")
-
-    if "variant" not in candidate:
-        candidate["variant"] = None
+        raise ValueError(f"required fields missing: {', '.join(sorted(required - set(candidate)))}")
+    candidate.setdefault("variant", None)
     students[student_id] = candidate
     _write_students(students)
-    module = _reload_module()
-    return dict(module.STUDENTS[student_id])
+    return dict(_reload_module().STUDENTS[student_id])
 
 
 def delete_student(student_id: str) -> None:
@@ -162,6 +206,179 @@ def delete_student(student_id: str) -> None:
         raise KeyError(student_id)
     students.pop(student_id)
     _write_students(students)
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return default
+
+
+def _read_json(path: Path, default: object) -> object:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def _candidate_inventory_paths() -> list[Path]:
+    paths: list[Path] = []
+    try:
+        paths.append(get_storage_paths().current_inventory_json)
+    except Exception:
+        pass
+    paths.append(ROOT_DIR / "data" / "current" / "inventory.json")
+    return list(dict.fromkeys(paths))
+
+
+def _candidate_plan_paths() -> list[Path]:
+    paths: list[Path] = []
+    try:
+        paths.append(get_storage_paths().current_inventory_json.with_name(PLAN_FILE))
+    except Exception:
+        pass
+    paths.append(ROOT_DIR / "data" / "current" / PLAN_FILE)
+    return list(dict.fromkeys(paths))
+
+
+def _pick_path(candidates: list[Path]) -> Path:
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
+
+def load_inventory_snapshot(path: Path) -> dict[str, dict]:
+    raw = _read_json(path, {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def load_item_plan_adjustments(path: Path) -> dict[str, int]:
+    raw = _read_json(path, {})
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, int] = {}
+    for name, value in raw.items():
+        result[str(name)] = _safe_int(value.get("delta") if isinstance(value, dict) else value, 0)
+    return result
+
+
+def _resolved_field_value(student_id: str, meta: dict[str, object], field_name: str) -> object:
+    module = _load_module()
+    getter = getattr(module, field_name, None)
+    if callable(getter):
+        try:
+            return getter(student_id)
+        except Exception:
+            pass
+    return meta.get(field_name)
+
+
+def collect_attribute_value_options(students: dict[str, dict], field_name: str) -> tuple[str, ...]:
+    return ("",) + _sorted_unique(list(FIELD_OPTIONS.get(field_name, ())) + list(_collect_field_values(students, field_name)))
+
+
+def build_attribute_stats(students: dict[str, dict], field_name: str) -> list[dict[str, object]]:
+    total = len(students)
+    counts: Counter[str] = Counter()
+    missing = 0
+    for student_id, meta in students.items():
+        raw = _resolved_field_value(student_id, meta, field_name)
+        if field_name in LIST_FIELDS:
+            values = sorted(set(_as_list(raw)))
+        else:
+            value = _normalize_value(_display(field_name, raw))
+            values = [value] if value else []
+        if not values:
+            missing += 1
+            continue
+        for value in values:
+            counts[value] += 1
+    rows = [{"value": v, "count": c, "percent": (c / total * 100.0) if total else 0.0} for v, c in sorted(counts.items(), key=lambda x: (-x[1], x[0].casefold()))]
+    if missing:
+        rows.append({"value": "(missing)", "count": missing, "percent": (missing / total * 100.0) if total else 0.0})
+    return rows
+
+
+def build_student_attribute_rows(students: dict[str, dict], field_name: str, selected_value: str = "", sort_mode: str = "Value A-Z", search_query: str = "") -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    query = search_query.strip().casefold()
+    for sid, meta in students.items():
+        name = str(meta.get("display_name", ""))
+        if query and query not in f"{sid} {name}".casefold():
+            continue
+        raw = _resolved_field_value(sid, meta, field_name)
+        values = _as_list(raw) if field_name in LIST_FIELDS else []
+        if field_name not in LIST_FIELDS:
+            value = _normalize_value(_display(field_name, raw))
+            values = [value] if value else []
+        rows.append({
+            "student_id": sid,
+            "display_name": name,
+            "display_value": ", ".join(values) if values else "-",
+            "has_value": bool(values),
+            "matches": (selected_value in values) if selected_value else bool(values),
+        })
+    if sort_mode == "Match First":
+        matched = [r for r in rows if r["matches"]]
+        rest = [r for r in rows if not r["matches"]]
+        matched.sort(key=lambda r: (str(r["display_value"]).casefold(), str(r["student_id"]).casefold()))
+        rest.sort(key=lambda r: (str(r["display_value"]).casefold(), str(r["student_id"]).casefold()))
+        return matched + rest
+    present = [r for r in rows if r["has_value"]]
+    missing = [r for r in rows if not r["has_value"]]
+    present.sort(key=lambda r: (str(r["display_value"]).casefold(), str(r["student_id"]).casefold()), reverse=(sort_mode == "Value Z-A"))
+    missing.sort(key=lambda r: str(r["student_id"]).casefold())
+    return present + missing
+
+
+def build_item_rows(inventory: dict[str, dict], plan_adjustments: dict[str, int]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for name in sorted(set(inventory) | set(plan_adjustments), key=str.casefold):
+        entry = inventory.get(name, {})
+        current = _safe_int(entry.get("quantity"), 0)
+        delta = _safe_int(plan_adjustments.get(name), 0)
+        rows.append({
+            "item": name,
+            "current_qty": current,
+            "plan_delta": delta,
+            "adjusted_qty": current + delta,
+            "index": _safe_int(entry.get("index"), -1),
+        })
+    return rows
+
+
+def filter_and_sort_item_rows(rows: list[dict[str, object]], filter_mode: str = "All Items", sort_mode: str = "Shortage First") -> list[dict[str, object]]:
+    if filter_mode == "Shortage Only":
+        rows = [r for r in rows if int(r["adjusted_qty"]) < 0]
+    elif filter_mode == "Zero Or Less":
+        rows = [r for r in rows if int(r["adjusted_qty"]) <= 0]
+    elif filter_mode == "Positive Only":
+        rows = [r for r in rows if int(r["adjusted_qty"]) > 0]
+    if sort_mode == "Adjusted Asc":
+        rows.sort(key=lambda r: (int(r["adjusted_qty"]), str(r["item"]).casefold()))
+    elif sort_mode == "Adjusted Desc":
+        rows.sort(key=lambda r: (-int(r["adjusted_qty"]), str(r["item"]).casefold()))
+    elif sort_mode == "Name A-Z":
+        rows.sort(key=lambda r: str(r["item"]).casefold())
+    else:
+        rows.sort(key=lambda r: (int(r["adjusted_qty"]) > 0, int(r["adjusted_qty"]), str(r["item"]).casefold()))
+    return rows
+
+
+def build_item_stats(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    total = len(rows)
+    if not total:
+        return []
+    buckets = [
+        ("Negative", len([r for r in rows if int(r["adjusted_qty"]) < 0])),
+        ("Zero", len([r for r in rows if int(r["adjusted_qty"]) == 0])),
+        ("Positive", len([r for r in rows if int(r["adjusted_qty"]) > 0])),
+    ]
+    return [{"value": label, "count": count, "percent": count / total * 100.0} for label, count in buckets]
 
 
 def command_get(args: argparse.Namespace) -> int:
@@ -183,8 +400,7 @@ def command_upsert(args: argparse.Namespace) -> int:
         raw = getattr(args, name)
         if raw is not None:
             updates[name] = _normalize_value(raw)
-    saved = upsert_student(args.student_id, updates)
-    pprint.pprint(saved, sort_dicts=False)
+    pprint.pprint(upsert_student(args.student_id, updates), sort_dicts=False)
     print(f"saved: {args.student_id}")
     return 0
 
@@ -203,101 +419,222 @@ class StudentMetaToolApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Student Meta Tool")
-        self.root.geometry("1180x760")
-
+        self._ui_scale = get_ui_scale(self.root, base_width=1600, base_height=980)
+        self.root.geometry(f"{scale_px(1420, self._ui_scale)}x{scale_px(880, self._ui_scale)}")
         self.students = get_students()
         self.field_options = build_field_options(self.students)
         self.selected_student_id: str | None = None
         self.vars: dict[str, tk.StringVar] = {}
         self.widgets: dict[str, ttk.Combobox] = {}
-
+        self.attribute_var = tk.StringVar(value=LABELS[ANALYTICS_FIELDS[0]])
+        self.attribute_value_var = tk.StringVar(value="")
+        self.student_sort_var = tk.StringVar(value=STUDENT_SORTS[0])
+        self.student_search_var = tk.StringVar()
+        self.inventory_path = _pick_path(_candidate_inventory_paths())
+        self.plan_path_var = tk.StringVar(value=str(_pick_path(_candidate_plan_paths())))
+        self.item_sort_var = tk.StringVar(value=ITEM_SORTS[0])
+        self.item_filter_var = tk.StringVar(value=ITEM_FILTERS[0])
+        self.inventory: dict[str, dict] = {}
+        self.plan_adjustments: dict[str, int] = {}
+        self.attribute_value_combo: ttk.Combobox | None = None
+        self.stats_tree: ttk.Treeview | None = None
+        self.student_tree: ttk.Treeview | None = None
+        self.item_stats_tree: ttk.Treeview | None = None
+        self.item_tree: ttk.Treeview | None = None
+        self.item_summary_var = tk.StringVar(value="")
         self._build_ui()
         self._refresh_student_list()
         self._new_student()
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
+        self._reload_inventory_analysis()
 
     def _build_ui(self) -> None:
-        self.root.columnconfigure(0, weight=0)
-        self.root.columnconfigure(1, weight=1)
+        self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
+        notebook = ttk.Notebook(self.root)
+        notebook.grid(row=0, column=0, sticky="nsew")
+        editor_tab = ttk.Frame(notebook, padding=10)
+        student_tab = ttk.Frame(notebook, padding=10)
+        item_tab = ttk.Frame(notebook, padding=10)
+        notebook.add(editor_tab, text="Editor")
+        notebook.add(student_tab, text="Student Stats")
+        notebook.add(item_tab, text="Item Stats")
+        self._build_editor_tab(editor_tab)
+        self._build_student_tab(student_tab)
+        self._build_item_tab(item_tab)
 
-        left = ttk.Frame(self.root, padding=12)
+    def _build_editor_tab(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=0)
+        parent.columnconfigure(1, weight=1)
+        parent.rowconfigure(0, weight=1)
+        left = ttk.Frame(parent, padding=(0, 0, 12, 0))
         left.grid(row=0, column=0, sticky="ns")
         left.rowconfigure(2, weight=1)
-
         ttk.Label(left, text="Students").grid(row=0, column=0, sticky="w")
         self.search_var = tk.StringVar()
         search_entry = ttk.Entry(left, textvariable=self.search_var, width=28)
         search_entry.grid(row=1, column=0, sticky="ew", pady=(6, 8))
-        search_entry.bind("<KeyRelease>", lambda _event: self._refresh_student_list())
-
+        search_entry.bind("<KeyRelease>", lambda _e: self._refresh_student_list())
         self.student_list = tk.Listbox(left, width=32, exportselection=False)
         self.student_list.grid(row=2, column=0, sticky="nsew")
         self.student_list.bind("<<ListboxSelect>>", self._on_select_student)
-
         left_buttons = ttk.Frame(left)
         left_buttons.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         ttk.Button(left_buttons, text="New", command=self._new_student).grid(row=0, column=0, padx=(0, 6))
         ttk.Button(left_buttons, text="Reload", command=self._reload_students).grid(row=0, column=1)
-
-        right = ttk.Frame(self.root, padding=(4, 12, 12, 12))
+        right = ttk.Frame(parent)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
         right.rowconfigure(1, weight=1)
-
         ttk.Label(right, text="Editor").grid(row=0, column=0, sticky="w")
-
         canvas = tk.Canvas(right, highlightthickness=0)
         canvas.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(right, orient="vertical", command=canvas.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
         canvas.configure(yscrollcommand=scrollbar.set)
-
         form = ttk.Frame(canvas, padding=(0, 8, 0, 8))
         form.columnconfigure(1, weight=1)
         canvas.create_window((0, 0), window=form, anchor="nw")
-        form.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind_all("<MouseWheel>", lambda event: canvas.yview_scroll(int(-event.delta / 120), "units"))
-
+        form.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
         for row, spec in enumerate(FIELD_SPECS):
             name = str(spec["name"])
             label = str(spec["label"])
-            required = bool(spec.get("required", False))
-
-            display = f"{label} *" if required else label
+            display = f"{label} *" if spec.get("required") else label
             ttk.Label(form, text=display, width=18).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
-
             var = tk.StringVar()
             self.vars[name] = var
-            widget = ttk.Combobox(
-                form,
-                textvariable=var,
-                values=self.field_options.get(name, ("",)),
-                state="readonly",
-            )
+            widget = ttk.Combobox(form, textvariable=var, values=self.field_options.get(name, ("",)), state="readonly")
             widget.grid(row=row, column=1, sticky="ew", pady=4)
             self.widgets[name] = widget
-
         action_bar = ttk.Frame(right)
         action_bar.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         ttk.Button(action_bar, text="Save", command=self._save_current).grid(row=0, column=0, padx=(0, 6))
         ttk.Button(action_bar, text="Delete", command=self._delete_current).grid(row=0, column=1, padx=(0, 6))
         ttk.Button(action_bar, text="Duplicate as New", command=self._duplicate_current).grid(row=0, column=2)
-
         self.status_var = tk.StringVar(value="Ready")
         ttk.Label(right, textvariable=self.status_var).grid(row=3, column=0, sticky="w", pady=(10, 0))
+
+    def _build_student_tab(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+        controls = ttk.Frame(parent)
+        controls.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        for col in range(8):
+            controls.columnconfigure(col, weight=1 if col in {1, 3, 5, 7} else 0)
+        ttk.Label(controls, text="Attribute").grid(row=0, column=0, sticky="w")
+        combo = ttk.Combobox(controls, textvariable=self.attribute_var, values=[LABELS[f] for f in ANALYTICS_FIELDS], state="readonly")
+        combo.grid(row=0, column=1, sticky="ew", padx=(6, 12))
+        combo.bind("<<ComboboxSelected>>", self._on_attribute_changed)
+        ttk.Label(controls, text="Value").grid(row=0, column=2, sticky="w")
+        self.attribute_value_combo = ttk.Combobox(controls, textvariable=self.attribute_value_var, values=("",), state="readonly")
+        self.attribute_value_combo.grid(row=0, column=3, sticky="ew", padx=(6, 12))
+        self.attribute_value_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_student_analysis())
+        ttk.Label(controls, text="Sort").grid(row=0, column=4, sticky="w")
+        sort_combo = ttk.Combobox(controls, textvariable=self.student_sort_var, values=STUDENT_SORTS, state="readonly")
+        sort_combo.grid(row=0, column=5, sticky="ew", padx=(6, 12))
+        sort_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_student_analysis())
+        ttk.Label(controls, text="Search").grid(row=0, column=6, sticky="w")
+        search_entry = ttk.Entry(controls, textvariable=self.student_search_var)
+        search_entry.grid(row=0, column=7, sticky="ew")
+        search_entry.bind("<KeyRelease>", lambda _e: self._refresh_student_analysis())
+        panes = ttk.Panedwindow(parent, orient="horizontal")
+        panes.grid(row=1, column=0, sticky="nsew")
+        stats_frame = ttk.Frame(panes, padding=4)
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.rowconfigure(1, weight=1)
+        ttk.Label(stats_frame, text="Attribute Breakdown").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.stats_tree = ttk.Treeview(stats_frame, columns=("value", "count", "percent"), show="headings", height=20)
+        for key, text, width in (("value", "Value", 220), ("count", "Students", 90), ("percent", "Percent", 100)):
+            self.stats_tree.heading(key, text=text)
+            self.stats_tree.column(key, width=width, anchor="w" if key == "value" else "e")
+        self.stats_tree.grid(row=1, column=0, sticky="nsew")
+        self.stats_tree.bind("<<TreeviewSelect>>", self._on_stat_row_selected)
+        panes.add(stats_frame, weight=1)
+        students_frame = ttk.Frame(panes, padding=4)
+        students_frame.columnconfigure(0, weight=1)
+        students_frame.rowconfigure(1, weight=1)
+        ttk.Label(students_frame, text="Sorted Students").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.student_tree = ttk.Treeview(students_frame, columns=("student_id", "display_name", "value", "match"), show="headings", height=20)
+        for key, text, width in (("student_id", "Student ID", 180), ("display_name", "Name", 180), ("value", "Attribute Value", 260), ("match", "Match", 80)):
+            self.student_tree.heading(key, text=text)
+            self.student_tree.column(key, width=width, anchor="center" if key == "match" else "w")
+        self.student_tree.grid(row=1, column=0, sticky="nsew")
+        panes.add(students_frame, weight=2)
+
+    def _build_item_tab(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+        paths_frame = ttk.Frame(parent)
+        paths_frame.grid(row=0, column=0, sticky="ew")
+        paths_frame.columnconfigure(1, weight=1)
+        paths_frame.columnconfigure(3, weight=1)
+        ttk.Label(paths_frame, text="Inventory").grid(row=0, column=0, sticky="w")
+        ttk.Label(paths_frame, text=str(self.inventory_path)).grid(row=0, column=1, sticky="ew", padx=(6, 12))
+        ttk.Label(paths_frame, text="Plan Delta JSON").grid(row=0, column=2, sticky="w")
+        ttk.Entry(paths_frame, textvariable=self.plan_path_var).grid(row=0, column=3, sticky="ew", padx=(6, 12))
+        ttk.Button(paths_frame, text="Reload Items", command=self._reload_inventory_analysis).grid(row=0, column=4)
+        controls = ttk.Frame(parent)
+        controls.grid(row=1, column=0, sticky="ew", pady=(10, 10))
+        controls.columnconfigure(1, weight=1)
+        controls.columnconfigure(3, weight=1)
+        ttk.Label(controls, text="Sort").grid(row=0, column=0, sticky="w")
+        sort_combo = ttk.Combobox(controls, textvariable=self.item_sort_var, values=ITEM_SORTS, state="readonly")
+        sort_combo.grid(row=0, column=1, sticky="ew", padx=(6, 12))
+        sort_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_item_analysis())
+        ttk.Label(controls, text="Filter").grid(row=0, column=2, sticky="w")
+        filter_combo = ttk.Combobox(controls, textvariable=self.item_filter_var, values=ITEM_FILTERS, state="readonly")
+        filter_combo.grid(row=0, column=3, sticky="ew")
+        filter_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_item_analysis())
+        panes = ttk.Panedwindow(parent, orient="horizontal")
+        panes.grid(row=2, column=0, sticky="nsew")
+        item_stats_frame = ttk.Frame(panes, padding=4)
+        item_stats_frame.columnconfigure(0, weight=1)
+        item_stats_frame.rowconfigure(2, weight=1)
+        ttk.Label(item_stats_frame, text="Adjusted Inventory State").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        ttk.Label(item_stats_frame, textvariable=self.item_summary_var).grid(row=1, column=0, sticky="w", pady=(0, 8))
+        self.item_stats_tree = ttk.Treeview(item_stats_frame, columns=("value", "count", "percent"), show="headings", height=12)
+        for key, text, width in (("value", "Bucket", 160), ("count", "Items", 90), ("percent", "Percent", 100)):
+            self.item_stats_tree.heading(key, text=text)
+            self.item_stats_tree.column(key, width=width, anchor="w" if key == "value" else "e")
+        self.item_stats_tree.grid(row=2, column=0, sticky="nsew")
+        panes.add(item_stats_frame, weight=1)
+        item_rows_frame = ttk.Frame(panes, padding=4)
+        item_rows_frame.columnconfigure(0, weight=1)
+        item_rows_frame.rowconfigure(1, weight=1)
+        ttk.Label(item_rows_frame, text="Items").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.item_tree = ttk.Treeview(item_rows_frame, columns=("item", "current_qty", "plan_delta", "adjusted_qty", "index"), show="headings", height=20)
+        for key, text, width in (("item", "Item", 280), ("current_qty", "Current", 90), ("plan_delta", "Plan Delta", 90), ("adjusted_qty", "Adjusted", 90), ("index", "Index", 70)):
+            self.item_tree.heading(key, text=text)
+            self.item_tree.column(key, width=width, anchor="w" if key == "item" else "e")
+        self.item_tree.grid(row=1, column=0, sticky="nsew")
+        panes.add(item_rows_frame, weight=2)
+
+    def _current_attribute_name(self) -> str:
+        for field_name in ANALYTICS_FIELDS:
+            if LABELS[field_name] == self.attribute_var.get():
+                return field_name
+        return ANALYTICS_FIELDS[0]
+
+    def _populate_tree(self, tree: ttk.Treeview | None, rows: list[tuple[object, ...]]) -> None:
+        if tree is None:
+            return
+        for item_id in tree.get_children():
+            tree.delete(item_id)
+        for row in rows:
+            tree.insert("", "end", values=row)
 
     def _refresh_student_list(self) -> None:
         query = self.search_var.get().strip().lower()
         self.student_list.delete(0, tk.END)
         self._list_ids: list[str] = []
-        for student_id in sorted(self.students):
-            meta = self.students[student_id]
-            display_name = str(meta.get("display_name", ""))
-            haystack = f"{student_id} {display_name}".lower()
-            if query and query not in haystack:
+        for sid in sorted(self.students):
+            name = str(self.students[sid].get("display_name", ""))
+            if query and query not in f"{sid} {name}".lower():
                 continue
-            self._list_ids.append(student_id)
-            self.student_list.insert(tk.END, f"{student_id} | {display_name}")
+            self._list_ids.append(sid)
+            self.student_list.insert(tk.END, f"{sid} | {name}")
 
     def _clear_form(self) -> None:
         for var in self.vars.values():
@@ -310,19 +647,14 @@ class StudentMetaToolApp:
         self.vars["student_id"].set(student_id)
         for spec in FIELD_SPECS:
             name = str(spec["name"])
-            if name == "student_id":
-                continue
-            value = meta.get(name)
-            self.vars[name].set("" if value is None else str(value))
+            if name != "student_id":
+                self.vars[name].set(_display(name, meta.get(name)))
         self.status_var.set(f"Loaded: {student_id}")
 
     def _on_select_student(self, _event=None) -> None:
         selection = self.student_list.curselection()
-        if not selection:
-            return
-        idx = selection[0]
-        student_id = self._list_ids[idx]
-        self._load_student_into_form(student_id)
+        if selection:
+            self._load_student_into_form(self._list_ids[selection[0]])
 
     def _new_student(self) -> None:
         self.selected_student_id = None
@@ -346,7 +678,6 @@ class StudentMetaToolApp:
         student_id = self.vars["student_id"].get().strip()
         if not student_id:
             raise ValueError("student_id is required")
-
         updates: dict[str, str | None] = {}
         for spec in FIELD_SPECS:
             name = str(spec["name"])
@@ -362,14 +693,15 @@ class StudentMetaToolApp:
     def _save_current(self) -> None:
         try:
             student_id, updates = self._collect_form_data()
-            saved = upsert_student(student_id, updates)
+            upsert_student(student_id, updates)
         except Exception as exc:
             messagebox.showerror("Save failed", str(exc))
             return
-
         self.students = get_students()
         self._refresh_field_options()
         self._refresh_student_list()
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
         self._load_student_into_form(student_id)
         self.status_var.set(f"Saved: {student_id}")
         messagebox.showinfo("Saved", f"{student_id} saved successfully.")
@@ -389,10 +721,11 @@ class StudentMetaToolApp:
         except Exception as exc:
             messagebox.showerror("Delete failed", str(exc))
             return
-
         self.students = get_students()
         self._refresh_field_options()
         self._refresh_student_list()
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
         self._new_student()
         self.status_var.set(f"Deleted: {student_id}")
 
@@ -400,7 +733,56 @@ class StudentMetaToolApp:
         self.students = get_students()
         self._refresh_field_options()
         self._refresh_student_list()
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
         self.status_var.set("Reloaded from core.student_meta")
+
+    def _on_attribute_changed(self, _event=None) -> None:
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
+
+    def _on_stat_row_selected(self, _event=None) -> None:
+        if self.stats_tree is None or not self.stats_tree.selection():
+            return
+        value = str(self.stats_tree.item(self.stats_tree.selection()[0], "values")[0])
+        self.attribute_value_var.set("" if value == "(missing)" else value)
+        self._refresh_student_analysis()
+
+    def _refresh_attribute_value_options(self) -> None:
+        options = collect_attribute_value_options(self.students, self._current_attribute_name())
+        if self.attribute_value_combo is not None:
+            self.attribute_value_combo["values"] = options
+        if self.attribute_value_var.get() not in options:
+            self.attribute_value_var.set("")
+
+    def _refresh_student_analysis(self) -> None:
+        field_name = self._current_attribute_name()
+        stats = build_attribute_stats(self.students, field_name)
+        self._populate_tree(self.stats_tree, [(r["value"], r["count"], f"{float(r['percent']):.1f}%") for r in stats])
+        rows = build_student_attribute_rows(self.students, field_name, self.attribute_value_var.get().strip(), self.student_sort_var.get(), self.student_search_var.get())
+        self._populate_tree(self.student_tree, [(r["student_id"], r["display_name"], r["display_value"], "yes" if r["matches"] else "") for r in rows])
+
+    def _reload_inventory_analysis(self) -> None:
+        self.inventory = load_inventory_snapshot(self.inventory_path)
+        self.plan_adjustments = load_item_plan_adjustments(Path(self.plan_path_var.get().strip()))
+        self._refresh_item_analysis()
+
+    def _refresh_item_analysis(self) -> None:
+        rows = build_item_rows(self.inventory, self.plan_adjustments)
+        stats = build_item_stats(rows)
+        filtered = filter_and_sort_item_rows(rows, self.item_filter_var.get(), self.item_sort_var.get())
+        total_unique = len(rows)
+        negative = len([r for r in rows if int(r["adjusted_qty"]) < 0])
+        zero_or_less = len([r for r in rows if int(r["adjusted_qty"]) <= 0])
+        current_sum = sum(int(r["current_qty"]) for r in rows)
+        delta_sum = sum(int(r["plan_delta"]) for r in rows)
+        adjusted_sum = sum(int(r["adjusted_qty"]) for r in rows)
+        self.item_summary_var.set(
+            f"Unique={total_unique}  Negative={negative}  ZeroOrLess={zero_or_less}  "
+            f"CurrentSum={current_sum}  PlanDeltaSum={delta_sum}  AdjustedSum={adjusted_sum}"
+        )
+        self._populate_tree(self.item_stats_tree, [(r["value"], r["count"], f"{float(r['percent']):.1f}%") for r in stats])
+        self._populate_tree(self.item_tree, [(r["item"], r["current_qty"], r["plan_delta"], r["adjusted_qty"], "" if int(r["index"]) < 0 else r["index"]) for r in filtered])
 
     def run(self) -> int:
         self.root.mainloop()
@@ -408,30 +790,24 @@ class StudentMetaToolApp:
 
 
 def command_gui(_args: argparse.Namespace | None = None) -> int:
-    app = StudentMetaToolApp()
-    return app.run()
+    return StudentMetaToolApp().run()
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Add, edit, or inspect student metadata.")
     subparsers = parser.add_subparsers(dest="command")
-
     gui_parser = subparsers.add_parser("gui", help="Open the metadata editor UI.")
     gui_parser.set_defaults(func=command_gui)
-
     get_parser = subparsers.add_parser("get", help="Show metadata for one student.")
     get_parser.add_argument("student_id")
     get_parser.set_defaults(func=command_get)
-
     upsert_parser = subparsers.add_parser("upsert", help="Create or update student metadata.")
     upsert_parser.add_argument("student_id")
     for spec in FIELD_SPECS:
         name = str(spec["name"])
-        if name == "student_id":
-            continue
-        upsert_parser.add_argument(f"--{name.replace('_', '-')}")
+        if name != "student_id":
+            upsert_parser.add_argument(f"--{name.replace('_', '-')}")
     upsert_parser.set_defaults(func=command_upsert)
-
     delete_parser = subparsers.add_parser("delete", help="Delete student metadata.")
     delete_parser.add_argument("student_id")
     delete_parser.set_defaults(func=command_delete)
@@ -442,12 +818,9 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         return command_gui()
-
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not hasattr(args, "func"):
-        return command_gui()
-    return args.func(args)
+    return command_gui() if not hasattr(args, "func") else args.func(args)
 
 
 if __name__ == "__main__":

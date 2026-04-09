@@ -378,7 +378,7 @@ class StudentViewer(tk.Toplevel):
         else:
             super().__init__(master)
 
-        self._ui_scale = get_ui_scale(self)
+        self._ui_scale = get_ui_scale(self, base_width=1500, base_height=1080)
         self._font_body = scale_font(("Malgun Gothic", 10), self._ui_scale)
         self._font_small = scale_font(("Malgun Gothic", 8), self._ui_scale)
         self._font_title = scale_font(("Malgun Gothic", 15, "bold"), self._ui_scale)

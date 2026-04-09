@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from core.config import normalize_profile_name
+from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 
 class ProfileDialog(tk.Toplevel):
@@ -18,13 +19,14 @@ class ProfileDialog(tk.Toplevel):
         self.configure(bg="#101722")
         self.result: str | None = None
         self._profiles = sorted(profiles, key=str.casefold)
+        self._ui_scale = get_ui_scale(self, base_width=520, base_height=420)
 
         self.transient(master)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
-        width = 420
-        height = 360
+        width = scale_px(420, self._ui_scale)
+        height = scale_px(360, self._ui_scale)
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
         self.geometry(f"{width}x{height}+{(sw-width)//2}+{(sh-height)//2}")
@@ -34,7 +36,7 @@ class ProfileDialog(tk.Toplevel):
         self.bind("<Escape>", lambda _e: self._cancel())
 
     def _build(self, last_profile: str | None) -> None:
-        wrap = tk.Frame(self, bg="#101722", padx=18, pady=18)
+        wrap = tk.Frame(self, bg="#101722", padx=scale_px(18, self._ui_scale), pady=scale_px(18, self._ui_scale))
         wrap.pack(fill="both", expand=True)
 
         tk.Label(
@@ -42,7 +44,7 @@ class ProfileDialog(tk.Toplevel):
             text="사용자 프로필",
             bg="#101722",
             fg="#e4f1ff",
-            font=("Malgun Gothic", 15, "bold"),
+            font=scale_font(("Malgun Gothic", 15, "bold"), self._ui_scale),
         ).pack(anchor="w")
 
         tk.Label(
@@ -50,8 +52,8 @@ class ProfileDialog(tk.Toplevel):
             text="기존 닉네임을 선택하거나 새 닉네임을 입력해 주세요.",
             bg="#101722",
             fg="#8aa4bf",
-            font=("Malgun Gothic", 9),
-        ).pack(anchor="w", pady=(6, 14))
+            font=scale_font(("Malgun Gothic", 9), self._ui_scale),
+        ).pack(anchor="w", pady=(scale_px(6, self._ui_scale), scale_px(14, self._ui_scale)))
 
         list_frame = tk.Frame(wrap, bg="#101722")
         list_frame.pack(fill="both", expand=True)
@@ -64,8 +66,8 @@ class ProfileDialog(tk.Toplevel):
             selectforeground="#ffffff",
             activestyle="none",
             relief="flat",
-            font=("Malgun Gothic", 10),
-            height=10,
+            font=scale_font(("Malgun Gothic", 10), self._ui_scale),
+            height=max(8, scale_px(10, self._ui_scale)),
         )
         self._listbox.pack(side="left", fill="both", expand=True)
         self._listbox.bind("<Double-Button-1>", lambda _e: self._confirm_selection())
@@ -79,13 +81,13 @@ class ProfileDialog(tk.Toplevel):
             self._listbox.insert("end", profile)
 
         entry_frame = tk.Frame(wrap, bg="#101722")
-        entry_frame.pack(fill="x", pady=(14, 10))
+        entry_frame.pack(fill="x", pady=(scale_px(14, self._ui_scale), scale_px(10, self._ui_scale)))
         tk.Label(
             entry_frame,
             text="새 닉네임",
             bg="#101722",
             fg="#8aa4bf",
-            font=("Malgun Gothic", 9),
+            font=scale_font(("Malgun Gothic", 9), self._ui_scale),
         ).pack(anchor="w")
         self._entry = tk.Entry(
             entry_frame,
@@ -93,12 +95,12 @@ class ProfileDialog(tk.Toplevel):
             fg="#ffffff",
             insertbackground="#ffffff",
             relief="flat",
-            font=("Malgun Gothic", 11),
+            font=scale_font(("Malgun Gothic", 11), self._ui_scale),
         )
-        self._entry.pack(fill="x", pady=(6, 0), ipady=6)
+        self._entry.pack(fill="x", pady=(scale_px(6, self._ui_scale), 0), ipady=scale_px(6, self._ui_scale))
 
         button_row = tk.Frame(wrap, bg="#101722")
-        button_row.pack(fill="x", pady=(8, 0))
+        button_row.pack(fill="x", pady=(scale_px(8, self._ui_scale), 0))
 
         tk.Button(
             button_row,
@@ -107,8 +109,9 @@ class ProfileDialog(tk.Toplevel):
             bg="#2d8cff",
             fg="#ffffff",
             relief="flat",
-            padx=18,
-            pady=8,
+            font=scale_font(("Malgun Gothic", 10, "bold"), self._ui_scale),
+            padx=scale_px(18, self._ui_scale),
+            pady=scale_px(8, self._ui_scale),
         ).pack(side="right")
 
         tk.Button(
@@ -118,9 +121,10 @@ class ProfileDialog(tk.Toplevel):
             bg="#233244",
             fg="#d2dfed",
             relief="flat",
-            padx=18,
-            pady=8,
-        ).pack(side="right", padx=(0, 8))
+            font=scale_font(("Malgun Gothic", 10), self._ui_scale),
+            padx=scale_px(18, self._ui_scale),
+            pady=scale_px(8, self._ui_scale),
+        ).pack(side="right", padx=(0, scale_px(8, self._ui_scale)))
 
         if last_profile:
             lowered = [item.casefold() for item in self._profiles]

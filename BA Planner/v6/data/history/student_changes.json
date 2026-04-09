@@ -17560,7 +17560,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "display_name",
     "old": null,
     "new": "준코",
@@ -17568,7 +17568,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "level",
     "old": null,
     "new": "90",
@@ -17576,7 +17576,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "student_star",
     "old": null,
     "new": "5",
@@ -17584,7 +17584,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "weapon_state",
     "old": null,
     "new": "weapon_equipped",
@@ -17592,7 +17592,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "weapon_star",
     "old": null,
     "new": "3",
@@ -17600,7 +17600,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "weapon_level",
     "old": null,
     "new": "50",
@@ -17608,7 +17608,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "ex_skill",
     "old": null,
     "new": "3",
@@ -17616,7 +17616,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "skill1",
     "old": null,
     "new": "1",
@@ -17624,7 +17624,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "skill2",
     "old": null,
     "new": "1",
@@ -17632,7 +17632,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "skill3",
     "old": null,
     "new": "1",
@@ -17640,7 +17640,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip1",
     "old": null,
     "new": "T10",
@@ -17648,7 +17648,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip2",
     "old": null,
     "new": "T3",
@@ -17656,7 +17656,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip3",
     "old": null,
     "new": "T1",
@@ -17664,7 +17664,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip4",
     "old": null,
     "new": "T2",
@@ -17672,7 +17672,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip1_level",
     "old": null,
     "new": "70",
@@ -17680,7 +17680,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip2_level",
     "old": null,
     "new": "30",
@@ -17688,7 +17688,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "equip3_level",
     "old": null,
     "new": "10",
@@ -17696,7 +17696,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "stat_hp",
     "old": null,
     "new": "0",
@@ -17704,7 +17704,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "stat_atk",
     "old": null,
     "new": "0",
@@ -17712,7 +17712,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko",
+    "student_id": "junko",
     "field": "stat_heal",
     "old": null,
     "new": "0",
@@ -20208,7 +20208,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "display_name",
     "old": null,
     "new": "준코(새해)",
@@ -20216,7 +20216,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "level",
     "old": null,
     "new": "90",
@@ -20224,7 +20224,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "student_star",
     "old": null,
     "new": "5",
@@ -20232,7 +20232,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "weapon_state",
     "old": null,
     "new": "weapon_equipped",
@@ -20240,7 +20240,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "weapon_star",
     "old": null,
     "new": "2",
@@ -20248,7 +20248,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "weapon_level",
     "old": null,
     "new": "30",
@@ -20256,7 +20256,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "ex_skill",
     "old": null,
     "new": "1",
@@ -20264,7 +20264,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "skill1",
     "old": null,
     "new": "1",
@@ -20272,7 +20272,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "skill2",
     "old": null,
     "new": "1",
@@ -20280,7 +20280,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "skill3",
     "old": null,
     "new": "1",
@@ -20288,7 +20288,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip1",
     "old": null,
     "new": "T1",
@@ -20296,7 +20296,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip2",
     "old": null,
     "new": "T1",
@@ -20304,7 +20304,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip3",
     "old": null,
     "new": "T1",
@@ -20312,7 +20312,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip1_level",
     "old": null,
     "new": "1",
@@ -20320,7 +20320,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip2_level",
     "old": null,
     "new": "1",
@@ -20328,7 +20328,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "equip3_level",
     "old": null,
     "new": "1",
@@ -20336,7 +20336,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "stat_hp",
     "old": null,
     "new": "0",
@@ -20344,7 +20344,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "stat_atk",
     "old": null,
     "new": "0",
@@ -20352,7 +20352,7 @@
     "scan_id": "2026-04-04_201405"
   },
   {
-    "student_id": "zunko_new_year",
+    "student_id": "junko_new_year",
     "field": "stat_heal",
     "old": null,
     "new": "0",

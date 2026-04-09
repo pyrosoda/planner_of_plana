@@ -43,7 +43,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
 
 
-def get_qt_ui_scale(app: QApplication, base_height: int = 1080, min_scale: float = 1.0, max_scale: float = 1.8) -> float:
+def get_qt_ui_scale(
+    app: QApplication,
+    base_width: int | None = None,
+    base_height: int = 1080,
+    min_scale: float = 0.8,
+    max_scale: float = 1.8,
+) -> float:
     raw = os.getenv("BA_UI_SCALE")
     if raw:
         try:
@@ -57,8 +63,12 @@ def get_qt_ui_scale(app: QApplication, base_height: int = 1080, min_scale: float
     if screen is None:
         return 1.0
 
-    height = max(1, screen.availableGeometry().height())
+    geometry = screen.availableGeometry()
+    height = max(1, geometry.height())
     scale = height / float(base_height)
+    if base_width:
+        width = max(1, geometry.width())
+        scale = min(scale, width / float(base_width))
     return max(min_scale, min(max_scale, scale))
 
 
@@ -560,7 +570,7 @@ class StudentViewerWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication(sys.argv)
-    window = StudentViewerWindow(get_qt_ui_scale(app))
+    window = StudentViewerWindow(get_qt_ui_scale(app, base_width=1680, base_height=1080))
     window.show()
     return app.exec()
 
