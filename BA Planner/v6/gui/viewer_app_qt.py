@@ -5,6 +5,7 @@ Standalone Qt-based student viewer process.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -41,7 +42,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "ba_planner.db"
 CURRENT_JSON = BASE_DIR / "data" / "current" / "students.json"
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
-THUMB_CACHE_DIR = BASE_DIR / "cache" / "student_thumbs" / "128x128"
+
+
+def get_qt_ui_scale(app: QApplication, base_height: int = 1080, min_scale: float = 1.0, max_scale: float = 1.8) -> float:
+    raw = os.getenv("BA_UI_SCALE")
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+
+    screen = app.primaryScreen()
+    if screen is None:
+        return 1.0
+
+    height = max(1, screen.availableGeometry().height())
+    scale = height / float(base_height)
+    return max(min_scale, min(max_scale, scale))
+
+
+def scale_px(value: int | float, scale: float) -> int:
+    return max(1, int(round(float(value) * scale)))
 
 
 @dataclass(slots=True)
@@ -128,8 +151,8 @@ def portrait_path(student_id: str) -> Path | None:
     return None
 
 
-def thumb_cache_path(student_id: str) -> Path:
-    return THUMB_CACHE_DIR / f"{student_id}.png"
+def thumb_cache_path(student_id: str, size: int) -> Path:
+    return BASE_DIR / "cache" / "student_thumbs" / f"{size}x{size}" / f"{student_id}.png"
 
 
 def ensure_thumbnail(student_id: str, size: int = 128) -> Path | None:
@@ -140,11 +163,11 @@ def ensure_thumbnail(student_id: str, size: int = 128) -> Path | None:
     if source is None:
         return None
 
-    target = thumb_cache_path(student_id)
+    target = thumb_cache_path(student_id, size)
     if target.exists():
         return target
 
-    THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
     try:
         with Image.open(source) as img:
             prepared = img.convert("RGBA")
@@ -170,28 +193,33 @@ class ThumbSignals(QObject):
 
 
 class ThumbTask(QRunnable):
-    def __init__(self, student_id: str):
+    def __init__(self, student_id: str, size: int):
         super().__init__()
         self.student_id = student_id
+        self.size = size
         self.signals = ThumbSignals()
 
     def run(self) -> None:
-        path = ensure_thumbnail(self.student_id)
+        path = ensure_thumbnail(self.student_id, self.size)
         self.signals.loaded.emit(self.student_id, str(path) if path else "")
 
 
 class StudentViewerWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, ui_scale: float):
         super().__init__()
+        self._ui_scale = ui_scale
+        self._thumb_size = scale_px(156, ui_scale)
+        self._grid_width = scale_px(212, ui_scale)
+        self._grid_height = scale_px(244, ui_scale)
         self.setWindowTitle("BA Student Viewer")
-        self.resize(1320, 820)
+        self.resize(scale_px(1560, ui_scale), scale_px(980, ui_scale))
 
         self._pool = QThreadPool.globalInstance()
         self._all_students = load_students()
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, QListWidgetItem] = {}
         self._thumb_loading: set[str] = set()
-        self._placeholder_icon = make_placeholder_icon()
+        self._placeholder_icon = make_placeholder_icon(self._thumb_size)
         self._large_pixmap: QPixmap | None = None
 
         self._build_ui()
@@ -202,14 +230,24 @@ class StudentViewerWindow(QMainWindow):
         self.setCentralWidget(root)
 
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
+        layout.setSpacing(scale_px(12, self._ui_scale))
 
         header = QFrame()
         header.setObjectName("header")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 12, 12, 12)
-        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
+        header_layout.setSpacing(scale_px(10, self._ui_scale))
 
         title = QLabel("BA Student Viewer")
         title.setObjectName("title")
@@ -261,20 +299,25 @@ class StudentViewerWindow(QMainWindow):
         self._list.setViewMode(QListWidget.IconMode)
         self._list.setResizeMode(QListWidget.Adjust)
         self._list.setMovement(QListWidget.Static)
-        self._list.setSpacing(10)
-        self._list.setIconSize(QSize(128, 128))
-        self._list.setGridSize(QSize(170, 190))
+        self._list.setSpacing(scale_px(12, self._ui_scale))
+        self._list.setIconSize(QSize(self._thumb_size, self._thumb_size))
+        self._list.setGridSize(QSize(self._grid_width, self._grid_height))
         self._list.setUniformItemSizes(True)
         self._list.currentItemChanged.connect(self._on_item_changed)
         splitter.addWidget(self._list)
 
         detail = QWidget()
         detail_layout = QVBoxLayout(detail)
-        detail_layout.setContentsMargins(14, 14, 14, 14)
-        detail_layout.setSpacing(10)
+        detail_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+        )
+        detail_layout.setSpacing(scale_px(12, self._ui_scale))
 
         self._hero = QLabel()
-        self._hero.setMinimumSize(320, 320)
+        self._hero.setMinimumSize(scale_px(420, self._ui_scale), scale_px(420, self._ui_scale))
         self._hero.setAlignment(Qt.AlignCenter)
         self._hero.setObjectName("hero")
         detail_layout.addWidget(self._hero)
@@ -290,8 +333,8 @@ class StudentViewerWindow(QMainWindow):
         stats = QFrame()
         stats_layout = QGridLayout(stats)
         stats_layout.setContentsMargins(0, 0, 0, 0)
-        stats_layout.setHorizontalSpacing(10)
-        stats_layout.setVerticalSpacing(6)
+        stats_layout.setHorizontalSpacing(scale_px(12, self._ui_scale))
+        stats_layout.setVerticalSpacing(scale_px(8, self._ui_scale))
         self._stat_labels: dict[str, QLabel] = {}
         stat_rows = [
             ("Level", "level"),
@@ -314,6 +357,8 @@ class StudentViewerWindow(QMainWindow):
         equips = QFrame()
         equip_form = QFormLayout(equips)
         equip_form.setContentsMargins(0, 0, 0, 0)
+        equip_form.setHorizontalSpacing(scale_px(14, self._ui_scale))
+        equip_form.setVerticalSpacing(scale_px(8, self._ui_scale))
         self._equip_labels: dict[str, QLabel] = {}
         for slot in ("equip1", "equip2", "equip3", "equip4"):
             value = QLabel("-")
@@ -328,41 +373,42 @@ class StudentViewerWindow(QMainWindow):
         splitter.setStretchFactor(1, 2)
 
         self.setStyleSheet(
-            """
-            QMainWindow, QWidget { background: #0b1118; color: #d8e7f3; }
-            QFrame#header { background: #101a24; border: 1px solid #1b2a38; border-radius: 10px; }
-            QLabel#title { font-size: 20px; font-weight: 700; color: #73c0ff; }
-            QLabel#count { color: #7b95aa; }
-            QLineEdit, QComboBox, QPushButton {
+            f"""
+            QMainWindow, QWidget {{ background: #0b1118; color: #d8e7f3; }}
+            QFrame#header {{ background: #101a24; border: 1px solid #1b2a38; border-radius: {scale_px(12, self._ui_scale)}px; }}
+            QLabel#title {{ font-size: {scale_px(22, self._ui_scale)}px; font-weight: 700; color: #73c0ff; }}
+            QLabel#count {{ color: #7b95aa; }}
+            QLineEdit, QComboBox, QPushButton {{
                 background: #16212d;
                 border: 1px solid #243648;
-                border-radius: 8px;
-                padding: 6px 8px;
-            }
-            QListWidget {
+                border-radius: {scale_px(9, self._ui_scale)}px;
+                padding: {scale_px(8, self._ui_scale)}px {scale_px(10, self._ui_scale)}px;
+                min-height: {scale_px(22, self._ui_scale)}px;
+            }}
+            QListWidget {{
                 background: #0e1620;
                 border: 1px solid #1b2a38;
-                border-radius: 10px;
-                padding: 8px;
-            }
-            QListWidget::item {
+                border-radius: {scale_px(12, self._ui_scale)}px;
+                padding: {scale_px(10, self._ui_scale)}px;
+            }}
+            QListWidget::item {{
                 background: #121c27;
                 border: 1px solid #223241;
-                border-radius: 10px;
-                padding: 8px;
-            }
-            QListWidget::item:selected {
+                border-radius: {scale_px(12, self._ui_scale)}px;
+                padding: {scale_px(10, self._ui_scale)}px;
+            }}
+            QListWidget::item:selected {{
                 background: #173047;
                 border: 1px solid #5ab3ff;
-            }
-            QLabel#hero {
+            }}
+            QLabel#hero {{
                 background: #101a24;
                 border: 1px solid #1b2a38;
-                border-radius: 14px;
-            }
-            QLabel#detailName { font-size: 24px; font-weight: 700; }
-            QLabel#detailSub { color: #7b95aa; }
-            QLabel#statValue { color: #84d0ff; font-weight: 600; }
+                border-radius: {scale_px(16, self._ui_scale)}px;
+            }}
+            QLabel#detailName {{ font-size: {scale_px(28, self._ui_scale)}px; font-weight: 700; }}
+            QLabel#detailSub {{ color: #7b95aa; }}
+            QLabel#statValue {{ color: #84d0ff; font-weight: 600; }}
             """
         )
 
@@ -425,7 +471,7 @@ class StudentViewerWindow(QMainWindow):
             return
 
         self._thumb_loading.add(student_id)
-        task = ThumbTask(student_id)
+        task = ThumbTask(student_id, self._thumb_size)
         task.signals.loaded.connect(self._apply_thumb)
         self._pool.start(task)
 
@@ -512,7 +558,7 @@ class StudentViewerWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication(sys.argv)
-    window = StudentViewerWindow()
+    window = StudentViewerWindow(get_qt_ui_scale(app))
     window.show()
     return app.exec()
 
