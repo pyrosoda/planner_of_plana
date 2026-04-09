@@ -5,7 +5,8 @@ gui/window_picker.py — 창 선택 UI
 import tkinter as tk
 from typing import Callable
 
-from core.capture import get_all_windows, set_target_window, get_target_info
+from core.capture import get_all_windows, get_target_info, set_target_window
+from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 BG    = "#0d1b2a"
 CARD  = "#152435"
@@ -40,9 +41,11 @@ class WindowPicker(tk.Toplevel):
         self.resizable(False, False)
         self.attributes("-topmost", True)
 
+        self._ui_scale = get_ui_scale(self)
+
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
-        w, h = 560, 480
+        w, h = scale_px(560, self._ui_scale), scale_px(480, self._ui_scale)
         self.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
         self._windows: list[dict] = []
@@ -59,7 +62,7 @@ class WindowPicker(tk.Toplevel):
 
     def _build_ui(self):
         # 헤더
-        hdr = tk.Frame(self, bg=BLUE, height=52)
+        hdr = tk.Frame(self, bg=BLUE, height=scale_px(52, self._ui_scale))
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
         tk.Label(
@@ -67,7 +70,7 @@ class WindowPicker(tk.Toplevel):
             text="🎯  블루아카이브 창을 선택해줘",
             bg=BLUE,
             fg=TEXT,
-            font=(FONT, 13, "bold")
+            font=scale_font((FONT, 13, "bold"), self._ui_scale)
         ).pack(expand=True)
 
         # 안내
@@ -77,13 +80,13 @@ class WindowPicker(tk.Toplevel):
                  "이름이 비슷한 브라우저 탭과 구별할 수 있어.",
             bg=BG,
             fg=SUB,
-            font=(FONT, 9),
+            font=scale_font((FONT, 9), self._ui_scale),
             justify="center"
         ).pack(pady=(10, 4))
 
         # 현재 선택된 창
         self._cur_var = tk.StringVar(value="선택 없음")
-        cur_frame = tk.Frame(self, bg=CARD, height=36)
+        cur_frame = tk.Frame(self, bg=CARD, height=scale_px(36, self._ui_scale))
         cur_frame.pack(fill="x", padx=14, pady=(0, 6))
         cur_frame.pack_propagate(False)
 
@@ -92,7 +95,7 @@ class WindowPicker(tk.Toplevel):
             text="현재:",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 9)
+            font=scale_font((FONT, 9), self._ui_scale)
         ).pack(side="left", padx=10)
 
         tk.Label(
@@ -100,7 +103,7 @@ class WindowPicker(tk.Toplevel):
             textvariable=self._cur_var,
             bg=CARD,
             fg=GREEN,
-            font=(FONT, 9, "bold")
+            font=scale_font((FONT, 9, "bold"), self._ui_scale)
         ).pack(side="left")
 
         # 창 목록
@@ -115,7 +118,7 @@ class WindowPicker(tk.Toplevel):
             text="창 제목",
             bg=CARD2,
             fg=LBLUE,
-            font=(FONT, 9, "bold"),
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
             anchor="w",
             width=45
         ).pack(side="left", padx=8, pady=4)
@@ -125,7 +128,7 @@ class WindowPicker(tk.Toplevel):
             text="크기",
             bg=CARD2,
             fg=LBLUE,
-            font=(FONT, 9, "bold"),
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
             anchor="w",
             width=10
         ).pack(side="left")
@@ -138,7 +141,7 @@ class WindowPicker(tk.Toplevel):
             list_frame,
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 9),
+            font=scale_font((FONT, 9), self._ui_scale),
             selectbackground=BLUE,
             selectforeground=TEXT,
             relief="flat",
@@ -161,7 +164,7 @@ class WindowPicker(tk.Toplevel):
             text="🔄  새로고침",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 9),
+            font=scale_font((FONT, 9), self._ui_scale),
             relief="flat",
             padx=10,
             pady=6,
@@ -174,7 +177,7 @@ class WindowPicker(tk.Toplevel):
             text="❌  취소",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 10),
+            font=scale_font((FONT, 10), self._ui_scale),
             relief="flat",
             padx=12,
             pady=6,
@@ -187,7 +190,7 @@ class WindowPicker(tk.Toplevel):
             text="✅  이 창으로 설정",
             bg=GREEN,
             fg=BG,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
             relief="flat",
             padx=12,
             pady=6,

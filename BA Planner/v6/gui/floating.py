@@ -9,6 +9,7 @@ from typing import Callable
 
 from core.capture import get_window_rect
 from core.states import AppState
+from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 BG = "#0d1b2a"
 CARD = "#152435"
@@ -25,9 +26,9 @@ FONT = "Malgun Gothic"
 
 FLOAT_RX = 0.018
 FLOAT_RY = 0.45
-CIRCLE_D = 60
-EXPAND_W = 230
-EXPAND_H = 300
+BASE_CIRCLE_D = 60
+BASE_EXPAND_W = 230
+BASE_EXPAND_H = 300
 
 
 class FloatingOverlay(tk.Toplevel):
@@ -67,6 +68,11 @@ class FloatingOverlay(tk.Toplevel):
         self._log_label: tk.Label | None = None
         self._actions_frame: tk.Frame | None = None
 
+        self._ui_scale = get_ui_scale(self)
+        self._circle_d = scale_px(BASE_CIRCLE_D, self._ui_scale)
+        self._expand_w = scale_px(BASE_EXPAND_W, self._ui_scale)
+        self._expand_h = scale_px(BASE_EXPAND_H, self._ui_scale)
+
         self.overrideredirect(True)
         self.attributes("-topmost", True)
         self.attributes("-alpha", 0.93)
@@ -91,7 +97,7 @@ class FloatingOverlay(tk.Toplevel):
             self._draw_collapsed()
 
     def _draw_collapsed(self):
-        d = CIRCLE_D
+        d = self._circle_d
         self.geometry(f"{d}x{d}")
 
         canvas = tk.Canvas(self, width=d, height=d, bg=BG, highlightthickness=0)
@@ -105,12 +111,12 @@ class FloatingOverlay(tk.Toplevel):
             d // 2,
             text="BA",
             fill=TEXT,
-            font=(FONT, 14, "bold"),
+            font=scale_font((FONT, 14, "bold"), self._ui_scale),
         )
         canvas.bind("<Button-1>", lambda _e: self._toggle())
 
     def _draw_expanded(self):
-        self.geometry(f"{EXPAND_W}x{EXPAND_H}")
+        self.geometry(f"{self._expand_w}x{self._expand_h}")
 
         frame = tk.Frame(
             self,
@@ -127,14 +133,14 @@ class FloatingOverlay(tk.Toplevel):
             text="BA Analyzer",
             bg=BLUE,
             fg=TEXT,
-            font=(FONT, 11, "bold"),
+            font=scale_font((FONT, 11, "bold"), self._ui_scale),
         ).pack(side="left", padx=10, pady=6)
         tk.Button(
             hdr,
             text="x",
             bg=BLUE,
             fg=TEXT,
-            font=("Arial", 10),
+            font=scale_font(("Arial", 10), self._ui_scale),
             relief="flat",
             cursor="hand2",
             command=self._toggle,
@@ -157,7 +163,7 @@ class FloatingOverlay(tk.Toplevel):
             text="",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 9, "bold"),
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
         )
         self._status_label.pack(anchor="w", padx=8, pady=4)
 
@@ -169,7 +175,7 @@ class FloatingOverlay(tk.Toplevel):
             text="",
             bg=CARD,
             fg=YELLOW,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
         )
         self._pyrox_label.pack(side="left", padx=8, pady=4)
         self._credit_label = tk.Label(
@@ -177,7 +183,7 @@ class FloatingOverlay(tk.Toplevel):
             text="",
             bg=CARD,
             fg=TEXT,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
         )
         self._credit_label.pack(side="left", padx=4)
 
@@ -192,7 +198,7 @@ class FloatingOverlay(tk.Toplevel):
             text=text,
             bg=bg,
             fg=fg,
-            font=(FONT, 10, "bold"),
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
             relief="flat",
             pady=5,
             cursor="hand2",
@@ -208,10 +214,10 @@ class FloatingOverlay(tk.Toplevel):
             text="",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 8),
+            font=scale_font((FONT, 8), self._ui_scale),
             justify="left",
             anchor="nw",
-            wraplength=210,
+            wraplength=scale_px(210, self._ui_scale),
         )
         self._log_label.pack(padx=6, pady=4, fill="both")
 
@@ -271,7 +277,7 @@ class FloatingOverlay(tk.Toplevel):
             text="설정",
             bg=CARD,
             fg=SUB,
-            font=(FONT, 9),
+            font=scale_font((FONT, 9), self._ui_scale),
             relief="flat",
             cursor="hand2",
             command=self._cbs["settings"],
@@ -285,12 +291,12 @@ class FloatingOverlay(tk.Toplevel):
         left, top, width, height = rect
         if self._expanded:
             ox = int(left + width * FLOAT_RX)
-            oy = int(top + height * FLOAT_RY) - EXPAND_H // 2
-            tw, th = EXPAND_W, EXPAND_H
+            oy = int(top + height * FLOAT_RY) - self._expand_h // 2
+            tw, th = self._expand_w, self._expand_h
         else:
             ox = int(left + width * FLOAT_RX)
-            oy = int(top + height * FLOAT_RY) - CIRCLE_D // 2
-            tw, th = CIRCLE_D, CIRCLE_D
+            oy = int(top + height * FLOAT_RY) - self._circle_d // 2
+            tw, th = self._circle_d, self._circle_d
 
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
