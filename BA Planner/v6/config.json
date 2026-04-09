@@ -1,4 +1,11 @@
 {
   "target_hwnd": 1116710,
-  "target_title": "Blue Archive"
+  "target_title": "Blue Archive",
+  "profiles": [
+    {
+      "name": "Default",
+      "key": "default_7505d64a"
+    }
+  ],
+  "active_profile": "Default"
 }

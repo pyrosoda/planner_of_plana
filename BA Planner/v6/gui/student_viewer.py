@@ -372,9 +372,9 @@ class StudentModal(tk.Toplevel):
 class StudentViewer(tk.Toplevel):
     def __init__(self, master=None):
         if master is None:
-            self._root = tk.Tk()
-            self._root.withdraw()
-            super().__init__(self._root)
+            self._owned_root = tk.Tk()
+            self._owned_root.withdraw()
+            super().__init__(self._owned_root)
         else:
             super().__init__(master)
 
@@ -938,8 +938,8 @@ class StudentViewer(tk.Toplevel):
         self._resize_after = self.after(120, lambda: self._refresh_virtual_grid(reset_pool=True))
 
     def run(self) -> None:
-        if hasattr(self, "_root"):
-            self._root.mainloop()
+        if hasattr(self, "_owned_root"):
+            self._owned_root.mainloop()
         else:
             self.mainloop()
 
