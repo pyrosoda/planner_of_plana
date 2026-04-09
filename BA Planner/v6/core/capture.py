@@ -88,6 +88,9 @@ _HWND_CACHE_TTL = 2.0   # 초
 
 # ── HWND 등록 / 조회 ──────────────────────────────────────
 
+_window_metrics_cache: dict[int, tuple[int, int, int, int]] = {}
+
+
 def set_target_window(hwnd: int, title: str) -> None:
     """사용자가 선택한 창 HWND 저장."""
     global _selected_hwnd, _selected_title
@@ -106,6 +109,7 @@ def clear_target() -> None:
     _selected_hwnd  = 0
     _selected_title = ""
     _hwnd_valid_cache.clear()
+    _window_metrics_cache.clear()
 
 
 # ── HWND 유효성 확인 (캐시 적용) ─────────────────────────
@@ -146,6 +150,18 @@ def _get_client_rect_screen(hwnd: int) -> Optional[tuple[int, int, int, int]]:
     return pt.x, pt.y, w, h
 
 
+def _cache_window_metrics(
+    hwnd: int,
+    rect: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    _window_metrics_cache[hwnd] = rect
+    return rect
+
+
+def _get_cached_window_metrics(hwnd: int) -> Optional[tuple[int, int, int, int]]:
+    return _window_metrics_cache.get(hwnd)
+
+
 # ── 메인 공개 API ─────────────────────────────────────────
 
 def find_target_hwnd() -> Optional[int]:
@@ -161,15 +177,36 @@ def find_target_hwnd() -> Optional[int]:
     return _selected_hwnd
 
 
+def is_window_minimized(hwnd: int) -> bool:
+    return _is_minimized(hwnd)
+
+
+def is_target_minimized() -> bool:
+    hwnd = find_target_hwnd()
+    return bool(hwnd and _is_minimized(hwnd))
+
+
 def get_window_rect() -> Optional[tuple[int, int, int, int]]:
     """Client area (left, top, width, height) 반환."""
     hwnd = find_target_hwnd()
     if hwnd is None:
         return None
     r = _get_client_rect_screen(hwnd)
-    if r is None:
-        _log.warning("client rect 획득 실패")
-    return r
+    if r is not None:
+        return _cache_window_metrics(hwnd, r)
+
+    cached = _get_cached_window_metrics(hwnd)
+    if cached is not None:
+        wr = _RECT()
+        if _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
+            left = wr.left
+            top = wr.top
+            _, _, width, height = cached
+            return left, top, width, height
+        return cached
+
+    _log.warning("client rect 획득 실패")
+    return None
 
 
 def capture_window_background(
@@ -233,20 +270,27 @@ def _print_window(hwnd: int) -> Optional[Image.Image]:
     """
     rect = _get_client_rect_screen(hwnd)
     if rect is None:
-        # 최소화 상태일 수 있음: WindowRect 기반으로 fallback 시도
-        wr = _RECT()
-        if not _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
+        cached = _get_cached_window_metrics(hwnd)
+        if cached is not None:
+            wr = _RECT()
+            if _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
+                rect = (wr.left, wr.top, cached[2], cached[3])
+            else:
+                rect = cached
+        else:
+            wr = _RECT()
+            if not _u32.GetWindowRect(hwnd, ctypes.byref(wr)):
+                return None
+            w = wr.right  - wr.left
+            h = wr.bottom - wr.top
+            if w <= 0 or h <= 0:
+                return None
+            if _is_minimized(hwnd):
+                _log.warning("창이 최소화 상태에서 사용할 캐시된 크기가 없습니다")
+                return None
             return None
-        w = wr.right  - wr.left
-        h = wr.bottom - wr.top
-        if w <= 0 or h <= 0:
-            return None
-        # 최소화 상태에서는 실제 픽셀 취득 불가 → None 반환
-        if _is_minimized(hwnd):
-            _log.warning("창이 최소화 상태 — 캡처 불가")
-            return None
-        return None
 
+    _cache_window_metrics(hwnd, rect)
     _, _, w, h = rect
 
     # GDI 비트맵 생성

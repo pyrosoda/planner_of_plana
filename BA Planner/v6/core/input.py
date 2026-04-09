@@ -194,6 +194,15 @@ def _pag_escape() -> bool:
         return False
 
 
+def _can_use_physical_fallback(hwnd: int) -> bool:
+    from core.capture import is_window_minimized
+
+    if is_window_minimized(hwnd):
+        _log.debug("minimized target: skip physical input fallback")
+        return False
+    return True
+
+
 # ══════════════════════════════════════════════════════════
 # 공개 입력 함수
 # ══════════════════════════════════════════════════════════
@@ -219,6 +228,10 @@ def click_point(
     """
     ok = _post_click(hwnd, cx, cy)
     if not ok:
+        if not _can_use_physical_fallback(hwnd):
+            if delay > 0:
+                time.sleep(delay)
+            return False
         _log.debug(f"PostMessage 실패 → pyautogui fallback ({label})")
         sx, sy = cx, cy   # 변환 실패 시 원본 사용
         converted = client_to_screen(hwnd, cx, cy)
@@ -281,6 +294,10 @@ def send_escape(
     """
     ok = _post_escape(hwnd)
     if not ok:
+        if not _can_use_physical_fallback(hwnd):
+            if delay > 0:
+                time.sleep(delay)
+            return False
         _log.debug("ESC PostMessage 실패 → pyautogui fallback")
         ok = _pag_escape()
 
@@ -314,6 +331,10 @@ def scroll(
     ok = _post_scroll(hwnd, cx, cy, amount)
 
     if not ok:
+        if not _can_use_physical_fallback(hwnd):
+            if delay > 0:
+                time.sleep(delay)
+            return False
         _log.debug("scroll PostMessage 실패 → pyautogui fallback")
         converted = client_to_screen(hwnd, cx, cy)
         sx, sy = converted if converted else (cx, cy)
