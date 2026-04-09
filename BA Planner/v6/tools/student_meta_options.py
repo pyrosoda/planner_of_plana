@@ -49,6 +49,7 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "Piercing",
         "Mystic",
         "Sonic",
+        "Chemical",
     ),
     "defense_type": (
         "Light",
@@ -164,6 +165,11 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "B",
         "C",
         "D",
+    ),
+    "weapon3_terrain_boost": (
+        "terrain_outdoor",
+        "terrain_urban",
+        "terrain_indoor",
     ),
     "has_favorite_item": (
         "yes",

@@ -27,6 +27,7 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "variant", "label": "Variant"},
     {"name": "school", "label": "School"},
     {"name": "rarity", "label": "Rarity"},
+    {"name": "recruit_type", "label": "Recruit Type"},
     {"name": "attack_type", "label": "Attack Type"},
     {"name": "defense_type", "label": "Defense Type"},
     {"name": "ex_skill_name", "label": "EX Skill"},
@@ -47,6 +48,7 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "terrain_outdoor", "label": "Outdoor"},
     {"name": "terrain_urban", "label": "Urban"},
     {"name": "terrain_indoor", "label": "Indoor"},
+    {"name": "weapon3_terrain_boost", "label": "Weapon 3* Terrain Boost"},
     {"name": "has_favorite_item", "label": "Favorite Item"},
     {"name": "favorite_item_name", "label": "Favorite Item Name"},
 ]

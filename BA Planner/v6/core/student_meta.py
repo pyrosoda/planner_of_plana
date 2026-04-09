@@ -23,6 +23,7 @@ class StudentMeta(TypedDict):
     variant: str | None          # 코스튬/변형 태그 (없으면 None)
     school: NotRequired[str | None]
     rarity: NotRequired[str | None]
+    recruit_type: NotRequired[str | None]
     attack_type: NotRequired[str | None]
     defense_type: NotRequired[str | None]
     ex_skill_name: NotRequired[str | None]
@@ -43,6 +44,7 @@ class StudentMeta(TypedDict):
     terrain_outdoor: NotRequired[str | None]
     terrain_urban: NotRequired[str | None]
     terrain_indoor: NotRequired[str | None]
+    weapon3_terrain_boost: NotRequired[str | None]
     has_favorite_item: NotRequired[str | None]
     favorite_item_name: NotRequired[str | None]
 
@@ -54,6 +56,7 @@ EDITABLE_FIELDS: tuple[str, ...] = (
     "variant",
     "school",
     "rarity",
+    "recruit_type",
     "attack_type",
     "defense_type",
     "ex_skill_name",
@@ -74,6 +77,7 @@ EDITABLE_FIELDS: tuple[str, ...] = (
     "terrain_outdoor",
     "terrain_urban",
     "terrain_indoor",
+    "weapon3_terrain_boost",
     "has_favorite_item",
     "favorite_item_name",
 )
@@ -888,6 +892,10 @@ def rarity(student_id: str) -> str | None:
     return field(student_id, "rarity")
 
 
+def recruit_type(student_id: str) -> str | None:
+    return field(student_id, "recruit_type")
+
+
 def attack_type(student_id: str) -> str | None:
     return field(student_id, "attack_type")
 
@@ -964,6 +972,10 @@ def terrain_indoor(student_id: str) -> str | None:
     return field(student_id, "terrain_indoor")
 
 
+def weapon3_terrain_boost(student_id: str) -> str | None:
+    return field(student_id, "weapon3_terrain_boost")
+
+
 def has_favorite_item(student_id: str) -> str | None:
     explicit = field(student_id, "has_favorite_item")
     if explicit is not None:
@@ -977,3 +989,24 @@ def favorite_item_name(student_id: str) -> str | None:
 
 def favorite_item_enabled(student_id: str) -> bool:
     return has_favorite_item(student_id) == "yes"
+
+
+_TERRAIN_ORDER: tuple[str, ...] = ("D", "C", "B", "A", "S", "SS")
+
+
+def upgraded_terrain_rank(rank: str | None) -> str | None:
+    if rank is None:
+        return None
+    try:
+        idx = _TERRAIN_ORDER.index(rank)
+    except ValueError:
+        return rank
+    return _TERRAIN_ORDER[min(idx + 1, len(_TERRAIN_ORDER) - 1)]
+
+
+def terrain_with_weapon3(student_id: str, terrain_key: str) -> str | None:
+    current = field(student_id, terrain_key)
+    boosted = weapon3_terrain_boost(student_id)
+    if boosted != terrain_key:
+        return current
+    return upgraded_terrain_rank(current)
