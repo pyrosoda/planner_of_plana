@@ -312,3 +312,30 @@ def activate_profile(profile_name: str) -> StoragePaths:
     config["active_profile"] = existing["name"]
     save_app_config(config)
     return ensure_profile_storage(existing["name"])
+
+
+def delete_profile(profile_name: str) -> bool:
+    normalized = normalize_profile_name(profile_name)
+    if not normalized:
+        return False
+
+    config = load_app_config()
+    profiles = _ensure_profile_registry(config)
+    existing = _find_profile_entry(config, normalized)
+    if existing is None:
+        return False
+
+    profile_key = str(existing.get("key") or make_profile_key(normalized))
+    profiles[:] = [profile for profile in profiles if profile is not existing]
+
+    active_name = normalize_profile_name(str(config.get("active_profile", "")))
+    if active_name.casefold() == normalized.casefold():
+        config["active_profile"] = profiles[0]["name"] if profiles else ""
+
+    save_app_config(config)
+
+    profile_root = PROFILES_DIR / profile_key
+    if profile_root.exists():
+        shutil.rmtree(profile_root, ignore_errors=False)
+
+    return True
