@@ -11,9 +11,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 import core.student_meta as student_meta
 from core.config import get_storage_paths
-from core.planning import StudentGoal, load_plan, save_plan
+from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -49,7 +53,6 @@ try:
 except ImportError:
     HAS_PIL = False
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
 
 from gui.student_filters import (
@@ -118,6 +121,9 @@ class StudentRecord:
     equip1_level: int | None
     equip2_level: int | None
     equip3_level: int | None
+    stat_hp: int | None
+    stat_atk: int | None
+    stat_heal: int | None
     school: str | None
     rarity: str | None
     attack_type: str | None
@@ -191,6 +197,9 @@ def _row_to_record(row: dict, owned: bool) -> StudentRecord:
         equip1_level=row.get("equip1_level"),
         equip2_level=row.get("equip2_level"),
         equip3_level=row.get("equip3_level"),
+        stat_hp=row.get("stat_hp"),
+        stat_atk=row.get("stat_atk"),
+        stat_heal=row.get("stat_heal"),
         school=row.get("school") or student_meta.field(student_id, "school"),
         rarity=row.get("rarity") or student_meta.field(student_id, "rarity"),
         attack_type=row.get("attack_type") or student_meta.field(student_id, "attack_type"),
@@ -695,7 +704,7 @@ class StudentViewerWindow(QMainWindow):
         form.setVerticalSpacing(scale_px(8, self._ui_scale))
         for field_name, label, minimum, maximum in (
             ("target_level", "Target Level", 0, 100),
-            ("target_star", "Target Star", 0, 8),
+            ("target_star", "Target Star", 0, MAX_TARGET_STAR),
             ("target_ex_skill", "Target EX", 0, 5),
             ("target_skill1", "Target Skill 1", 0, 10),
             ("target_skill2", "Target Skill 2", 0, 10),
@@ -705,7 +714,9 @@ class StudentViewerWindow(QMainWindow):
             ("target_equip1_tier", "Target Equip 1", 0, 10),
             ("target_equip2_tier", "Target Equip 2", 0, 10),
             ("target_equip3_tier", "Target Equip 3", 0, 10),
-            ("target_bound_level", "Target Bound", 0, 50),
+            ("target_stat_hp", "Target Stat HP", 0, 25),
+            ("target_stat_atk", "Target Stat ATK", 0, 25),
+            ("target_stat_heal", "Target Stat HEAL", 0, 25),
         ):
             spin = QSpinBox()
             spin.setRange(minimum, maximum)
@@ -851,7 +862,7 @@ class StudentViewerWindow(QMainWindow):
         try:
             self._plan_name.setText(record.title)
             self._plan_current.setText(
-                f"{record.student_id}  |  Current Lv.{record.level or 0}  Star {record.star}  EX {record.ex_skill or 0}  Skills {record.skill1 or 0}/{record.skill2 or 0}/{record.skill3 or 0}"
+                f"{record.student_id}  |  Current Lv.{record.level or 0}  Star {record.star}  EX {record.ex_skill or 0}  Skills {record.skill1 or 0}/{record.skill2 or 0}/{record.skill3 or 0}  Stats {record.stat_hp or 0}/{record.stat_atk or 0}/{record.stat_heal or 0}"
             )
             for field_name, spin in self._plan_inputs.items():
                 value = getattr(goal, field_name, None) if goal else None
@@ -916,6 +927,10 @@ class StudentViewerWindow(QMainWindow):
             lines.append("Skill ooparts:")
             for key, value in sorted(summary.skill_ooparts.items(), key=lambda item: (-item[1], item[0])):
                 lines.append(f"- {key}: {value}")
+        if summary.stat_levels:
+            lines.append("Stat targets:")
+            for key, value in sorted(summary.stat_levels.items()):
+                lines.append(f"- {key}: +{value}")
         if summary.warnings:
             lines.append("Notes:")
             for warning in dict.fromkeys(summary.warnings):

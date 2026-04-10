@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from core.planning import GrowthPlan, StudentGoal
+from core import student_meta
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,6 +19,7 @@ class PlanCostSummary:
     level_exp: int = 0
     ex_ooparts: dict[str, int] = field(default_factory=dict)
     skill_ooparts: dict[str, int] = field(default_factory=dict)
+    stat_levels: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def merge(self, other: "PlanCostSummary") -> None:
@@ -27,6 +29,7 @@ class PlanCostSummary:
         for source, target in (
             (other.ex_ooparts, self.ex_ooparts),
             (other.skill_ooparts, self.skill_ooparts),
+            (other.stat_levels, self.stat_levels),
         ):
             for key, value in source.items():
                 target[key] = target.get(key, 0) + value
@@ -35,14 +38,6 @@ class PlanCostSummary:
 @lru_cache(maxsize=1)
 def _load_reference_tables() -> dict:
     path = PLANNING_DIR / "reference_tables.json"
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-@lru_cache(maxsize=1)
-def _load_growth_patterns() -> dict:
-    path = PLANNING_DIR / "student_growth_patterns.json"
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
@@ -74,6 +69,12 @@ def _material_label(family: str, index: int) -> str:
     return f"{family} T{index + 1}"
 
 
+def _stat_delta(current_value: object, target_value: object) -> int:
+    current = _safe_int(current_value, 0)
+    target = max(current, _safe_int(target_value, current))
+    return max(0, target - current)
+
+
 def _extract_material_delta(rows: list[dict], current_level: int, target_level: int) -> dict[str, int]:
     if target_level <= current_level:
         return {}
@@ -94,10 +95,62 @@ def _extract_material_delta(rows: list[dict], current_level: int, target_level: 
     return delta
 
 
+def _merge_material(total: dict[str, int], name: str | None, tier_costs: list[int], amount: int) -> None:
+    material_name = (name or "").strip()
+    if not material_name or amount <= 0:
+        return
+    for tier, raw in enumerate(tier_costs, start=1):
+        value = _safe_int(raw, 0)
+        if value > 0:
+            key = f"{material_name} T{tier}"
+            total[key] = total.get(key, 0) + value * amount
+
+
+def _add_material_value(total: dict[str, int], name: str | None, tier: int, value: object) -> None:
+    material_name = (name or "").strip()
+    amount = _safe_int(value, 0)
+    if not material_name or amount <= 0:
+        return
+    key = f"{material_name} T{tier}"
+    total[key] = total.get(key, 0) + amount
+
+
+def _calculate_ex_ooparts(student_id: str, current_level: int, target_level: int) -> dict[str, int]:
+    window_total: dict[str, int] = {}
+    main_costs = student_meta.growth_material_main_ex_levels(student_id)
+    sub_costs = student_meta.growth_material_sub_ex_levels(student_id)
+    main_name = student_meta.growth_material_main(student_id)
+    sub_name = student_meta.growth_material_sub(student_id)
+    for target in range(max(current_level + 1, 2), target_level + 1):
+        main_index = target - 2
+        sub_index = target - 2
+        if 0 <= main_index < len(main_costs):
+            _add_material_value(window_total, main_name, main_index + 1, main_costs[main_index])
+        if 0 <= sub_index < len(sub_costs):
+            _add_material_value(window_total, sub_name, sub_index + 1, sub_costs[sub_index])
+    return window_total
+
+
+def _calculate_skill_ooparts(student_id: str, current_levels: list[int], target_levels: list[int]) -> dict[str, int]:
+    total: dict[str, int] = {}
+    main_costs = student_meta.growth_material_main_skill_levels(student_id)
+    sub_costs = student_meta.growth_material_sub_skill_levels(student_id)
+    main_name = student_meta.growth_material_main(student_id)
+    sub_name = student_meta.growth_material_sub(student_id)
+
+    for current_level, target_level in zip(current_levels, target_levels):
+        for target in range(max(current_level + 1, 3), target_level + 1):
+            index = target - 3
+            if 0 <= index < len(main_costs):
+                _add_material_value(total, main_name, index + 1, main_costs[index])
+            if 0 <= index < len(sub_costs):
+                _add_material_value(total, sub_name, index + 1, sub_costs[index])
+    return total
+
+
 def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     summary = PlanCostSummary()
     reference_tables = _load_reference_tables()
-    growth_patterns = _load_growth_patterns()
 
     level_rows = reference_tables.get("level_table", {}).get("rows", [])
     ex_credit_rows = reference_tables.get("credit_table_ex", {}).get("rows", [])
@@ -130,19 +183,23 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     for current_skill, target_skill in zip(current_skills, target_skills):
         summary.credits += max(0, skill_credit_map.get(target_skill, 0) - skill_credit_map.get(current_skill, 0))
 
-    student_patterns = growth_patterns.get("students", {}).get(getattr(record, "display_name", ""))
-    if student_patterns:
-        ex_rows = student_patterns.get("ex_rows", [])
-        normal_rows = student_patterns.get("normal_rows", [])
-        summary.ex_ooparts = _extract_material_delta(ex_rows, current_ex, target_ex)
-        skill_delta_totals: dict[str, int] = {}
-        for current_skill, target_skill in zip(current_skills, target_skills):
-            delta = _extract_material_delta(normal_rows, current_skill, target_skill)
-            for key, value in delta.items():
-                skill_delta_totals[key] = skill_delta_totals.get(key, 0) + value
-        summary.skill_ooparts = skill_delta_totals
+    stat_deltas = {
+        "HP": _stat_delta(getattr(record, "stat_hp", 0), goal.target_stat_hp),
+        "ATK": _stat_delta(getattr(record, "stat_atk", 0), goal.target_stat_atk),
+        "HEAL": _stat_delta(getattr(record, "stat_heal", 0), goal.target_stat_heal),
+    }
+    summary.stat_levels = {key: value for key, value in stat_deltas.items() if value > 0}
+
+    student_id = getattr(record, "student_id", "") or ""
+    if student_id:
+        summary.ex_ooparts = _calculate_ex_ooparts(student_id, current_ex, target_ex)
+        summary.skill_ooparts = _calculate_skill_ooparts(student_id, current_skills, target_skills)
+        if (
+            target_ex > current_ex or any(target > current for current, target in zip(current_skills, target_skills))
+        ) and not summary.ex_ooparts and not summary.skill_ooparts:
+            summary.warnings.append("No ooparts metadata found in student_meta.")
     else:
-        summary.warnings.append("No student-specific ooparts pattern found.")
+        summary.warnings.append("No student id available for ooparts lookup.")
 
     if any(
         value not in (None, 0)
@@ -153,10 +210,12 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
             goal.target_equip1_tier,
             goal.target_equip2_tier,
             goal.target_equip3_tier,
-            goal.target_bound_level,
+            goal.target_stat_hp,
+            goal.target_stat_atk,
+            goal.target_stat_heal,
         )
     ):
-        summary.warnings.append("Star, weapon, equipment, and bound-level costs are not included yet.")
+        summary.warnings.append("Star, weapon, equipment, and stat costs are not included yet.")
 
     return summary
 

@@ -14,6 +14,7 @@ from gui.student_viewer import open_viewer as open_tk_viewer
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 VIEWER_SCRIPT = Path(__file__).resolve().parent / "viewer_app_qt.py"
+VIEWER_MODULE = "gui.viewer_app_qt"
 
 _viewer_process: subprocess.Popen | None = None
 
@@ -43,7 +44,7 @@ def _launch_qt_viewer() -> bool:
 
     try:
         _viewer_process = subprocess.Popen(
-            [sys.executable, str(VIEWER_SCRIPT)],
+            [sys.executable, "-m", VIEWER_MODULE],
             cwd=str(BASE_DIR),
             creationflags=creationflags,
         )

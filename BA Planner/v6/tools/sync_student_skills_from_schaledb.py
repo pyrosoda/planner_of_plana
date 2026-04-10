@@ -76,6 +76,8 @@ SCHOOL_MAP: dict[str, str] = {
     "WildHunt": "Wild Hunt",
 }
 ARTIFACT_ICON_MAP: dict[str, str] = {
+    "aether": "Aether Essence",
+    "ether": "Aether Essence",
     "mandragora": "Madrake Extract",
     "winnistone": "Mystery Stone",
 }
@@ -276,6 +278,8 @@ def _opart_amounts_for_family(
 ) -> list[int]:
     material_list = material_rows if isinstance(material_rows, list) else []
     amount_list = amount_rows if isinstance(amount_rows, list) else []
+    if family_name is None:
+        return [0 for _ in material_list]
     results: list[int] = []
     for idx, materials in enumerate(material_list):
         row_materials = materials if isinstance(materials, list) else []

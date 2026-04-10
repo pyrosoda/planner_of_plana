@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+
+MAX_TARGET_STAR = 5
+MAX_TARGET_STAT = 25
 
 
 @dataclass(slots=True)
@@ -20,7 +23,9 @@ class StudentGoal:
     target_equip1_tier: int | None = None
     target_equip2_tier: int | None = None
     target_equip3_tier: int | None = None
-    target_bound_level: int | None = None
+    target_stat_hp: int | None = None
+    target_stat_atk: int | None = None
+    target_stat_heal: int | None = None
     notes: str = ""
 
 
@@ -33,11 +38,41 @@ class GrowthPlan:
         return {goal.student_id: goal for goal in self.goals}
 
 
+def _clamp_optional_int(
+    value: int | None,
+    *,
+    minimum: int = 0,
+    maximum: int | None = None,
+) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    number = max(minimum, number)
+    if maximum is not None:
+        number = min(number, maximum)
+    return number
+
+
+def sanitize_goal(goal: StudentGoal) -> StudentGoal:
+    goal.target_star = _clamp_optional_int(goal.target_star, maximum=MAX_TARGET_STAR)
+    goal.target_stat_hp = _clamp_optional_int(goal.target_stat_hp, maximum=MAX_TARGET_STAT)
+    goal.target_stat_atk = _clamp_optional_int(goal.target_stat_atk, maximum=MAX_TARGET_STAT)
+    goal.target_stat_heal = _clamp_optional_int(goal.target_stat_heal, maximum=MAX_TARGET_STAT)
+    return goal
+
+
 def load_plan(path: Path) -> GrowthPlan:
     if not path.exists():
         return GrowthPlan()
     payload = json.loads(path.read_text(encoding="utf-8"))
-    goals = [StudentGoal(**goal) for goal in payload.get("goals", [])]
+    valid_fields = {item.name for item in fields(StudentGoal)}
+    goals = []
+    for goal in payload.get("goals", []):
+        filtered = {key: value for key, value in goal.items() if key in valid_fields}
+        goals.append(sanitize_goal(StudentGoal(**filtered)))
     return GrowthPlan(version=int(payload.get("version", 1)), goals=goals)
 
 
@@ -45,6 +80,6 @@ def save_plan(path: Path, plan: GrowthPlan) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "version": plan.version,
-        "goals": [asdict(goal) for goal in plan.goals],
+        "goals": [asdict(sanitize_goal(goal)) for goal in plan.goals],
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
