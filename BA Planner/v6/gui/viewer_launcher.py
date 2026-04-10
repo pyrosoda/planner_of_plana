@@ -26,7 +26,16 @@ def _launch_qt_viewer() -> bool:
     global _viewer_process
 
     if _viewer_process and _viewer_process.poll() is None:
-        return True
+        try:
+            _viewer_process.terminate()
+            _viewer_process.wait(timeout=3)
+        except Exception:
+            try:
+                _viewer_process.kill()
+            except Exception:
+                pass
+        finally:
+            _viewer_process = None
 
     creationflags = 0
     if os.name == "nt":

@@ -13,6 +13,8 @@ from pathlib import Path
 
 import core.student_meta as student_meta
 from core.config import get_storage_paths
+from core.planning import StudentGoal, load_plan, save_plan
+from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
@@ -32,7 +34,9 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QPushButton,
+    QSpinBox,
     QSplitter,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
     QScrollArea,
@@ -168,7 +172,7 @@ def _row_to_record(row: dict, owned: bool) -> StudentRecord:
     student_id = row.get("student_id") or ""
     return StudentRecord(
         student_id=student_id,
-        display_name=row.get("display_name") or student_id or "",
+        display_name=row.get("display_name") or student_meta.field(student_id, "display_name") or student_id or "",
         owned=owned,
         farmable=row.get("farmable") or student_meta.field(student_id, "farmable"),
         level=row.get("level"),
@@ -381,6 +385,7 @@ class StudentViewerWindow(QMainWindow):
 
         self._pool = QThreadPool.globalInstance()
         self._all_students = load_students()
+        self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, QListWidgetItem] = {}
         self._thumb_loading: set[str] = set()
@@ -389,21 +394,39 @@ class StudentViewerWindow(QMainWindow):
         self._large_pixmap: QPixmap | None = None
         self._selected_filters: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
         self._filter_options = build_filter_options(self._all_students)
+        self._plan_path = get_storage_paths().current_dir / "growth_plan.json"
+        self._plan = load_plan(self._plan_path)
+        self._plan_editor_guard = False
+        self._selected_plan_student_id: str | None = None
+        self._plan_inputs: dict[str, QSpinBox] = {}
+        self._plan_item_by_id: dict[str, QListWidgetItem] = {}
 
         self._build_ui()
         self._apply_filters()
+        self._refresh_plan_lists()
+        self._refresh_plan_totals()
 
     def _build_ui(self) -> None:
         root = QWidget(self)
         self.setCentralWidget(root)
 
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(
+        outer_layout = QVBoxLayout(root)
+        outer_layout.setContentsMargins(
             scale_px(16, self._ui_scale),
             scale_px(16, self._ui_scale),
             scale_px(16, self._ui_scale),
             scale_px(16, self._ui_scale),
         )
+        outer_layout.setSpacing(scale_px(12, self._ui_scale))
+
+        tabs = QTabWidget()
+        outer_layout.addWidget(tabs, 1)
+
+        viewer_tab = QWidget()
+        tabs.addTab(viewer_tab, "Viewer")
+
+        layout = QVBoxLayout(viewer_tab)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(scale_px(12, self._ui_scale))
 
         header = QFrame()
@@ -543,6 +566,10 @@ class StudentViewerWindow(QMainWindow):
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
 
+        plan_tab = QWidget()
+        tabs.addTab(plan_tab, "Plan")
+        self._build_plan_tab(plan_tab)
+
         self.setStyleSheet(
             f"""
             QMainWindow, QWidget {{ background: #0b1118; color: #d8e7f3; }}
@@ -584,11 +611,325 @@ class StudentViewerWindow(QMainWindow):
             """
         )
 
+    def _build_plan_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
+
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
+        header_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        title = QLabel("Growth Planner")
+        title.setObjectName("title")
+        header_layout.addWidget(title)
+
+        summary = QLabel("Choose any student, including unowned, and set target growth values.")
+        summary.setObjectName("count")
+        header_layout.addWidget(summary, 1)
+
+        self._plan_search = QLineEdit()
+        self._plan_search.setPlaceholderText("Search students for plan")
+        self._plan_search.textChanged.connect(self._refresh_plan_lists)
+        header_layout.addWidget(self._plan_search, 2)
+        layout.addWidget(header)
+
+        splitter = QSplitter(Qt.Horizontal)
+        layout.addWidget(splitter, 1)
+
+        all_panel = QWidget()
+        all_layout = QVBoxLayout(all_panel)
+        all_layout.setContentsMargins(0, 0, 0, 0)
+        all_layout.setSpacing(scale_px(10, self._ui_scale))
+        all_layout.addWidget(QLabel("All students"))
+        self._plan_all_list = QListWidget()
+        self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
+        all_layout.addWidget(self._plan_all_list, 1)
+        add_button = QPushButton("Add To Plan")
+        add_button.clicked.connect(self._add_selected_student_to_plan)
+        all_layout.addWidget(add_button)
+        splitter.addWidget(all_panel)
+
+        plan_panel = QWidget()
+        plan_layout = QVBoxLayout(plan_panel)
+        plan_layout.setContentsMargins(0, 0, 0, 0)
+        plan_layout.setSpacing(scale_px(10, self._ui_scale))
+        plan_layout.addWidget(QLabel("Planned students"))
+        self._plan_list = QListWidget()
+        self._plan_list.currentItemChanged.connect(self._on_plan_item_changed)
+        plan_layout.addWidget(self._plan_list, 1)
+        plan_buttons = QHBoxLayout()
+        remove_button = QPushButton("Remove")
+        remove_button.clicked.connect(self._remove_selected_plan_student)
+        plan_buttons.addWidget(remove_button)
+        open_button = QPushButton("Open In Viewer")
+        open_button.clicked.connect(self._focus_selected_plan_student_in_viewer)
+        plan_buttons.addWidget(open_button)
+        plan_layout.addLayout(plan_buttons)
+        splitter.addWidget(plan_panel)
+
+        editor_panel = QWidget()
+        editor_layout = QVBoxLayout(editor_panel)
+        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._plan_name = QLabel("Select a student")
+        self._plan_name.setObjectName("detailName")
+        editor_layout.addWidget(self._plan_name)
+
+        self._plan_current = QLabel("")
+        self._plan_current.setObjectName("detailSub")
+        editor_layout.addWidget(self._plan_current)
+
+        form_frame = QFrame()
+        form = QFormLayout(form_frame)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setHorizontalSpacing(scale_px(14, self._ui_scale))
+        form.setVerticalSpacing(scale_px(8, self._ui_scale))
+        for field_name, label, minimum, maximum in (
+            ("target_level", "Target Level", 0, 100),
+            ("target_star", "Target Star", 0, 8),
+            ("target_ex_skill", "Target EX", 0, 5),
+            ("target_skill1", "Target Skill 1", 0, 10),
+            ("target_skill2", "Target Skill 2", 0, 10),
+            ("target_skill3", "Target Skill 3", 0, 10),
+            ("target_weapon_level", "Target Weapon Lv", 0, 90),
+            ("target_weapon_star", "Target Weapon Star", 0, 4),
+            ("target_equip1_tier", "Target Equip 1", 0, 10),
+            ("target_equip2_tier", "Target Equip 2", 0, 10),
+            ("target_equip3_tier", "Target Equip 3", 0, 10),
+            ("target_bound_level", "Target Bound", 0, 50),
+        ):
+            spin = QSpinBox()
+            spin.setRange(minimum, maximum)
+            spin.setSpecialValueText("-")
+            spin.valueChanged.connect(self._on_plan_editor_changed)
+            self._plan_inputs[field_name] = spin
+            form.addRow(label, spin)
+        editor_layout.addWidget(form_frame)
+
+        self._plan_student_summary = QLabel("No student selected")
+        self._plan_student_summary.setWordWrap(True)
+        self._plan_student_summary.setObjectName("filterSummary")
+        editor_layout.addWidget(self._plan_student_summary)
+
+        totals_frame = QFrame()
+        totals_layout = QVBoxLayout(totals_frame)
+        totals_layout.setContentsMargins(0, 0, 0, 0)
+        totals_layout.setSpacing(scale_px(8, self._ui_scale))
+        totals_layout.addWidget(QLabel("Plan totals"))
+        self._plan_total_summary = QLabel("")
+        self._plan_total_summary.setWordWrap(True)
+        totals_layout.addWidget(self._plan_total_summary)
+        editor_layout.addWidget(totals_frame)
+        editor_layout.addStretch(1)
+        splitter.addWidget(editor_panel)
+
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 2)
+        splitter.setStretchFactor(2, 3)
+
+    def _plan_goal_map(self) -> dict[str, StudentGoal]:
+        return self._plan.goal_map()
+
+    def _save_plan(self) -> None:
+        save_plan(self._plan_path, self._plan)
+
+    def _get_or_create_goal(self, student_id: str) -> StudentGoal:
+        for goal in self._plan.goals:
+            if goal.student_id == student_id:
+                return goal
+        goal = StudentGoal(student_id=student_id)
+        self._plan.goals.append(goal)
+        return goal
+
+    def _refresh_plan_lists(self) -> None:
+        if not hasattr(self, "_plan_all_list"):
+            return
+        query = self._plan_search.text().strip().lower()
+        current_all = self._plan_current_all_student_id()
+        current_plan = self._selected_plan_student_id
+        goal_map = self._plan_goal_map()
+
+        self._plan_all_list.clear()
+        for record in sorted(self._all_students, key=lambda item: item.title.lower()):
+            if query and query not in record.title.lower() and query not in record.student_id.lower():
+                continue
+            status = "Planned" if record.student_id in goal_map else ("Owned" if record.owned else "Unowned")
+            item = QListWidgetItem(f"{record.title}\n{status}")
+            item.setData(Qt.UserRole, record.student_id)
+            if record.student_id in goal_map:
+                item.setForeground(QColor("#84d0ff"))
+            self._plan_all_list.addItem(item)
+
+        self._plan_list.clear()
+        self._plan_item_by_id.clear()
+        for goal in sorted(self._plan.goals, key=lambda entry: self._records_by_id.get(entry.student_id).title.lower() if entry.student_id in self._records_by_id else entry.student_id):
+            record = self._records_by_id.get(goal.student_id)
+            if record is None:
+                continue
+            item = QListWidgetItem(record.title)
+            item.setData(Qt.UserRole, record.student_id)
+            self._plan_list.addItem(item)
+            self._plan_item_by_id[record.student_id] = item
+
+        self._restore_selection(self._plan_all_list, current_all)
+        self._restore_selection(self._plan_list, current_plan)
+
+    @staticmethod
+    def _restore_selection(widget: QListWidget, student_id: str | None) -> None:
+        if not student_id:
+            return
+        for index in range(widget.count()):
+            item = widget.item(index)
+            if item.data(Qt.UserRole) == student_id:
+                widget.setCurrentItem(item)
+                break
+
+    def _plan_current_all_student_id(self) -> str | None:
+        item = self._plan_all_list.currentItem() if hasattr(self, "_plan_all_list") else None
+        return item.data(Qt.UserRole) if item else None
+
+    def _on_plan_all_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+        if current is not None:
+            student_id = str(current.data(Qt.UserRole))
+            self._selected_plan_student_id = student_id if student_id in self._plan_goal_map() else None
+            self._load_plan_student(student_id)
+
+    def _on_plan_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+        if current is not None:
+            self._selected_plan_student_id = str(current.data(Qt.UserRole))
+            self._load_plan_student(self._selected_plan_student_id)
+
+    def _add_selected_student_to_plan(self) -> None:
+        student_id = self._plan_current_all_student_id()
+        if not student_id:
+            return
+        self._get_or_create_goal(student_id)
+        self._selected_plan_student_id = student_id
+        self._save_plan()
+        self._refresh_plan_lists()
+        self._restore_selection(self._plan_list, student_id)
+        self._update_plan_student_summary(student_id)
+        self._refresh_plan_totals()
+
+    def _remove_selected_plan_student(self) -> None:
+        student_id = self._selected_plan_student_id
+        if not student_id:
+            item = self._plan_list.currentItem()
+            student_id = str(item.data(Qt.UserRole)) if item else None
+        if not student_id:
+            return
+        self._plan.goals = [goal for goal in self._plan.goals if goal.student_id != student_id]
+        self._selected_plan_student_id = None
+        self._save_plan()
+        self._refresh_plan_lists()
+        self._clear_plan_editor()
+        self._refresh_plan_totals()
+
+    def _focus_selected_plan_student_in_viewer(self) -> None:
+        if not self._selected_plan_student_id:
+            return
+        item = self._item_by_id.get(self._selected_plan_student_id)
+        if item is not None:
+            self._list.setCurrentItem(item)
+
+    def _load_plan_student(self, student_id: str) -> None:
+        record = self._records_by_id.get(student_id)
+        if record is None:
+            self._clear_plan_editor()
+            return
+        goal = self._plan_goal_map().get(student_id)
+        self._plan_editor_guard = True
+        try:
+            self._plan_name.setText(record.title)
+            self._plan_current.setText(
+                f"{record.student_id}  |  Current Lv.{record.level or 0}  Star {record.star}  EX {record.ex_skill or 0}  Skills {record.skill1 or 0}/{record.skill2 or 0}/{record.skill3 or 0}"
+            )
+            for field_name, spin in self._plan_inputs.items():
+                value = getattr(goal, field_name, None) if goal else None
+                spin.setValue(int(value) if value else 0)
+        finally:
+            self._plan_editor_guard = False
+        self._update_plan_student_summary(student_id)
+
+    def _clear_plan_editor(self) -> None:
+        self._plan_editor_guard = True
+        try:
+            self._plan_name.setText("Select a student")
+            self._plan_current.setText("")
+            for spin in self._plan_inputs.values():
+                spin.setValue(0)
+        finally:
+            self._plan_editor_guard = False
+        self._plan_student_summary.setText("No student selected")
+
+    def _on_plan_editor_changed(self) -> None:
+        if self._plan_editor_guard:
+            return
+        student_id = self._selected_plan_student_id or self._plan_current_all_student_id()
+        if not student_id:
+            return
+        goal = self._get_or_create_goal(student_id)
+        for field_name, spin in self._plan_inputs.items():
+            setattr(goal, field_name, int(spin.value()) or None)
+        self._selected_plan_student_id = student_id
+        self._save_plan()
+        self._refresh_plan_lists()
+        self._update_plan_student_summary(student_id)
+        self._refresh_plan_totals()
+
+    def _update_plan_student_summary(self, student_id: str) -> None:
+        record = self._records_by_id.get(student_id)
+        goal = self._plan_goal_map().get(student_id)
+        if record is None or goal is None:
+            self._plan_student_summary.setText("Add this student to the plan to calculate costs.")
+            return
+        summary = calculate_goal_cost(record, goal)
+        self._plan_student_summary.setText(self._format_cost_summary(summary))
+
+    def _refresh_plan_totals(self) -> None:
+        if not hasattr(self, "_plan_total_summary"):
+            return
+        total = calculate_plan_totals(self._records_by_id, self._plan)
+        self._plan_total_summary.setText(
+            f"{len(self._plan.goals)} students in plan\n{self._format_cost_summary(total)}"
+        )
+
+    def _format_cost_summary(self, summary: PlanCostSummary) -> str:
+        lines = [
+            f"Credits: {summary.credits:,}",
+            f"EXP: {summary.level_exp:,}",
+        ]
+        if summary.ex_ooparts:
+            lines.append("EX ooparts:")
+            for key, value in sorted(summary.ex_ooparts.items(), key=lambda item: (-item[1], item[0])):
+                lines.append(f"- {key}: {value}")
+        if summary.skill_ooparts:
+            lines.append("Skill ooparts:")
+            for key, value in sorted(summary.skill_ooparts.items(), key=lambda item: (-item[1], item[0])):
+                lines.append(f"- {key}: {value}")
+        if summary.warnings:
+            lines.append("Notes:")
+            for warning in dict.fromkeys(summary.warnings):
+                lines.append(f"- {warning}")
+        return "\n".join(lines)
+
     def _reload_data(self) -> None:
         self._all_students = load_students()
+        self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filter_options = build_filter_options(self._all_students)
         self._unowned_icon_cache.clear()
         self._apply_filters()
+        self._refresh_plan_lists()
+        self._refresh_plan_totals()
 
     def _apply_filters(self) -> None:
         query = self._search.text().strip().lower()

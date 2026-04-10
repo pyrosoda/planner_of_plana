@@ -8,13 +8,19 @@ from pathlib import Path
 @dataclass(slots=True)
 class StudentGoal:
     student_id: str
+    favorite: bool = True
     target_level: int | None = None
     target_star: int | None = None
     target_weapon_level: int | None = None
+    target_weapon_star: int | None = None
     target_ex_skill: int | None = None
     target_skill1: int | None = None
     target_skill2: int | None = None
     target_skill3: int | None = None
+    target_equip1_tier: int | None = None
+    target_equip2_tier: int | None = None
+    target_equip3_tier: int | None = None
+    target_bound_level: int | None = None
     notes: str = ""
 
 
