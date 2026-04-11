@@ -19,8 +19,8 @@ import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
-from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -44,6 +44,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QScrollArea,
+    QStyledItemDelegate,
+    QStyle,
 )
 
 try:
@@ -63,7 +65,24 @@ from gui.student_filters import (
     matches_student_filters,
     summarize_filters,
 )
-from gui.student_stats import StatsDialog
+from gui.student_stats import DonutWidget, build_distribution
+
+
+BG = "#f6f6f9"
+SURFACE = "#ffffff"
+SURFACE_ALT = "#f0f1f6"
+INK = "#323548"
+MUTED = "#73778a"
+BORDER = "#d8dbe5"
+ACCENT = "#c84d4d"
+ACCENT_STRONG = "#a63d3d"
+ACCENT_SOFT = "#f4dfdf"
+ACCENT_PALE = "#fff1f1"
+SHADOW = "#eceef5"
+CARD_ROLE = Qt.UserRole + 1
+SCHOOL_ICON_DIR = BASE_DIR / "templates" / "icons" / "school_logo"
+STAR_ICON_PATH = BASE_DIR / "templates" / "icons" / "temp" / "Img_Growth_Effect_StarIcon.png"
+STAR_ICON2_PATH = BASE_DIR / "templates" / "icons" / "temp" / "Img_Growth_Effect_StarIcon2.png"
 
 
 def get_qt_ui_scale(
@@ -97,6 +116,228 @@ def get_qt_ui_scale(
 
 def scale_px(value: int | float, scale: float) -> int:
     return max(1, int(round(float(value) * scale)))
+
+
+def _school_icon_path(school: str | None) -> Path | None:
+    school_key = (school or "").strip()
+    mapping = {
+        "Abydos": "ABYDOS",
+        "Arius": "Arius",
+        "ETC": "ETC",
+        "Gehenna": "GEHENNA",
+        "Highlander": "HIGHLANDER",
+        "Hyakkiyako": "HYAKKIYAKO",
+        "Millennium": "MILLENNIUM",
+        "RedWinter": "REDWINTER",
+        "Red Winter": "REDWINTER",
+        "Sakugawa": "SAKUGAWA",
+        "Shanhaijing": "SHANHAIJING",
+        "SRT": "SRT",
+        "Tokiwadai": "Tokiwadai",
+        "Trinity": "TRINITY",
+        "Valkyrie": "VALKYRIE",
+        "Wildhunt": "WILDHUNT",
+    }
+    suffix = mapping.get(school_key, "ETC")
+    path = SCHOOL_ICON_DIR / f"School_Icon_{suffix}.png"
+    return path if path.exists() else None
+
+
+def _school_short_label(school: str | None) -> str:
+    mapping = {
+        "Abydos": "ABY",
+        "Arius": "ARI",
+        "Gehenna": "GEH",
+        "Highlander": "HIG",
+        "Hyakkiyako": "HYA",
+        "Millennium": "MIL",
+        "RedWinter": "RED",
+        "Red Winter": "RED",
+        "Sakugawa": "SAK",
+        "Shanhaijing": "SHA",
+        "SRT": "SRT",
+        "Tokiwadai": "TOK",
+        "Trinity": "TRI",
+        "Valkyrie": "VAL",
+        "Wildhunt": "WLD",
+    }
+    return mapping.get((school or "").strip(), "ETC")
+
+
+def _role_label(role: str | None) -> str:
+    mapping = {
+        "tanker": "Tank",
+        "dealer": "Striker",
+        "healer": "Healer",
+        "supporter": "Support",
+        "t_s": "TS",
+    }
+    return mapping.get((role or "").strip().lower(), "-")
+
+
+def _attack_color(attack_type: str | None) -> str:
+    mapping = {
+        "Explosive": "#731c25",
+        "Piercing": "#c3b37b",
+        "Mystic": "#a5c7da",
+        "Sonic": "#ae78b4",
+    }
+    return mapping.get((attack_type or "").strip(), "#5c6ea8")
+
+
+def _defense_accent_color(defense_type: str | None) -> str:
+    mapping = {
+        "Light": _attack_color("Explosive"),
+        "Heavy": _attack_color("Piercing"),
+        "Special": _attack_color("Mystic"),
+        "Elastic": _attack_color("Sonic"),
+        "Composite": "#458e8e",
+    }
+    return mapping.get((defense_type or "").strip(), BORDER)
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _card_star_badge_value(record: "StudentRecord") -> int:
+    rarity = _int_or_none(record.rarity)
+    current_star = record.star or 0
+    return rarity or current_star
+
+
+def _tinted_pixmap(pixmap: QPixmap, color: QColor) -> QPixmap:
+    if pixmap.isNull():
+        return pixmap
+    tinted = QPixmap(pixmap.size())
+    tinted.fill(Qt.transparent)
+    painter = QPainter(tinted)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    painter.fillRect(tinted.rect(), color)
+    painter.end()
+    return tinted
+
+
+class StudentCardDelegate(QStyledItemDelegate):
+    def __init__(self, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self._star_icon = QPixmap(str(STAR_ICON_PATH)) if STAR_ICON_PATH.exists() else QPixmap()
+        self._star_icon2 = QPixmap(str(STAR_ICON2_PATH)) if STAR_ICON2_PATH.exists() else QPixmap()
+
+    def paint(self, painter: QPainter, option, index) -> None:
+        record = index.data(CARD_ROLE)
+        if record is None:
+            super().paint(painter, option, index)
+            return
+
+        hovered = bool(option.state & QStyle.State_MouseOver)
+        rect = option.rect.adjusted(4, 4, -4, -4)
+        if hovered:
+            rect = rect.adjusted(-3, -3, 3, 3)
+        radius = scale_px(14, self._ui_scale)
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.fillPath(path, QColor(SURFACE))
+
+        border_color = QColor(ACCENT if option.state & QStyle.State_Selected else BORDER)
+        border_width = 2 if option.state & QStyle.State_Selected else 1
+        painter.setPen(QPen(border_color, border_width))
+        painter.drawPath(path)
+
+        icon = index.data(Qt.DecorationRole)
+        pixmap = icon.pixmap(rect.size()) if isinstance(icon, QIcon) else QPixmap()
+        if not pixmap.isNull():
+            source = pixmap.scaled(rect.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            x = rect.x() + (rect.width() - source.width()) // 2
+            y = rect.y() + (rect.height() - source.height()) // 2
+            painter.setClipPath(path)
+            painter.drawPixmap(x, y, source)
+            if not record.owned:
+                painter.fillRect(rect, QColor(10, 12, 18, 96))
+        else:
+            painter.fillRect(rect, QColor(SURFACE_ALT))
+
+        if not pixmap.isNull():
+            icon_path = _school_icon_path(record.school)
+            badge_h = scale_px(24, self._ui_scale)
+
+            left_badge = QRect(rect.x() + scale_px(8, self._ui_scale), rect.y() + scale_px(8, self._ui_scale), scale_px(38, self._ui_scale), scale_px(34, self._ui_scale))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(_attack_color(record.attack_type)))
+            painter.drawRoundedRect(left_badge, scale_px(8, self._ui_scale), scale_px(8, self._ui_scale))
+            if icon_path:
+                school_base = QPixmap(str(icon_path)).scaled(scale_px(22, self._ui_scale), scale_px(22, self._ui_scale), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                school_px = _tinted_pixmap(school_base, QColor("white"))
+                painter.drawPixmap(
+                    left_badge.x() + (left_badge.width() - school_px.width()) // 2,
+                    left_badge.y() + (left_badge.height() - school_px.height()) // 2,
+                    school_px,
+                )
+
+            font = QFont()
+
+            badge_value = _card_star_badge_value(record)
+            if badge_value > 0:
+                star_pix = self._star_icon2 if record.weapon_state == "weapon_equipped" and not self._star_icon2.isNull() else self._star_icon
+                star_size = scale_px(13, self._ui_scale)
+                badge_w = scale_px(10, self._ui_scale) + star_size * badge_value + scale_px(8, self._ui_scale)
+                star_badge = QRect(rect.right() - badge_w - scale_px(8, self._ui_scale), rect.y() + scale_px(8, self._ui_scale), badge_w, scale_px(30, self._ui_scale))
+                painter.setBrush(QColor(_defense_accent_color(record.defense_type)))
+                painter.drawRoundedRect(star_badge, scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
+                if not star_pix.isNull():
+                    star_img = star_pix.scaled(star_size, star_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    y = star_badge.y() + (star_badge.height() - star_img.height()) // 2
+                    total_w = badge_value * star_img.width()
+                    start_x = star_badge.x() + (star_badge.width() - total_w) // 2
+                    for idx in range(badge_value):
+                        painter.drawPixmap(start_x + idx * star_img.width(), y, star_img)
+                else:
+                    painter.setPen(QColor("#f6f6f9"))
+                    font.setBold(True)
+                    font.setPointSizeF(max(6.7, 7.8 * self._ui_scale))
+                    painter.setFont(font)
+                    painter.drawText(star_badge, Qt.AlignCenter, "\u2605" * badge_value)
+
+            info_panel = QRect(
+                rect.x() + scale_px(8, self._ui_scale),
+                rect.bottom() - scale_px(54, self._ui_scale),
+                rect.width() - scale_px(16, self._ui_scale),
+                scale_px(44, self._ui_scale),
+            )
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(17, 19, 27, 186))
+            painter.drawRoundedRect(info_panel, scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+
+            name_rect = QRect(info_panel.x() + scale_px(8, self._ui_scale), info_panel.y() + scale_px(4, self._ui_scale), info_panel.width() - scale_px(16, self._ui_scale), scale_px(20, self._ui_scale))
+            font.setBold(True)
+            font.setPointSizeF(max(9.0, 11.0 * self._ui_scale))
+            painter.setFont(font)
+            painter.setPen(QColor("#f6f6f9"))
+            painter.drawText(name_rect, Qt.AlignCenter, record.title)
+
+            sub_rect = QRect(info_panel.x() + scale_px(8, self._ui_scale), info_panel.bottom() - scale_px(18, self._ui_scale), info_panel.width() - scale_px(16, self._ui_scale), scale_px(14, self._ui_scale))
+            font.setBold(False)
+            font.setPointSizeF(max(7.0, 8.2 * self._ui_scale))
+            painter.setFont(font)
+            painter.setPen(QColor("#eef0f7"))
+            level_text = f"Lv.{record.level or 0}"
+            if record.owned:
+                painter.drawText(sub_rect, Qt.AlignCenter, level_text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index) -> QSize:
+        return QSize(scale_px(212, self._ui_scale), scale_px(248, self._ui_scale))
 
 
 @dataclass(slots=True)
@@ -386,10 +627,10 @@ class StudentViewerWindow(QMainWindow):
     def __init__(self, ui_scale: float):
         super().__init__()
         self._ui_scale = ui_scale
-        self._thumb_size = scale_px(156, ui_scale)
+        self._thumb_size = scale_px(148, ui_scale)
         self._grid_width = scale_px(212, ui_scale)
-        self._grid_height = scale_px(244, ui_scale)
-        self.setWindowTitle("BA Student Viewer")
+        self._grid_height = scale_px(248, ui_scale)
+        self.setWindowTitle("Blue Archive Planner")
         self.resize(scale_px(1560, ui_scale), scale_px(980, ui_scale))
 
         self._pool = QThreadPool.globalInstance()
@@ -409,11 +650,14 @@ class StudentViewerWindow(QMainWindow):
         self._selected_plan_student_id: str | None = None
         self._plan_inputs: dict[str, QSpinBox] = {}
         self._plan_item_by_id: dict[str, QListWidgetItem] = {}
+        self._stats_cards_layout: QGridLayout | None = None
+        self._stats_summary_host: QWidget | None = None
 
         self._build_ui()
         self._apply_filters()
         self._refresh_plan_lists()
         self._refresh_plan_totals()
+        self._refresh_stats_tab()
 
     def _build_ui(self) -> None:
         root = QWidget(self)
@@ -429,12 +673,134 @@ class StudentViewerWindow(QMainWindow):
         outer_layout.setSpacing(scale_px(12, self._ui_scale))
 
         tabs = QTabWidget()
+        tabs.setObjectName("mainTabs")
         outer_layout.addWidget(tabs, 1)
 
-        viewer_tab = QWidget()
-        tabs.addTab(viewer_tab, "Viewer")
+        students_tab = QWidget()
+        tabs.addTab(students_tab, "Students")
+        self._build_students_tab(students_tab)
 
-        layout = QVBoxLayout(viewer_tab)
+        plan_tab = QWidget()
+        tabs.addTab(plan_tab, "Plans")
+        self._build_plan_tab(plan_tab)
+
+        stats_tab = QWidget()
+        tabs.addTab(stats_tab, "Statistics")
+        self._build_stats_tab(stats_tab)
+
+        self.setStyleSheet(
+            f"""
+            QMainWindow, QWidget {{ background: {BG}; color: {INK}; }}
+            QTabWidget::pane {{
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(18, self._ui_scale)}px;
+                background: {SURFACE};
+                top: -1px;
+            }}
+            QTabBar::tab {{
+                background: transparent;
+                color: {MUTED};
+                padding: {scale_px(10, self._ui_scale)}px {scale_px(14, self._ui_scale)}px;
+                margin-right: {scale_px(6, self._ui_scale)}px;
+                border-radius: {scale_px(10, self._ui_scale)}px;
+            }}
+            QTabBar::tab:selected {{
+                background: {ACCENT_PALE};
+                color: {ACCENT_STRONG};
+                font-weight: 700;
+            }}
+            QFrame#header, QFrame#panel, QFrame#statPanel, QFrame#summaryCard {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(14, self._ui_scale)}px;
+            }}
+            QFrame#heroWrap {{
+                background: {SURFACE_ALT};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(18, self._ui_scale)}px;
+            }}
+            QLabel#title {{ font-size: {scale_px(24, self._ui_scale)}px; font-weight: 800; color: {INK}; }}
+            QLabel#count, QLabel#detailSub, QLabel#filterSummary, QLabel#sectionSub, QLabel#kpiValueSub {{ color: {MUTED}; }}
+            QLabel#sectionTitle {{ font-size: {scale_px(16, self._ui_scale)}px; font-weight: 700; color: {INK}; }}
+            QLabel#badge {{
+                background: {ACCENT_PALE};
+                color: {ACCENT_STRONG};
+                border: 1px solid {ACCENT_SOFT};
+                border-radius: {scale_px(9, self._ui_scale)}px;
+                padding: {scale_px(4, self._ui_scale)}px {scale_px(8, self._ui_scale)}px;
+            }}
+            QLabel#metricValue {{ font-size: {scale_px(22, self._ui_scale)}px; font-weight: 800; color: {INK}; }}
+            QLabel#metricLabel {{ color: {MUTED}; font-size: {scale_px(11, self._ui_scale)}px; text-transform: uppercase; }}
+            QLineEdit, QComboBox, QPushButton {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(9, self._ui_scale)}px;
+                padding: {scale_px(8, self._ui_scale)}px {scale_px(10, self._ui_scale)}px;
+                min-height: {scale_px(22, self._ui_scale)}px;
+            }}
+            QPushButton {{
+                background: {ACCENT};
+                color: white;
+                border: 1px solid {ACCENT_STRONG};
+                font-weight: 700;
+            }}
+            QPushButton:hover {{ background: {ACCENT_STRONG}; }}
+            QComboBox, QLineEdit {{
+                background: {SURFACE_ALT};
+                color: {INK};
+            }}
+            QCheckBox {{
+                color: {MUTED};
+                spacing: {scale_px(8, self._ui_scale)}px;
+            }}
+            QListWidget {{
+                background: {SURFACE_ALT};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(12, self._ui_scale)}px;
+                padding: {scale_px(10, self._ui_scale)}px;
+            }}
+            QListWidget::item {{
+                background: {SURFACE};
+                border: 1px solid {SHADOW};
+                border-radius: {scale_px(12, self._ui_scale)}px;
+                padding: {scale_px(10, self._ui_scale)}px;
+            }}
+            QListWidget::item:selected {{
+                background: {ACCENT_PALE};
+                border: 1px solid {ACCENT};
+            }}
+            QLabel#hero {{
+                background: transparent;
+                border: none;
+                border-radius: {scale_px(16, self._ui_scale)}px;
+            }}
+            QLabel#detailName {{ font-size: {scale_px(28, self._ui_scale)}px; font-weight: 700; }}
+            QLabel#statValue {{ color: {INK}; font-weight: 700; }}
+            QGroupBox {{
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(12, self._ui_scale)}px;
+                margin-top: {scale_px(10, self._ui_scale)}px;
+                padding-top: {scale_px(12, self._ui_scale)}px;
+                background: {SURFACE};
+                font-weight: 700;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: {scale_px(12, self._ui_scale)}px;
+                padding: 0 {scale_px(4, self._ui_scale)}px;
+                color: {INK};
+            }}
+            QSpinBox {{
+                background: {SURFACE_ALT};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(8, self._ui_scale)}px;
+                padding: {scale_px(6, self._ui_scale)}px {scale_px(8, self._ui_scale)}px;
+            }}
+            """
+        )
+
+    def _build_students_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(scale_px(12, self._ui_scale))
 
@@ -442,39 +808,43 @@ class StudentViewerWindow(QMainWindow):
         header.setObjectName("header")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(
-            scale_px(16, self._ui_scale),
-            scale_px(16, self._ui_scale),
-            scale_px(16, self._ui_scale),
-            scale_px(16, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
         )
-        header_layout.setSpacing(scale_px(10, self._ui_scale))
+        header_layout.setSpacing(scale_px(12, self._ui_scale))
 
-        title = QLabel("BA Student Viewer")
+        title_wrap = QVBoxLayout()
+        title_wrap.setSpacing(scale_px(4, self._ui_scale))
+        title = QLabel("Blue Archive Planner")
         title.setObjectName("title")
-        header_layout.addWidget(title)
+        title_wrap.addWidget(title)
+        subtitle = QLabel("Browse your students, inspect current progression, and build upgrade plans.")
+        subtitle.setObjectName("count")
+        title_wrap.addWidget(subtitle)
+        header_layout.addLayout(title_wrap, 1)
 
         self._count_label = QLabel("")
         self._count_label.setObjectName("count")
         header_layout.addWidget(self._count_label)
-        header_layout.addStretch(1)
+        layout.addWidget(header)
+
+        toolbar = QFrame()
+        toolbar.setObjectName("panel")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search name or id")
+        self._search.setPlaceholderText("Search by student name or id")
         self._search.textChanged.connect(self._apply_filters)
-        header_layout.addWidget(self._search, 2)
-
-        self._show_unowned = QCheckBox("Show unowned")
-        self._show_unowned.setChecked(True)
-        self._show_unowned.stateChanged.connect(self._apply_filters)
-        header_layout.addWidget(self._show_unowned)
-
-        self._filter_button = QPushButton("Filters")
-        self._filter_button.clicked.connect(self._open_filter_dialog)
-        header_layout.addWidget(self._filter_button)
-
-        self._stats_button = QPushButton("Stats")
-        self._stats_button.clicked.connect(self._open_stats_dialog)
-        header_layout.addWidget(self._stats_button)
+        toolbar_layout.addWidget(self._search, 3)
 
         self._sort_mode = QComboBox()
         self._sort_mode.addItem("Star desc", "star_desc")
@@ -482,34 +852,44 @@ class StudentViewerWindow(QMainWindow):
         self._sort_mode.addItem("Level desc", "level_desc")
         self._sort_mode.addItem("Name asc", "name_asc")
         self._sort_mode.currentIndexChanged.connect(self._apply_filters)
-        header_layout.addWidget(self._sort_mode)
+        toolbar_layout.addWidget(self._sort_mode, 1)
+
+        self._show_unowned = QCheckBox("Show unowned students")
+        self._show_unowned.setChecked(True)
+        self._show_unowned.stateChanged.connect(self._apply_filters)
+        toolbar_layout.addWidget(self._show_unowned)
+
+        self._filter_button = QPushButton("Filters")
+        self._filter_button.clicked.connect(self._open_filter_dialog)
+        toolbar_layout.addWidget(self._filter_button)
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self._reload_data)
-        header_layout.addWidget(refresh_button)
-
-        layout.addWidget(header)
+        toolbar_layout.addWidget(refresh_button)
+        layout.addWidget(toolbar)
 
         self._filter_summary = QLabel("No filters applied")
         self._filter_summary.setWordWrap(True)
         self._filter_summary.setObjectName("filterSummary")
         layout.addWidget(self._filter_summary)
 
-        splitter = QSplitter(Qt.Horizontal)
-        layout.addWidget(splitter, 1)
+        content = QSplitter(Qt.Horizontal)
+        content.setChildrenCollapsible(False)
+        layout.addWidget(content, 1)
 
-        self._list = QListWidget()
-        self._list.setViewMode(QListWidget.IconMode)
-        self._list.setResizeMode(QListWidget.Adjust)
-        self._list.setMovement(QListWidget.Static)
-        self._list.setSpacing(scale_px(12, self._ui_scale))
-        self._list.setIconSize(QSize(self._thumb_size, self._thumb_size))
-        self._list.setGridSize(QSize(self._grid_width, self._grid_height))
-        self._list.setUniformItemSizes(True)
-        self._list.currentItemChanged.connect(self._on_item_changed)
-        splitter.addWidget(self._list)
+        list_panel = QFrame()
+        list_panel.setObjectName("panel")
+        list_layout = QVBoxLayout(list_panel)
+        list_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        list_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        detail = QWidget()
+        detail = QFrame()
+        detail.setObjectName("panel")
         detail_layout = QVBoxLayout(detail)
         detail_layout.setContentsMargins(
             scale_px(18, self._ui_scale),
@@ -519,11 +899,21 @@ class StudentViewerWindow(QMainWindow):
         )
         detail_layout.setSpacing(scale_px(12, self._ui_scale))
 
+        hero_wrap = QFrame()
+        hero_wrap.setObjectName("heroWrap")
+        hero_layout = QVBoxLayout(hero_wrap)
+        hero_layout.setContentsMargins(
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
         self._hero = QLabel()
-        self._hero.setMinimumSize(scale_px(420, self._ui_scale), scale_px(420, self._ui_scale))
+        self._hero.setMinimumSize(scale_px(320, self._ui_scale), scale_px(280, self._ui_scale))
         self._hero.setAlignment(Qt.AlignCenter)
         self._hero.setObjectName("hero")
-        detail_layout.addWidget(self._hero)
+        hero_layout.addWidget(self._hero)
+        detail_layout.addWidget(hero_wrap)
 
         self._name = QLabel("Select a student")
         self._name.setObjectName("detailName")
@@ -533,12 +923,49 @@ class StudentViewerWindow(QMainWindow):
         self._subtitle.setObjectName("detailSub")
         detail_layout.addWidget(self._subtitle)
 
-        stats = QFrame()
+        self._detail_badges = QLabel("")
+        self._detail_badges.setObjectName("badge")
+        self._detail_badges.setWordWrap(True)
+        detail_layout.addWidget(self._detail_badges)
+
+        self._detail_plan_button = QPushButton("Add To Plan")
+        self._detail_plan_button.clicked.connect(self._add_current_student_to_plan)
+        detail_layout.addWidget(self._detail_plan_button)
+
+        quick_grid = QGridLayout()
+        quick_grid.setHorizontalSpacing(scale_px(10, self._ui_scale))
+        quick_grid.setVerticalSpacing(scale_px(10, self._ui_scale))
+        self._quick_metric_labels: dict[str, QLabel] = {}
+        for index, (key, label) in enumerate(
+            (
+                ("level", "Level"),
+                ("star", "Star"),
+                ("weapon_level", "Weapon Lv"),
+                ("ex", "EX Skill"),
+                ("hp", "HP"),
+                ("atk", "ATK"),
+            )
+        ):
+            card = QFrame()
+            card.setObjectName("summaryCard")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+            card_layout.setSpacing(scale_px(4, self._ui_scale))
+            title_label = QLabel(label)
+            title_label.setObjectName("metricLabel")
+            value_label = QLabel("-")
+            value_label.setObjectName("metricValue")
+            card_layout.addWidget(title_label)
+            card_layout.addWidget(value_label)
+            self._quick_metric_labels[key] = value_label
+            quick_grid.addWidget(card, index // 3, index % 3)
+        detail_layout.addLayout(quick_grid)
+
+        stats = QGroupBox("Current Progression")
         stats_layout = QGridLayout(stats)
-        stats_layout.setContentsMargins(0, 0, 0, 0)
         stats_layout.setHorizontalSpacing(scale_px(12, self._ui_scale))
         stats_layout.setVerticalSpacing(scale_px(8, self._ui_scale))
-        self._stat_labels: dict[str, QLabel] = {}
+        self._stat_labels = {}
         stat_rows = [
             ("Level", "level"),
             ("Star", "star"),
@@ -557,68 +984,90 @@ class StudentViewerWindow(QMainWindow):
             self._stat_labels[key] = value
         detail_layout.addWidget(stats)
 
-        equips = QFrame()
+        equips = QGroupBox("Equipment & Stats")
         equip_form = QFormLayout(equips)
-        equip_form.setContentsMargins(0, 0, 0, 0)
         equip_form.setHorizontalSpacing(scale_px(14, self._ui_scale))
         equip_form.setVerticalSpacing(scale_px(8, self._ui_scale))
-        self._equip_labels: dict[str, QLabel] = {}
+        self._equip_labels = {}
         for slot in ("equip1", "equip2", "equip3", "equip4"):
             value = QLabel("-")
             value.setWordWrap(True)
             equip_form.addRow(slot.upper(), value)
             self._equip_labels[slot] = value
+        self._detail_stats_line = QLabel("-")
+        self._detail_stats_line.setObjectName("detailSub")
+        equip_form.addRow("Stats", self._detail_stats_line)
         detail_layout.addWidget(equips)
-        detail_layout.addStretch(1)
+        self._list = QListWidget()
+        self._list.setViewMode(QListWidget.IconMode)
+        self._list.setResizeMode(QListWidget.Adjust)
+        self._list.setMovement(QListWidget.Static)
+        self._list.setMouseTracking(True)
+        self._list.viewport().setMouseTracking(True)
+        self._list.setSpacing(scale_px(8, self._ui_scale))
+        self._list.setIconSize(QSize(self._thumb_size, self._thumb_size))
+        self._list.setGridSize(QSize(self._grid_width, self._grid_height))
+        self._list.setUniformItemSizes(True)
+        self._list.setItemDelegate(StudentCardDelegate(self._ui_scale, self._list))
+        self._list.currentItemChanged.connect(self._on_item_changed)
+        list_layout.addWidget(self._list, 1)
 
-        splitter.addWidget(detail)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
+        detail.setMinimumWidth(scale_px(420, self._ui_scale))
+        content.addWidget(list_panel)
+        content.addWidget(detail)
+        content.setStretchFactor(0, 3)
+        content.setStretchFactor(1, 2)
 
-        plan_tab = QWidget()
-        tabs.addTab(plan_tab, "Plan")
-        self._build_plan_tab(plan_tab)
+    def _build_stats_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
 
-        self.setStyleSheet(
-            f"""
-            QMainWindow, QWidget {{ background: #0b1118; color: #d8e7f3; }}
-            QFrame#header {{ background: #101a24; border: 1px solid #1b2a38; border-radius: {scale_px(12, self._ui_scale)}px; }}
-            QLabel#title {{ font-size: {scale_px(22, self._ui_scale)}px; font-weight: 700; color: #73c0ff; }}
-            QLabel#count {{ color: #7b95aa; }}
-            QLabel#filterSummary {{ color: #7b95aa; padding-left: {scale_px(4, self._ui_scale)}px; }}
-            QLineEdit, QComboBox, QPushButton {{
-                background: #16212d;
-                border: 1px solid #243648;
-                border-radius: {scale_px(9, self._ui_scale)}px;
-                padding: {scale_px(8, self._ui_scale)}px {scale_px(10, self._ui_scale)}px;
-                min-height: {scale_px(22, self._ui_scale)}px;
-            }}
-            QListWidget {{
-                background: #0e1620;
-                border: 1px solid #1b2a38;
-                border-radius: {scale_px(12, self._ui_scale)}px;
-                padding: {scale_px(10, self._ui_scale)}px;
-            }}
-            QListWidget::item {{
-                background: #121c27;
-                border: 1px solid #223241;
-                border-radius: {scale_px(12, self._ui_scale)}px;
-                padding: {scale_px(10, self._ui_scale)}px;
-            }}
-            QListWidget::item:selected {{
-                background: #173047;
-                border: 1px solid #5ab3ff;
-            }}
-            QLabel#hero {{
-                background: #101a24;
-                border: 1px solid #1b2a38;
-                border-radius: {scale_px(16, self._ui_scale)}px;
-            }}
-            QLabel#detailName {{ font-size: {scale_px(28, self._ui_scale)}px; font-weight: 700; }}
-            QLabel#detailSub {{ color: #7b95aa; }}
-            QLabel#statValue {{ color: #84d0ff; font-weight: 600; }}
-            """
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
         )
+        title = QLabel("Collection Statistics")
+        title.setObjectName("title")
+        subtitle = QLabel("Use ring summaries to compare ownership, roles, schools, and combat composition at a glance.")
+        subtitle.setObjectName("count")
+        header_layout.addWidget(title)
+        header_layout.addWidget(subtitle)
+        layout.addWidget(header)
+
+        self._stats_summary_line = QLabel("")
+        self._stats_summary_line.setObjectName("filterSummary")
+        layout.addWidget(self._stats_summary_line)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host = QWidget()
+        host_layout = QVBoxLayout(host)
+        host_layout.setContentsMargins(0, 0, 0, 0)
+        host_layout.setSpacing(scale_px(12, self._ui_scale))
+
+        self._stats_summary_host = QWidget()
+        self._stats_summary_cards = QGridLayout(self._stats_summary_host)
+        self._stats_summary_cards.setContentsMargins(0, 0, 0, 0)
+        self._stats_summary_cards.setHorizontalSpacing(scale_px(12, self._ui_scale))
+        self._stats_summary_cards.setVerticalSpacing(scale_px(12, self._ui_scale))
+        host_layout.addWidget(self._stats_summary_host)
+
+        cards_wrap = QWidget()
+        self._stats_cards_layout = QGridLayout(cards_wrap)
+        self._stats_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._stats_cards_layout.setHorizontalSpacing(scale_px(12, self._ui_scale))
+        self._stats_cards_layout.setVerticalSpacing(scale_px(12, self._ui_scale))
+        host_layout.addWidget(cards_wrap)
+        host_layout.addStretch(1)
+        scroll.setWidget(host)
+        layout.addWidget(scroll, 1)
 
     def _build_plan_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -636,11 +1085,11 @@ class StudentViewerWindow(QMainWindow):
         )
         header_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        title = QLabel("Growth Planner")
+        title = QLabel("Plan Workspace")
         title.setObjectName("title")
         header_layout.addWidget(title)
 
-        summary = QLabel("Choose any student, including unowned, and set target growth values.")
+        summary = QLabel("Add students, define target growth, and review required resources in one place.")
         summary.setObjectName("count")
         header_layout.addWidget(summary, 1)
 
@@ -653,11 +1102,14 @@ class StudentViewerWindow(QMainWindow):
         splitter = QSplitter(Qt.Horizontal)
         layout.addWidget(splitter, 1)
 
-        all_panel = QWidget()
+        all_panel = QFrame()
+        all_panel.setObjectName("panel")
         all_layout = QVBoxLayout(all_panel)
-        all_layout.setContentsMargins(0, 0, 0, 0)
+        all_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
         all_layout.setSpacing(scale_px(10, self._ui_scale))
-        all_layout.addWidget(QLabel("All students"))
+        title_all = QLabel("Student Library")
+        title_all.setObjectName("sectionTitle")
+        all_layout.addWidget(title_all)
         self._plan_all_list = QListWidget()
         self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
         all_layout.addWidget(self._plan_all_list, 1)
@@ -666,11 +1118,14 @@ class StudentViewerWindow(QMainWindow):
         all_layout.addWidget(add_button)
         splitter.addWidget(all_panel)
 
-        plan_panel = QWidget()
+        plan_panel = QFrame()
+        plan_panel.setObjectName("panel")
         plan_layout = QVBoxLayout(plan_panel)
-        plan_layout.setContentsMargins(0, 0, 0, 0)
+        plan_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
         plan_layout.setSpacing(scale_px(10, self._ui_scale))
-        plan_layout.addWidget(QLabel("Planned students"))
+        title_plan = QLabel("Planned Students")
+        title_plan.setObjectName("sectionTitle")
+        plan_layout.addWidget(title_plan)
         self._plan_list = QListWidget()
         self._plan_list.currentItemChanged.connect(self._on_plan_item_changed)
         plan_layout.addWidget(self._plan_list, 1)
@@ -684,9 +1139,10 @@ class StudentViewerWindow(QMainWindow):
         plan_layout.addLayout(plan_buttons)
         splitter.addWidget(plan_panel)
 
-        editor_panel = QWidget()
+        editor_panel = QFrame()
+        editor_panel.setObjectName("panel")
         editor_layout = QVBoxLayout(editor_panel)
-        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setContentsMargins(scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale))
         editor_layout.setSpacing(scale_px(10, self._ui_scale))
 
         self._plan_name = QLabel("Select a student")
@@ -697,45 +1153,74 @@ class StudentViewerWindow(QMainWindow):
         self._plan_current.setObjectName("detailSub")
         editor_layout.addWidget(self._plan_current)
 
-        form_frame = QFrame()
-        form = QFormLayout(form_frame)
-        form.setContentsMargins(0, 0, 0, 0)
-        form.setHorizontalSpacing(scale_px(14, self._ui_scale))
-        form.setVerticalSpacing(scale_px(8, self._ui_scale))
-        for field_name, label, minimum, maximum in (
-            ("target_level", "Target Level", 0, 100),
-            ("target_star", "Target Star", 0, MAX_TARGET_STAR),
-            ("target_ex_skill", "Target EX", 0, 5),
-            ("target_skill1", "Target Skill 1", 0, 10),
-            ("target_skill2", "Target Skill 2", 0, 10),
-            ("target_skill3", "Target Skill 3", 0, 10),
-            ("target_weapon_level", "Target Weapon Lv", 0, 90),
-            ("target_weapon_star", "Target Weapon Star", 0, 4),
-            ("target_equip1_tier", "Target Equip 1", 0, 10),
-            ("target_equip2_tier", "Target Equip 2", 0, 10),
-            ("target_equip3_tier", "Target Equip 3", 0, 10),
-            ("target_stat_hp", "Target Stat HP", 0, 25),
-            ("target_stat_atk", "Target Stat ATK", 0, 25),
-            ("target_stat_heal", "Target Stat HEAL", 0, 25),
-        ):
-            spin = QSpinBox()
-            spin.setRange(minimum, maximum)
-            spin.setSpecialValueText("-")
-            spin.valueChanged.connect(self._on_plan_editor_changed)
-            self._plan_inputs[field_name] = spin
-            form.addRow(label, spin)
-        editor_layout.addWidget(form_frame)
+        form_wrap = QWidget()
+        form_wrap_layout = QGridLayout(form_wrap)
+        form_wrap_layout.setContentsMargins(0, 0, 0, 0)
+        form_wrap_layout.setHorizontalSpacing(scale_px(12, self._ui_scale))
+        form_wrap_layout.setVerticalSpacing(scale_px(12, self._ui_scale))
 
+        sections = (
+            (
+                "Progression",
+                (
+                    ("target_level", "Target Level", 0, 100),
+                    ("target_star", "Target Star", 0, MAX_TARGET_STAR),
+                    ("target_ex_skill", "Target EX", 0, 5),
+                    ("target_weapon_level", "Target Weapon Lv", 0, 90),
+                    ("target_weapon_star", "Target Weapon Star", 0, 4),
+                ),
+            ),
+            (
+                "Skills",
+                (
+                    ("target_skill1", "Target Skill 1", 0, 10),
+                    ("target_skill2", "Target Skill 2", 0, 10),
+                    ("target_skill3", "Target Skill 3", 0, 10),
+                ),
+            ),
+            (
+                "Equipment",
+                (
+                    ("target_equip1_tier", "Target Equip 1", 0, 10),
+                    ("target_equip2_tier", "Target Equip 2", 0, 10),
+                    ("target_equip3_tier", "Target Equip 3", 0, 10),
+                ),
+            ),
+            (
+                "Stats",
+                (
+                    ("target_stat_hp", "Target Stat HP", 0, 25),
+                    ("target_stat_atk", "Target Stat ATK", 0, 25),
+                    ("target_stat_heal", "Target Stat HEAL", 0, 25),
+                ),
+            ),
+        )
+        for index, (section_title, fields) in enumerate(sections):
+            box = QGroupBox(section_title)
+            form = QFormLayout(box)
+            form.setHorizontalSpacing(scale_px(14, self._ui_scale))
+            form.setVerticalSpacing(scale_px(8, self._ui_scale))
+            for field_name, label, minimum, maximum in fields:
+                spin = QSpinBox()
+                spin.setRange(minimum, maximum)
+                spin.setSpecialValueText("-")
+                spin.valueChanged.connect(self._on_plan_editor_changed)
+                self._plan_inputs[field_name] = spin
+                form.addRow(label, spin)
+            form_wrap_layout.addWidget(box, index // 2, index % 2)
+        editor_layout.addWidget(form_wrap)
+
+        student_result_box = QGroupBox("Selected Student Resource Summary")
+        student_result_layout = QVBoxLayout(student_result_box)
         self._plan_student_summary = QLabel("No student selected")
         self._plan_student_summary.setWordWrap(True)
         self._plan_student_summary.setObjectName("filterSummary")
-        editor_layout.addWidget(self._plan_student_summary)
+        student_result_layout.addWidget(self._plan_student_summary)
+        editor_layout.addWidget(student_result_box)
 
-        totals_frame = QFrame()
+        totals_frame = QGroupBox("Total Resources")
         totals_layout = QVBoxLayout(totals_frame)
-        totals_layout.setContentsMargins(0, 0, 0, 0)
         totals_layout.setSpacing(scale_px(8, self._ui_scale))
-        totals_layout.addWidget(QLabel("Plan totals"))
         self._plan_total_summary = QLabel("")
         self._plan_total_summary.setWordWrap(True)
         totals_layout.addWidget(self._plan_total_summary)
@@ -906,6 +1391,16 @@ class StudentViewerWindow(QMainWindow):
         summary = calculate_goal_cost(record, goal)
         self._plan_student_summary.setText(self._format_cost_summary(summary))
 
+    def _add_current_student_to_plan(self) -> None:
+        student_id = self._current_student_id()
+        if not student_id:
+            return
+        self._get_or_create_goal(student_id)
+        self._selected_plan_student_id = student_id
+        self._save_plan()
+        self._refresh_plan_lists()
+        self._refresh_plan_totals()
+
     def _refresh_plan_totals(self) -> None:
         if not hasattr(self, "_plan_total_summary"):
             return
@@ -913,6 +1408,95 @@ class StudentViewerWindow(QMainWindow):
         self._plan_total_summary.setText(
             f"{len(self._plan.goals)} students in plan\n{self._format_cost_summary(total)}"
         )
+
+    def _refresh_stats_tab(self) -> None:
+        if self._stats_cards_layout is None or self._stats_summary_host is None:
+            return
+
+        while self._stats_summary_cards.count():
+            item = self._stats_summary_cards.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        while self._stats_cards_layout.count():
+            item = self._stats_cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        total = len(self._filtered_students)
+        owned = sum(1 for record in self._filtered_students if record.owned)
+        planned = sum(1 for record in self._filtered_students if record.student_id in self._plan_goal_map())
+        avg_level = round(sum((record.level or 0) for record in self._filtered_students if record.owned) / max(1, owned), 1) if owned else 0
+        avg_star = round(sum(record.star for record in self._filtered_students if record.owned) / max(1, owned), 1) if owned else 0
+
+        summary_cards = (
+            ("Visible Students", str(total), "Current filtered collection"),
+            ("Owned Students", str(owned), "Owned among visible students"),
+            ("Planned Students", str(planned), "Already added to planner"),
+            ("Average Level", f"{avg_level}", "Owned students only"),
+            ("Average Star", f"{avg_star}", "Owned students only"),
+        )
+        for index, (label, value, sub) in enumerate(summary_cards):
+            card = QFrame()
+            card.setObjectName("summaryCard")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
+            text_label = QLabel(label)
+            text_label.setObjectName("metricLabel")
+            value_label = QLabel(value)
+            value_label.setObjectName("metricValue")
+            sub_label = QLabel(sub)
+            sub_label.setObjectName("kpiValueSub")
+            card_layout.addWidget(text_label)
+            card_layout.addWidget(value_label)
+            card_layout.addWidget(sub_label)
+            self._stats_summary_cards.addWidget(card, 0, index)
+
+        self._stats_summary_line.setText(f"Statistics reflect the {len(self._filtered_students)} students currently visible in the Students tab.")
+
+        chart_specs = (
+            ("Ownership", "owned"),
+            ("School Distribution", "school"),
+            ("Combat Class", "combat_class"),
+            ("Attack Type", "attack_type"),
+            ("Defense Type", "defense_type"),
+            ("Role Distribution", "role"),
+        )
+        for index, (title, field_name) in enumerate(chart_specs):
+            rows = build_distribution(self._filtered_students, field_name)
+            card = QFrame()
+            card.setObjectName("statPanel")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale))
+            card_layout.setSpacing(scale_px(10, self._ui_scale))
+            title_label = QLabel(title)
+            title_label.setObjectName("sectionTitle")
+            card_layout.addWidget(title_label)
+            if rows:
+                top = rows[0]
+                top_wrap = QHBoxLayout()
+                donut = DonutWidget(top.percent, top.color, f"{top.percent:.0f}%", self._ui_scale)
+                top_wrap.addWidget(donut, 0, Qt.AlignLeft | Qt.AlignVCenter)
+                top_text = QVBoxLayout()
+                main_label = QLabel(top.label)
+                main_label.setObjectName("metricValue")
+                count_label = QLabel(f"{top.count} students")
+                count_label.setObjectName("detailSub")
+                top_text.addWidget(main_label)
+                top_text.addWidget(count_label)
+                top_wrap.addLayout(top_text, 1)
+                card_layout.addLayout(top_wrap)
+                for row in rows[:4]:
+                    row_label = QLabel(f"{row.label}  ·  {row.count}  ·  {row.percent:.1f}%")
+                    row_label.setObjectName("detailSub")
+                    card_layout.addWidget(row_label)
+            else:
+                empty = QLabel("No data available for this distribution.")
+                empty.setObjectName("detailSub")
+                card_layout.addWidget(empty)
+            self._stats_cards_layout.addWidget(card, index // 2, index % 2)
 
     def _format_cost_summary(self, summary: PlanCostSummary) -> str:
         lines = [
@@ -945,6 +1529,7 @@ class StudentViewerWindow(QMainWindow):
         self._apply_filters()
         self._refresh_plan_lists()
         self._refresh_plan_totals()
+        self._refresh_stats_tab()
 
     def _apply_filters(self) -> None:
         query = self._search.text().strip().lower()
@@ -971,16 +1556,13 @@ class StudentViewerWindow(QMainWindow):
         active_count = active_filter_count(self._selected_filters)
         self._filter_button.setText(f"Filters ({active_count})" if active_count else "Filters")
         self._rebuild_list()
+        self._refresh_stats_tab()
 
     def _open_filter_dialog(self) -> None:
         dialog = FilterDialog(self, self._filter_options, self._selected_filters, self._ui_scale)
         if dialog.exec() == QDialog.Accepted:
             self._selected_filters = dialog.selected_filters()
             self._apply_filters()
-
-    def _open_stats_dialog(self) -> None:
-        dialog = StatsDialog(self, self._filtered_students, self._ui_scale)
-        dialog.exec()
 
     def _rebuild_list(self) -> None:
         selected_id = self._current_student_id()
@@ -989,17 +1571,15 @@ class StudentViewerWindow(QMainWindow):
         self._thumb_loading.clear()
 
         for record in self._filtered_students:
-            subtitle = f"Lv.{record.level or '-'}  {'*' * record.star}" if record.owned else "Not owned"
-            icon = self._placeholder_icon if record.owned else self._unowned_icon(record.student_id)
-            item = QListWidgetItem(icon, f"{record.title}\n{subtitle}")
+            icon = self._placeholder_icon
+            item = QListWidgetItem(icon, "")
             item.setData(Qt.UserRole, record.student_id)
+            item.setData(CARD_ROLE, record)
             item.setToolTip(record.student_id)
-            if not record.owned:
-                item.setForeground(QColor("#7b95aa"))
+            item.setSizeHint(QSize(scale_px(220, self._ui_scale), scale_px(260, self._ui_scale)))
             self._list.addItem(item)
             self._item_by_id[record.student_id] = item
-            if record.owned:
-                self._queue_thumb(record.student_id)
+            self._queue_thumb(record.student_id)
 
         owned_count = sum(1 for record in self._all_students if record.owned)
         self._count_label.setText(f"{len(self._filtered_students)} shown / {len(self._all_students)} total ({owned_count} owned)")
@@ -1045,6 +1625,9 @@ class StudentViewerWindow(QMainWindow):
     def _populate_detail(self, record: StudentRecord) -> None:
         self._name.setText(record.title)
         self._subtitle.setText(f"{record.student_id}  |  {'Owned' if record.owned else 'Not owned'}")
+        badges = [record.school or "Unknown", record.combat_class or "-", record.attack_type or "-", f"Star {record.star or 0}"]
+        self._detail_badges.setText("   ".join(badges))
+        self._detail_plan_button.setText("Open In Plan" if record.student_id in self._plan_goal_map() else "Add To Plan")
         self._stat_labels["level"].setText(str(record.level or "-") if record.owned else "")
         self._stat_labels["star"].setText(str(record.star or "-") if record.owned else "")
         self._stat_labels["weapon"].setText(record.weapon_state or "-" if record.owned else "")
@@ -1053,11 +1636,22 @@ class StudentViewerWindow(QMainWindow):
         self._stat_labels["s1"].setText(str(record.skill1 or "-") if record.owned else "")
         self._stat_labels["s2"].setText(str(record.skill2 or "-") if record.owned else "")
         self._stat_labels["s3"].setText(str(record.skill3 or "-") if record.owned else "")
+        self._quick_metric_labels["level"].setText(str(record.level or "-") if record.owned else "-")
+        self._quick_metric_labels["star"].setText(str(record.star or "-") if record.owned else "-")
+        self._quick_metric_labels["weapon_level"].setText(str(record.weapon_level or "-") if record.owned else "-")
+        self._quick_metric_labels["ex"].setText(str(record.ex_skill or "-") if record.owned else "-")
+        self._quick_metric_labels["hp"].setText(f"{record.stat_hp or 0:,}" if record.owned else "-")
+        self._quick_metric_labels["atk"].setText(f"{record.stat_atk or 0:,}" if record.owned else "-")
 
         self._equip_labels["equip1"].setText(self._equip_text(record.equip1, record.equip1_level) if record.owned else "")
         self._equip_labels["equip2"].setText(self._equip_text(record.equip2, record.equip2_level) if record.owned else "")
         self._equip_labels["equip3"].setText(self._equip_text(record.equip3, record.equip3_level) if record.owned else "")
         self._equip_labels["equip4"].setText((record.equip4 or "-") if record.owned else "")
+        self._detail_stats_line.setText(
+            f"HP {record.stat_hp or 0:,}   |   ATK {record.stat_atk or 0:,}   |   HEAL {record.stat_heal or 0:,}"
+            if record.owned
+            else "No progression data available"
+        )
 
         hero_path = portrait_path(record.student_id)
         if hero_path and hero_path.exists():
@@ -1084,10 +1678,15 @@ class StudentViewerWindow(QMainWindow):
     def _clear_detail(self) -> None:
         self._name.setText("Select a student")
         self._subtitle.setText("")
+        self._detail_badges.setText("")
+        self._detail_plan_button.setText("Add To Plan")
         for label in self._stat_labels.values():
+            label.setText("-")
+        for label in self._quick_metric_labels.values():
             label.setText("-")
         for label in self._equip_labels.values():
             label.setText("-")
+        self._detail_stats_line.setText("-")
         self._hero.setPixmap(QPixmap())
         self._hero.setText("No selection")
 
