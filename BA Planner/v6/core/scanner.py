@@ -101,8 +101,12 @@ DETAIL_READY_WAIT    = 6.0
 DETAIL_READY_STABLE_POLLS = 2
 LOBBY_EXIT_WAIT      = 5.5
 MENU_CLICK_SETTLE_WAIT = 1.2
-FIRST_STUDENT_PRECLICK_WAIT = 0.3
+STUDENT_MENU_READY_STABLE_POLLS = 2
+STUDENT_MENU_READY_SETTLE_WAIT = 0.45
+FIRST_STUDENT_PRECLICK_WAIT = 0.45
 DETAIL_CLICK_SETTLE_WAIT = 1.0
+PANEL_CLOSE_SETTLE_WAIT = 0.50
+BASIC_TAB_SETTLE_WAIT = 0.40
 
 # retry 정책
 RETRY_IDENTIFY   = 2      # 학생 식별 최대 시도
@@ -867,13 +871,21 @@ class Scanner:
         if initial_wait > 0 and not self._wait(initial_wait):
             return False
         deadline = time.monotonic() + timeout
+        ready_streak = 0
         while time.monotonic() < deadline:
             if self._stop_requested():
                 return False
             img = self._capture()
-            if img is not None and self._is_student_menu_capture(img) == expected_in_student_menu:
+            matches = img is not None and self._is_student_menu_capture(img) == expected_in_student_menu
+            if matches:
+                ready_streak += 1
+                if ready_streak < STUDENT_MENU_READY_STABLE_POLLS:
+                    if not self._wait(poll):
+                        return False
+                    continue
                 self._invalidate_student_basic_capture()
                 return True
+            ready_streak = 0
             if not self._wait(poll):
                 return False
         return False
@@ -991,7 +1003,7 @@ class Scanner:
                 return False
         return ok
 
-    def _esc(self, n: int = 1, delay: float = DELAY_ESC) -> None:
+    def _esc(self, n: int = 1, delay: float = PANEL_CLOSE_SETTLE_WAIT) -> None:
         """ESC n회 전송."""
         hwnd = self._hwnd()
         for _ in range(n):
@@ -1007,7 +1019,7 @@ class Scanner:
         sr = self.r["student"]
         if "basic_info_button" in sr:
             self._click_r(sr["basic_info_button"], "basic_info_tab")
-            self._wait(0.3)
+            self._wait(BASIC_TAB_SETTLE_WAIT)
         else:
             self._esc()
 
@@ -1476,7 +1488,7 @@ class Scanner:
                 timeout=LOBBY_EXIT_WAIT,
                 initial_wait=MENU_CLICK_SETTLE_WAIT,
             ):
-                return self._wait(0.6)
+                return self._wait(STUDENT_MENU_READY_SETTLE_WAIT)
             if attempt < len(attempts):
                 self.log(f"  학생 메뉴 재시도... ({attempt+1}/{len(attempts)})")
         return False

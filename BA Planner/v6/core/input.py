@@ -51,12 +51,50 @@ WM_KEYUP       = 0x0101
 MK_LBUTTON     = 0x0001
 VK_ESCAPE      = 0x1B
 WHEEL_DELTA    = 120        # Windows 표준 휠 단위
+SW_RESTORE     = 9
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP   = 0x0004
+INPUT_MOUSE          = 0
 
 # ── Win32 API ─────────────────────────────────────────────
 _u32 = ctypes.windll.user32
+ULONG_PTR = wintypes.WPARAM
 
 class _POINT(ctypes.Structure):
     _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class _INPUT_UNION(ctypes.Union):
+    _fields_ = [("mi", _MOUSEINPUT)]
+
+
+class _INPUT(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("type", wintypes.DWORD), ("u", _INPUT_UNION)]
+
+
+DEBUG_CLICK_METHODS: list[tuple[str, str]] = [
+    ("postmessage", "PostMessage"),
+    ("pag", "pyautogui.click"),
+    ("activate_pag", "Activate + pyautogui.click"),
+    ("downup", "pyautogui down/up"),
+    ("activate_downup", "Activate + down/up"),
+    ("mouse_event", "mouse_event"),
+    ("activate_mouse_event", "Activate + mouse_event"),
+    ("sendinput", "SendInput"),
+    ("activate_sendinput", "Activate + SendInput"),
+]
 
 # ── 금지 구역 (비율 좌표) ─────────────────────────────────
 # capture.py 와 동일 목록 유지
@@ -171,6 +209,47 @@ def _pag_click(sx: int, sy: int) -> bool:
         return False
 
 
+def _pag_click_downup(sx: int, sy: int) -> bool:
+    if not HAS_PAG:
+        return False
+    try:
+        _pag.moveTo(sx, sy, duration=0.05)
+        _pag.mouseDown()
+        time.sleep(0.03)
+        _pag.mouseUp()
+        return True
+    except Exception as e:
+        _log.warning(f"pyautogui down/up 실패: {e}")
+        return False
+
+
+def _mouse_event_click(sx: int, sy: int) -> bool:
+    try:
+        _u32.SetCursorPos(int(sx), int(sy))
+        _u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+        time.sleep(0.03)
+        _u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        return True
+    except Exception as e:
+        _log.warning(f"mouse_event click 실패: {e}")
+        return False
+
+
+def _sendinput_click(sx: int, sy: int) -> bool:
+    try:
+        _u32.SetCursorPos(int(sx), int(sy))
+        inputs = (_INPUT * 2)()
+        inputs[0].type = INPUT_MOUSE
+        inputs[0].mi = _MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, 0)
+        inputs[1].type = INPUT_MOUSE
+        inputs[1].mi = _MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, 0)
+        sent = _u32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(_INPUT))
+        return sent == 2
+    except Exception as e:
+        _log.warning(f"SendInput click 실패: {e}")
+        return False
+
+
 def _pag_scroll(sx: int, sy: int, amount: int) -> bool:
     if not HAS_PAG:
         return False
@@ -201,6 +280,72 @@ def _can_use_physical_fallback(hwnd: int) -> bool:
         _log.debug("minimized target: skip physical input fallback")
         return False
     return True
+
+
+def _activate_window(hwnd: int) -> bool:
+    """Bring the target window to the foreground before a physical click."""
+    try:
+        _u32.ShowWindow(hwnd, SW_RESTORE)
+        _u32.BringWindowToTop(hwnd)
+        _u32.SetForegroundWindow(hwnd)
+        _u32.SetActiveWindow(hwnd)
+        return True
+    except Exception as e:
+        _log.debug(f"window activate failed: {e}")
+        return False
+
+
+def get_cursor_pos() -> Optional[tuple[int, int]]:
+    pt = _POINT()
+    if _u32.GetCursorPos(ctypes.byref(pt)):
+        return pt.x, pt.y
+    return None
+
+
+def debug_click_screen(
+    hwnd: int,
+    sx: int,
+    sy: int,
+    *,
+    method: str,
+    label: str = "",
+    delay: float = 0.0,
+) -> bool:
+    """Run one explicit click strategy against a screen position for debugging."""
+    needs_activate = method.startswith("activate_")
+    base_method = method[len("activate_"):] if needs_activate else method
+
+    if needs_activate and _can_use_physical_fallback(hwnd):
+        activated = _activate_window(hwnd)
+        _log.debug(f"debug activate window ({label}) ok={activated}")
+        time.sleep(0.05)
+
+    client = screen_to_client(hwnd, sx, sy)
+    ok = False
+    if base_method == "postmessage":
+        if client is None:
+            _log.debug(f"debug click skipped ({label}) - cursor outside target window")
+            ok = False
+        else:
+            ok = _post_click(hwnd, client[0], client[1])
+    elif base_method == "pag":
+        ok = _pag_click(sx, sy)
+    elif base_method == "downup":
+        ok = _pag_click_downup(sx, sy)
+    elif base_method == "mouse_event":
+        ok = _mouse_event_click(sx, sy)
+    elif base_method == "sendinput":
+        ok = _sendinput_click(sx, sy)
+    else:
+        raise ValueError(f"unknown debug click method: {method}")
+
+    _log.debug(
+        f"debug click ({label}) method={method} screen=({sx},{sy}) "
+        f"client={client} ok={ok}"
+    )
+    if delay > 0:
+        time.sleep(delay)
+    return ok
 
 
 # ══════════════════════════════════════════════════════════
@@ -253,22 +398,11 @@ def click_point(
     delay: float = 0.0,
 ) -> bool:
     """
-    Visible windows use a real screen click first because some games ignore
-    queued mouse messages even when PostMessage reports success.
+    Use PostMessage only. The scanner now relies on HWND-directed input so
+    overlay layers and cursor focus do not affect click delivery.
     """
-    ok = False
-    if _can_use_physical_fallback(hwnd):
-        sx, sy = cx, cy
-        converted = client_to_screen(hwnd, cx, cy)
-        if converted:
-            sx, sy = converted
-        _log.debug(f"physical click ({label}) screen=({sx},{sy})")
-        ok = _pag_click(sx, sy)
-        if not ok:
-            _log.debug(f"physical click failed -> PostMessage fallback ({label})")
-            ok = _post_click(hwnd, cx, cy)
-    else:
-        ok = _post_click(hwnd, cx, cy)
+    ok = _post_click(hwnd, cx, cy)
+    _log.debug(f"postmessage click ({label}) client=({cx},{cy}) ok={ok}")
 
     if delay > 0:
         time.sleep(delay)
@@ -324,13 +458,7 @@ def send_escape(
     delay : 전송 후 대기 시간 (초)
     """
     ok = _post_escape(hwnd)
-    if not ok:
-        if not _can_use_physical_fallback(hwnd):
-            if delay > 0:
-                time.sleep(delay)
-            return False
-        _log.debug("ESC PostMessage 실패 → pyautogui fallback")
-        ok = _pag_escape()
+    _log.debug(f"postmessage escape ok={ok}")
 
     if delay > 0:
         time.sleep(delay)
@@ -360,16 +488,9 @@ def scroll(
     """
     cx, cy = ratio_to_client(rect, rx, ry)
     ok = _post_scroll(hwnd, cx, cy, amount)
-
-    if not ok:
-        if not _can_use_physical_fallback(hwnd):
-            if delay > 0:
-                time.sleep(delay)
-            return False
-        _log.debug("scroll PostMessage 실패 → pyautogui fallback")
-        converted = client_to_screen(hwnd, cx, cy)
-        sx, sy = converted if converted else (cx, cy)
-        ok = _pag_scroll(sx, sy, amount)
+    _log.debug(
+        f"postmessage scroll client=({cx},{cy}) amount={amount} ok={ok}"
+    )
 
     if delay > 0:
         time.sleep(delay)

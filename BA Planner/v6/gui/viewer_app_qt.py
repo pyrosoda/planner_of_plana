@@ -19,7 +19,7 @@ import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
-from PySide6.QtCore import QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -228,10 +228,14 @@ def _role_label(role: str | None) -> str:
 
 def _attack_color(attack_type: str | None) -> str:
     mapping = {
-        "Explosive": "#731c25",
-        "Piercing": "#c3b37b",
-        "Mystic": "#a5c7da",
-        "Sonic": "#ae78b4",
+        "Explosive": "#920008",
+        "Piercing": "#bd8901",
+        "Mystic": "#226f9b",
+        "Sonic": "#9945a8",
+        "Break": "#228b22",
+        "Demolition": "#228b22",
+        "Disassembly": "#228b22",
+        "Composite": "#228b22",
     }
     return mapping.get((attack_type or "").strip(), "#5c6ea8")
 
@@ -242,7 +246,7 @@ def _defense_accent_color(defense_type: str | None) -> str:
         "Heavy": _attack_color("Piercing"),
         "Special": _attack_color("Mystic"),
         "Elastic": _attack_color("Sonic"),
-        "Composite": "#458e8e",
+        "Composite": "#228b22",
     }
     return mapping.get((defense_type or "").strip(), BORDER)
 
@@ -473,7 +477,7 @@ def _make_dimmed_pixmap(pixmap: QPixmap, width: int, height: int, fill: str | No
 
 
 class ThumbSignals(QObject):
-    loaded = Signal(str, str)
+    loaded = Signal(str, str, int, int)
 
 
 class ThumbTask(QRunnable):
@@ -486,7 +490,7 @@ class ThumbTask(QRunnable):
 
     def run(self) -> None:
         path = ensure_thumbnail(self.student_id, self.width, self.height)
-        self.signals.loaded.emit(self.student_id, str(path) if path else "")
+        self.signals.loaded.emit(self.student_id, str(path) if path else "", self.width, self.height)
 
 
 class FilterDialog(QDialog):
@@ -592,7 +596,10 @@ class StudentViewerWindow(QMainWindow):
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, StudentCardWidget] = {}
-        self._thumb_loading: set[str] = set()
+        self._thumb_loading: set[tuple[str, int, int]] = set()
+        self._pending_thumb_requests: list[tuple[str, int, int]] = []
+        self._pending_thumb_lookup: set[tuple[str, int, int]] = set()
+        self._thumb_batch_size = 16
         self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
         self._unowned_icon_cache: dict[str, QIcon] = {}
         self._large_pixmap: QPixmap | None = None
@@ -607,6 +614,10 @@ class StudentViewerWindow(QMainWindow):
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
         self._card_layout_guard = False
+        self._thumb_pump = QTimer(self)
+        self._thumb_pump.setSingleShot(False)
+        self._thumb_pump.setInterval(0)
+        self._thumb_pump.timeout.connect(self._drain_thumb_queue)
 
         self._build_ui()
         self._apply_filters()
@@ -1028,9 +1039,9 @@ class StudentViewerWindow(QMainWindow):
             self._grid_height = grid_height
             self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
             self._unowned_icon_cache.clear()
-            self._thumb_loading.clear()
+            self._clear_thumb_requests()
             for student_id in self._item_by_id:
-                self._queue_thumb(student_id)
+                self._enqueue_thumb(student_id)
         finally:
             self._card_layout_guard = False
 
@@ -1587,7 +1598,8 @@ class StudentViewerWindow(QMainWindow):
         selected_id = self._current_student_id()
         self._student_grid.clear_cards()
         self._item_by_id.clear()
-        self._thumb_loading.clear()
+        self._clear_thumb_requests()
+        cards: list[StudentCardWidget] = []
 
         for record in self._filtered_students:
             divider_primary, divider_secondary = _student_divider_colors(record)
@@ -1600,9 +1612,14 @@ class StudentViewerWindow(QMainWindow):
                 divider_right=QColor(divider_secondary),
             )
             card.setToolTip(record.student_id)
-            self._student_grid.add_card(card)
+            cards.append(card)
             self._item_by_id[record.student_id] = card
-            self._queue_thumb(record.student_id)
+
+        if cards:
+            self._student_grid.add_cards(cards)
+
+        for record in self._filtered_students:
+            self._enqueue_thumb(record.student_id)
 
         owned_count = sum(1 for record in self._all_students if record.owned)
         self._count_label.setText(f"{len(self._filtered_students)} shown / {len(self._all_students)} total ({owned_count} owned)")
@@ -1614,19 +1631,50 @@ class StudentViewerWindow(QMainWindow):
             self._student_grid.set_current_card(None)
             self._clear_detail()
 
-    def _queue_thumb(self, student_id: str) -> None:
-        if student_id in self._thumb_loading:
+    def _clear_thumb_requests(self) -> None:
+        self._thumb_pump.stop()
+        self._thumb_loading.clear()
+        self._pending_thumb_requests.clear()
+        self._pending_thumb_lookup.clear()
+
+    def _enqueue_thumb(self, student_id: str) -> None:
+        request = (student_id, self._thumb_width, self._thumb_height)
+        if request in self._thumb_loading or request in self._pending_thumb_lookup:
+            return
+        self._pending_thumb_requests.append(request)
+        self._pending_thumb_lookup.add(request)
+        if not self._thumb_pump.isActive():
+            self._thumb_pump.start()
+
+    def _drain_thumb_queue(self) -> None:
+        started = 0
+        while self._pending_thumb_requests and started < self._thumb_batch_size:
+            student_id, width, height = self._pending_thumb_requests.pop(0)
+            request = (student_id, width, height)
+            self._pending_thumb_lookup.discard(request)
+            if student_id not in self._item_by_id:
+                continue
+            self._queue_thumb(student_id, width, height)
+            started += 1
+        if not self._pending_thumb_requests:
+            self._thumb_pump.stop()
+
+    def _queue_thumb(self, student_id: str, width: int, height: int) -> None:
+        request = (student_id, width, height)
+        if request in self._thumb_loading:
             return
 
-        self._thumb_loading.add(student_id)
-        task = ThumbTask(student_id, self._thumb_width, self._thumb_height)
+        self._thumb_loading.add(request)
+        task = ThumbTask(student_id, width, height)
         task.signals.loaded.connect(self._apply_thumb)
         self._pool.start(task)
 
-    def _apply_thumb(self, student_id: str, path: str) -> None:
-        self._thumb_loading.discard(student_id)
+    def _apply_thumb(self, student_id: str, path: str, width: int, height: int) -> None:
+        self._thumb_loading.discard((student_id, width, height))
         card = self._item_by_id.get(student_id)
         if card is None or not path:
+            return
+        if width != self._thumb_width or height != self._thumb_height:
             return
 
         pixmap = QPixmap(path)

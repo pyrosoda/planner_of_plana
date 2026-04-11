@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QListWidget, QScrollArea, QSizePolicy, QWidget
+from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import QScrollArea, QSizePolicy, QWidget
 
 
 @dataclass(slots=True)
@@ -16,22 +16,26 @@ class ParallelogramCardStyle:
     outline_ratio: float = 0.02
     outline_color: QColor = field(default_factory=lambda: QColor(255, 255, 255, 84))
     hover_overlay: QColor = field(default_factory=lambda: QColor(255, 255, 255, 18))
-    selected_overlay: QColor = field(default_factory=lambda: QColor(242, 102, 179, 58))
-    selected_glow: QColor = field(default_factory=lambda: QColor(242, 102, 179, 76))
+    selected_overlay: QColor = field(default_factory=lambda: QColor(242, 102, 179, 92))
+    selected_glow: QColor = field(default_factory=lambda: QColor(255, 184, 221, 148))
+    selected_shadow: QColor = field(default_factory=lambda: QColor(242, 102, 179, 120))
+    selected_expand: int = 10
+    selected_lift_y: int = 4
     name_panel_color: QColor = field(default_factory=lambda: QColor(10, 12, 18, 196))
     name_text_color: QColor = field(default_factory=lambda: QColor("#f2f2f2"))
     unowned_overlay: QColor = field(default_factory=lambda: QColor(6, 8, 14, 118))
     grid_overlap_x: int = 18
     grid_gap_x: int = 6
     grid_gap_y: int = 10
-    panel_height: int = 32
-    panel_bottom: int = 10
+    grid_edge_padding: int = 4
+    panel_height: int = 36
+    panel_bottom: int = 0
     panel_padding_x: int = 10
     divider_height: int = 4
     unowned_badge_width: int = 68
     unowned_badge_height: int = 22
     unowned_badge_top: int = 12
-    unowned_badge_inset_left: int = 24
+    unowned_badge_inset_left: int = 12
     unowned_badge_inset_right: int = 16
 
 
@@ -43,14 +47,17 @@ def build_card_style(asset_path: str | Path, ui_scale: float = 1.0) -> Parallelo
         grid_overlap_x=max(8, int(round(18 * scale))),
         grid_gap_x=max(2, int(round(6 * scale))),
         grid_gap_y=max(6, int(round(10 * scale))),
-        panel_height=max(24, int(round(32 * scale))),
-        panel_bottom=max(6, int(round(10 * scale))),
+        grid_edge_padding=max(2, int(round(4 * scale))),
+        selected_expand=max(6, int(round(10 * scale))),
+        selected_lift_y=max(2, int(round(4 * scale))),
+        panel_height=max(28, int(round(36 * scale))),
+        panel_bottom=0,
         panel_padding_x=max(8, int(round(10 * scale))),
         divider_height=max(3, int(round(4 * scale))),
         unowned_badge_width=max(54, int(round(68 * scale))),
         unowned_badge_height=max(18, int(round(22 * scale))),
         unowned_badge_top=max(8, int(round(12 * scale))),
-        unowned_badge_inset_left=max(16, int(round(24 * scale))),
+        unowned_badge_inset_left=max(8, int(round(12 * scale))),
         unowned_badge_inset_right=max(10, int(round(16 * scale))),
     )
 
@@ -156,33 +163,31 @@ class ParallelogramCardAsset:
         if cached is not None:
             return cached
 
-        scaled = self._scaled_asset(size)
         outline = QImage(size, QImage.Format_ARGB32_Premultiplied)
         outline.fill(Qt.transparent)
-        for y in range(size.height()):
-            for x in range(size.width()):
-                if scaled.pixelColor(x, y).alpha() < self._style.hit_alpha_threshold:
-                    continue
-                is_edge = False
-                for dy in range(-thickness, thickness + 1):
-                    for dx in range(-thickness, thickness + 1):
-                        if max(abs(dx), abs(dy)) > thickness:
-                            continue
-                        nx = x + dx
-                        ny = y + dy
-                        if (
-                            nx < 0
-                            or ny < 0
-                            or nx >= size.width()
-                            or ny >= size.height()
-                            or scaled.pixelColor(nx, ny).alpha() < self._style.hit_alpha_threshold
-                        ):
-                            is_edge = True
-                            break
-                    if is_edge:
-                        break
-                if is_edge:
-                    outline.setPixelColor(x, y, self._style.outline_color)
+        rows = self._row_bounds(size)
+        top_y = 0
+        bottom_y = max(0, size.height() - 1)
+        left_top, right_top = rows[top_y]
+        left_bottom, right_bottom = rows[bottom_y]
+
+        path = QPainterPath()
+        path.moveTo(left_top + 0.5, top_y + 0.5)
+        path.lineTo(right_top + 0.5, top_y + 0.5)
+        path.lineTo(right_bottom + 0.5, bottom_y + 0.5)
+        path.lineTo(left_bottom + 0.5, bottom_y + 0.5)
+        path.closeSubpath()
+
+        painter = QPainter(outline)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        pen = QPen(self._style.outline_color, thickness)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(path)
+        painter.end()
+
+        outline = self.apply_alpha_mask(outline)
 
         self._outline_cache[key] = outline
         return outline
@@ -230,40 +235,6 @@ class ParallelogramCardAsset:
             raise FileNotFoundError(f"Unable to load card asset: {resolved}")
         cls._image_cache[resolved] = image
         return image
-
-
-class MaskedCardListWidget(QListWidget):
-    def __init__(self, card_asset: ParallelogramCardAsset, parent=None) -> None:
-        super().__init__(parent)
-        self._card_asset = card_asset
-
-    def mousePressEvent(self, event) -> None:
-        if not self._accepts_viewport_point(event.position().toPoint()):
-            event.ignore()
-            return
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event) -> None:
-        if not self._accepts_viewport_point(event.position().toPoint()):
-            event.ignore()
-            return
-        super().mouseReleaseEvent(event)
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        if not self._accepts_viewport_point(event.position().toPoint()):
-            event.ignore()
-            return
-        super().mouseDoubleClickEvent(event)
-
-    def _accepts_viewport_point(self, viewport_pos: QPoint) -> bool:
-        item = self.itemAt(viewport_pos)
-        if item is None:
-            return True
-        card_rect = self._card_asset.card_rect(self.visualItemRect(item))
-        if not card_rect.contains(viewport_pos):
-            return False
-        local_pos = viewport_pos - card_rect.topLeft()
-        return self._card_asset.contains(card_rect.size(), local_pos)
 
 
 class StudentCardWidget(QWidget):
@@ -366,9 +337,13 @@ class StudentCardWidget(QWidget):
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
 
         size = self.size()
-        shadow_alpha = 72 if self._selected else 40 if self._hovered else 0
-        if shadow_alpha:
-            shadow = self._card_asset.masked_fill(size, QColor(0, 0, 0, shadow_alpha))
+        if self._selected:
+            glow_shadow = self._card_asset.masked_fill(size, self._card_asset.style.selected_shadow)
+            painter.drawImage(QPoint(0, 2), glow_shadow)
+            shadow = self._card_asset.masked_fill(size, QColor(0, 0, 0, 86))
+            painter.drawImage(QPoint(0, 5), shadow)
+        elif self._hovered:
+            shadow = self._card_asset.masked_fill(size, QColor(0, 0, 0, 40))
             painter.drawImage(QPoint(0, 4), shadow)
 
         card_image = QImage(size, QImage.Format_ARGB32_Premultiplied)
@@ -380,12 +355,20 @@ class StudentCardWidget(QWidget):
         self._paint_portrait(card_painter)
         card_painter.drawImage(0, 0, self._card_asset.outline(size))
         self._paint_name_panel(card_painter)
+        if self._selected:
+            sheen = QLinearGradient(0, 0, 0, size.height())
+            sheen.setColorAt(0.0, QColor(255, 255, 255, 54))
+            sheen.setColorAt(0.22, QColor(255, 255, 255, 14))
+            sheen.setColorAt(0.6, QColor(255, 255, 255, 0))
+            card_painter.setCompositionMode(QPainter.CompositionMode_Screen)
+            card_painter.fillRect(card_image.rect(), sheen)
         if not self._owned:
             card_painter.fillRect(card_image.rect(), self._card_asset.style.unowned_overlay)
-            self._paint_unowned_badge(card_painter)
         card_painter.end()
 
         painter.drawImage(self.rect(), self._card_asset.apply_alpha_mask(card_image))
+        if not self._owned:
+            self._paint_unowned_badge(painter)
         painter.end()
 
     def _paint_portrait(self, painter: QPainter) -> None:
@@ -403,16 +386,7 @@ class StudentCardWidget(QWidget):
         style = self._card_asset.style
         panel_height = min(style.panel_height, max(20, self.height() // 3))
         panel_top = max(0, self.height() - panel_height - style.panel_bottom)
-        panel_bottom = min(self.height() - 1, panel_top + panel_height)
-
-        left_top, right_top = self._card_asset.row_bounds(self.size(), panel_top)
-        left_bottom, right_bottom = self._card_asset.row_bounds(self.size(), panel_bottom)
-        panel_path = QPainterPath()
-        panel_path.moveTo(left_top, panel_top)
-        panel_path.lineTo(right_top, panel_top)
-        panel_path.lineTo(right_bottom, panel_bottom)
-        panel_path.lineTo(left_bottom, panel_bottom)
-        panel_path.closeSubpath()
+        panel_bottom = max(0, self.height() - 1)
 
         divider_h = style.divider_height
         divider_top = max(0, panel_top - divider_h)
@@ -440,43 +414,62 @@ class StudentCardWidget(QWidget):
         painter.drawPath(left_divider)
         painter.setBrush(self._divider_right)
         painter.drawPath(right_divider)
-        painter.setBrush(style.name_panel_color)
-        painter.drawPath(panel_path)
 
+        panel_overlay = QImage(self.size(), QImage.Format_ARGB32_Premultiplied)
+        panel_overlay.fill(Qt.transparent)
+        overlay_painter = QPainter(panel_overlay)
+        overlay_painter.fillRect(
+            QRect(0, panel_top, self.width(), max(1, panel_bottom - panel_top + 1)),
+            style.name_panel_color,
+        )
+        overlay_painter.end()
+        painter.drawImage(0, 0, self._card_asset.apply_alpha_mask(panel_overlay))
+
+        left_top, right_top = self._card_asset.row_bounds(self.size(), panel_top)
+        left_bottom, right_bottom = self._card_asset.row_bounds(self.size(), panel_bottom)
         text_left = max(left_top, left_bottom) + style.panel_padding_x
         text_right = min(right_top, right_bottom) - style.panel_padding_x
         text_rect = QRect(text_left, panel_top + 4, max(1, text_right - text_left), max(1, panel_height - 6))
         font = QFont()
         font.setBold(True)
-        font.setPointSizeF(max(8.4, min(self.width(), self.height()) * 0.042))
+        font.setPointSizeF(max(12.6, min(self.width(), self.height()) * 0.072))
         painter.setFont(font)
         painter.setPen(style.name_text_color)
         painter.drawText(text_rect, Qt.AlignCenter | Qt.TextSingleLine, self._title)
 
     def _paint_unowned_badge(self, painter: QPainter) -> None:
         style = self._card_asset.style
-        badge_y = style.unowned_badge_top
-        left_bound, right_bound = self._card_asset.row_bounds(
-            self.size(),
-            min(self.height() - 1, badge_y + style.unowned_badge_height // 2),
+        expand = style.selected_expand if self._selected else 0
+        inset = expand // 2
+        reference_size = QSize(
+            max(1, self.width() - expand),
+            max(1, self.height() - expand),
         )
+        badge_y = inset + style.unowned_badge_top
+        sample_y = min(reference_size.height() - 1, style.unowned_badge_top + style.unowned_badge_height // 2)
+        left_bound, right_bound = self._card_asset.row_bounds(reference_size, sample_y)
         badge_x = max(style.unowned_badge_inset_left, left_bound + style.unowned_badge_inset_left)
         available_width = max(
             32,
             right_bound - badge_x - style.unowned_badge_inset_right,
         )
         badge_rect = QRect(
-            badge_x,
+            inset + badge_x,
             badge_y,
             min(style.unowned_badge_width, available_width),
             style.unowned_badge_height,
         )
+        shadow_rect = QRect(badge_rect)
+        shadow_rect.translate(0, 1)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(6, 8, 14, 186))
+        painter.setBrush(QColor(0, 0, 0, 70))
+        painter.drawRoundedRect(shadow_rect, 10, 10)
+        painter.setBrush(QColor(6, 8, 14, 222))
+        painter.setPen(QPen(QColor(255, 255, 255, 42), 1))
         painter.drawRoundedRect(badge_rect, 10, 10)
         font = QFont()
         font.setBold(True)
-        font.setPointSizeF(max(7.2, min(self.width(), self.height()) * 0.034))
+        font.setPointSizeF(max(7.2, min(reference_size.width(), reference_size.height()) * 0.034))
         painter.setFont(font)
         painter.setPen(self._card_asset.style.name_text_color)
         painter.drawText(badge_rect, Qt.AlignCenter, "UNOWNED")
@@ -510,7 +503,8 @@ class ParallelogramCardGrid(QScrollArea):
         while self._cards:
             card = self._cards.pop()
             card.deleteLater()
-        self._content.resize(0, 0)
+        edge = self._card_asset.style.grid_edge_padding
+        self._content.resize(edge * 2, edge * 2)
         self.viewport().update()
 
     def add_card(self, card: StudentCardWidget) -> None:
@@ -520,6 +514,16 @@ class ParallelogramCardGrid(QScrollArea):
         card.show()
         self._cards.append(card)
         self._card_by_id[card.student_id] = card
+        self._relayout()
+
+    def add_cards(self, cards: list[StudentCardWidget]) -> None:
+        for card in cards:
+            card.setParent(self._content)
+            card.clicked.connect(self.set_current_card)
+            card.double_clicked.connect(self.card_double_clicked)
+            card.show()
+            self._cards.append(card)
+            self._card_by_id[card.student_id] = card
         self._relayout()
 
     def current_card_id(self) -> str | None:
@@ -532,10 +536,12 @@ class ParallelogramCardGrid(QScrollArea):
         if previous in self._card_by_id:
             self._card_by_id[previous].setSelected(False)
         self._current_id = student_id
+        self._relayout()
         if student_id in self._card_by_id:
             card = self._card_by_id[student_id]
             card.setSelected(True)
             self.ensureVisible(card.x(), card.y(), card.width(), card.height())
+            card.raise_()
         self.current_changed.emit(student_id, previous)
 
     def card(self, student_id: str) -> StudentCardWidget | None:
@@ -556,7 +562,8 @@ class ParallelogramCardGrid(QScrollArea):
     def _relayout(self) -> None:
         if not self._cards:
             return
-        available_width = max(1, self.viewport().width())
+        edge = self._card_asset.style.grid_edge_padding
+        available_width = max(1, self.viewport().width() - edge * 2)
         overlap_x = self._card_asset.style.grid_overlap_x
         gap_x = self._card_asset.style.grid_gap_x
         gap_y = self._card_asset.style.grid_gap_y
@@ -581,12 +588,23 @@ class ParallelogramCardGrid(QScrollArea):
         for index, card in enumerate(self._cards):
             row = index // columns
             col = index % columns
-            x = col * advance_x
-            y = row * (card_height + gap_y)
-            card.setGeometry(x, y, card_width, card_height)
+            x = edge + col * advance_x
+            y = edge + row * (card_height + gap_y)
+            if card.student_id == self._current_id:
+                expand = self._card_asset.style.selected_expand
+                lift = self._card_asset.style.selected_lift_y
+                card.setGeometry(
+                    x - expand // 2,
+                    max(0, y - lift - expand // 2),
+                    card_width + expand,
+                    card_height + expand,
+                )
+            else:
+                card.setGeometry(x, y, card_width, card_height)
             card.raise_()
 
         rows = (len(self._cards) + columns - 1) // columns
-        content_width = card_width + max(0, columns - 1) * advance_x
-        content_height = rows * card_height + max(0, rows - 1) * gap_y
+        selected_extra = self._card_asset.style.selected_expand
+        content_width = edge * 2 + card_width + max(0, columns - 1) * advance_x + selected_extra
+        content_height = edge * 2 + rows * card_height + max(0, rows - 1) * gap_y + selected_extra + self._card_asset.style.selected_lift_y
         self._content.resize(content_width, content_height)

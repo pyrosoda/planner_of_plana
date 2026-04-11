@@ -30,25 +30,43 @@ FLOAT_RX = 0.018
 FLOAT_RY = 0.45
 CIRCLE_D = 60
 EXPAND_W = 230
-EXPAND_H = 300
+EXPAND_H = 380
 SCAN_CARD_W = 360
 SCAN_CARD_H = 150
 
 GWL_EXSTYLE = -20
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
+SWP_FRAMECHANGED = 0x0020
+
+_u32 = ctypes.windll.user32
+_get_window_long_ptr = getattr(_u32, "GetWindowLongPtrW", _u32.GetWindowLongW)
+_set_window_long_ptr = getattr(_u32, "SetWindowLongPtrW", _u32.SetWindowLongW)
 
 
 def _set_clickthrough(window: tk.Toplevel, enabled: bool) -> None:
     try:
         hwnd = window.winfo_id()
-        exstyle = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        exstyle = _get_window_long_ptr(hwnd, GWL_EXSTYLE)
         if enabled:
             exstyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT
         else:
             exstyle &= ~WS_EX_TRANSPARENT
             exstyle |= WS_EX_LAYERED
-        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle)
+        _set_window_long_ptr(hwnd, GWL_EXSTYLE, exstyle)
+        _u32.SetWindowPos(
+            hwnd,
+            0,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        )
     except Exception:
         pass
 
@@ -63,6 +81,7 @@ class FloatingOverlay(tk.Toplevel):
         on_scan_current_student: Callable,
         on_scan_all: Callable,
         on_stop: Callable,
+        on_input_test: Callable,
         on_settings: Callable,
         on_view_students=None,
     ):
@@ -76,6 +95,7 @@ class FloatingOverlay(tk.Toplevel):
             "current_student": on_scan_current_student,
             "all": on_scan_all,
             "stop": on_stop,
+            "input_test": on_input_test,
             "settings": on_settings,
             "recover": on_settings,
             "view_students": on_view_students or (lambda: None),
@@ -365,6 +385,7 @@ class FloatingOverlay(tk.Toplevel):
         if self._app_state == AppState.ERROR:
             return [
                 ("복구 / 창 다시 선택", ORANGE, BG, "recover"),
+                ("입력 테스트", LBLUE, BG, "input_test"),
                 ("학생 뷰어", YELLOW, BG, "view_students"),
             ]
         if self._app_state == AppState.IDLE:
@@ -373,6 +394,7 @@ class FloatingOverlay(tk.Toplevel):
             if not self._in_lobby:
                 return [
                     ("현재 학생 스캔", GREEN, BG, "current_student"),
+                    ("입력 테스트", LBLUE, BG, "input_test"),
                     ("학생 뷰어", YELLOW, BG, "view_students"),
                     ("창 선택", ORANGE, BG, "settings"),
                 ]
@@ -382,6 +404,7 @@ class FloatingOverlay(tk.Toplevel):
                 ("학생 스캔", GREEN, BG, "students"),
                 ("현재 학생 스캔", BLUE, TEXT, "current_student"),
                 ("전체 스캔", ORANGE, BG, "all"),
+                ("입력 테스트", PURPLE, TEXT, "input_test"),
                 ("학생 뷰어", YELLOW, BG, "view_students"),
             ]
         return [("창 선택", ORANGE, BG, "settings")]
@@ -476,21 +499,43 @@ class FloatingOverlay(tk.Toplevel):
             command=self._cbs["settings"],
         ).pack(fill="x", padx=scale_px(6, self._ui_scale), pady=(scale_px(2, self._ui_scale), scale_px(6, self._ui_scale)))
 
+    def _position_scan_windows(self) -> bool:
+        rect = get_window_rect()
+        if rect is None:
+            return False
+
+        left, top, width, height = rect
+        self._scan_backdrop.geometry(
+            f"{max(width, 1)}x{max(height, 1)}+{left}+{top}"
+        )
+
+        tw = scale_px(SCAN_CARD_W, self._ui_scale)
+        th = scale_px(SCAN_CARD_H, self._ui_scale)
+        ox = left + max(0, (width - tw) // 2)
+        oy = top + max(0, (height - th) // 2)
+
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        ox = max(0, min(ox, sw - tw))
+        oy = max(0, min(oy, sh - th))
+        self.geometry(f"{tw}x{th}+{ox}+{oy}")
+        return True
+
     def _reposition(self):
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            if not self._position_scan_windows():
+                return
+            _set_clickthrough(self._scan_backdrop, True)
+            self._scan_backdrop.lift()
+            self.lift()
+            return
+
         rect = get_window_rect()
         if rect is None:
             return
 
         left, top, width, height = rect
-        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-            self._scan_backdrop.geometry(
-                f"{max(width, 1)}x{max(height, 1)}+{left}+{top}"
-            )
-            tw = scale_px(SCAN_CARD_W, self._ui_scale)
-            th = scale_px(SCAN_CARD_H, self._ui_scale)
-            ox = left + max(0, (width - tw) // 2)
-            oy = top + max(0, (height - th) // 2)
-        elif self._expanded:
+        if self._expanded:
             ox = int(left + width * FLOAT_RX)
             scaled_expand_h = scale_px(EXPAND_H, self._ui_scale)
             oy = int(top + height * FLOAT_RY) - scaled_expand_h // 2
@@ -505,19 +550,17 @@ class FloatingOverlay(tk.Toplevel):
         sh = self.winfo_screenheight()
         ox = max(0, min(ox, sw - tw))
         oy = max(0, min(oy, sh - th))
-        self.geometry(f"+{ox}+{oy}")
-        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-            self._scan_backdrop.lift()
-            self.lift()
+        self.geometry(f"{tw}x{th}+{ox}+{oy}")
 
     def _show_scan_backdrop(self) -> None:
-        if self._app_state not in (AppState.SCANNING, AppState.STOPPING):
+        if not self._visible or self._app_state not in (AppState.SCANNING, AppState.STOPPING):
             self._scan_backdrop.withdraw()
             return
+        self._position_scan_windows()
         self._scan_backdrop.deiconify()
         self._scan_backdrop.update_idletasks()
         _set_clickthrough(self._scan_backdrop, True)
-        self._reposition()
+        self._scan_backdrop.lift()
 
     def _hide_scan_backdrop(self) -> None:
         self._scan_backdrop.withdraw()
@@ -546,7 +589,11 @@ class FloatingOverlay(tk.Toplevel):
             self._visible = True
             if self._app_state in (AppState.SCANNING, AppState.STOPPING):
                 self._show_scan_backdrop()
+                self._position_scan_windows()
             self.deiconify()
+            self.update_idletasks()
+            if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+                self.lift()
             self._reposition()
 
     def hide(self):
@@ -572,7 +619,7 @@ class FloatingOverlay(tk.Toplevel):
         ):
             self.after(0, self._draw)
             self.after(0, self._reposition)
-        if state in (AppState.SCANNING, AppState.STOPPING):
+        if self._visible and state in (AppState.SCANNING, AppState.STOPPING):
             self.after(0, self._show_scan_backdrop)
         else:
             self.after(0, self._hide_scan_backdrop)

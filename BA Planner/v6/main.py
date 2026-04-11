@@ -49,6 +49,7 @@ try:
     from core.states import AppState, StateMachine, can_transition
     from core.template_cache import warmup_all
     from gui.floating import FloatingOverlay
+    from gui.input_test_overlay import InputTestOverlay
     from gui.profile_dialog import choose_profile
     from gui.viewer_launcher import open_student_viewer
     from gui.window_picker import WindowPicker
@@ -124,9 +125,11 @@ class App(tk.Tk):
             on_scan_current_student=lambda: self._request_scan("student_current"),
             on_scan_all=lambda: self._request_scan("all"),
             on_stop=self._stop_scan,
+            on_input_test=self._open_input_test,
             on_settings=self._open_settings,
             on_view_students=lambda: open_student_viewer(self),
         )
+        self._input_test_overlay = InputTestOverlay(self)
 
         clear_target()
         self._transition_to(AppState.IDLE, reason="startup_ready")
@@ -162,6 +165,7 @@ class App(tk.Tk):
 
         if new == AppState.IDLE:
             self._stop_watcher()
+            self._input_test_overlay.hide()
             self._overlay.hide()
             return
 
@@ -177,6 +181,7 @@ class App(tk.Tk):
 
         if new == AppState.SCANNING:
             self._pause_watcher()
+            self._input_test_overlay.hide()
             self._overlay.show()
             return
 
@@ -192,6 +197,7 @@ class App(tk.Tk):
             if self._scanner:
                 self._scanner.stop()
             self._pause_watcher()
+            self._input_test_overlay.hide()
             self._overlay.add_log("정리 중...")
             self._overlay.show()
 
@@ -492,6 +498,15 @@ class App(tk.Tk):
     def _open_settings(self) -> None:
         self._open_window_picker()
 
+    def _open_input_test(self) -> None:
+        if self.state in (AppState.SCANNING, AppState.STOPPING):
+            self._overlay.add_log("스캔/정리 중에는 입력 테스트를 열 수 없습니다.")
+            return
+        if not self._config.get("target_hwnd"):
+            self._overlay.add_log("먼저 대상 게임 창을 선택해 주세요.")
+            return
+        self._input_test_overlay.show()
+
     def _on_close_requested(self) -> None:
         if self._closing:
             return
@@ -520,6 +535,10 @@ class App(tk.Tk):
 
         self._stop_watcher()
         self._destroyed = True
+        try:
+            self._input_test_overlay.destroy()
+        except TclError:
+            pass
         try:
             self._overlay.destroy()
         except TclError:
