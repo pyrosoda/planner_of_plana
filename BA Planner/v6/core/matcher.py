@@ -20,7 +20,7 @@ from pathlib import Path
 from PIL import Image
 from typing import Optional
 
-from core.config import TEMPLATE_DIR, BASE_DIR
+from core.config import TEMPLATE_DIR
 from core.logger import get_logger, LOG_MATCHER
 from core.log_context import MatchCtx, log_exc, log_cv2_error, EXC_DEBUG, dump_roi
 
@@ -163,7 +163,8 @@ def _tmpl(path: str) -> Optional[TemplateEntry]:
 
 THRESHOLD         = 0.80
 THRESHOLD_LOOSE   = 0.72
-THRESHOLD_LOBBY   = 0.75
+THRESHOLD_LOBBY   = 0.90
+THRESHOLD_STUDENT_MENU = 0.90
 TEXTURE_THRESHOLD        = 0.60
 TEXTURE_MARGIN_REQUIRED  = 0.05
 
@@ -612,15 +613,44 @@ def best_match(
 # 로비 감지
 # ══════════════════════════════════════════════════════════
 
-_LOBBY_TMPL = str(BASE_DIR / "lobby_template.png")
+_MENU_DETECT_DIR = TEMPLATE_DIR / "menu_detect_flag"
+_LOBBY_TMPL = str(_MENU_DETECT_DIR / "lobby_template.png")
+_STUDENT_MENU_TMPL = str(_MENU_DETECT_DIR / "student_menu__menu_detect_flag.png")
+
+
+def _match_menu_flag(
+    img: Image.Image,
+    region: dict,
+    tmpl_path: str,
+    *,
+    label: str,
+    threshold: float,
+) -> bool:
+    from core.capture import crop_region
+    crop  = crop_region(img, region)
+    score = match_score(crop, tmpl_path)
+    _log.debug(f"{label}: {score:.3f}")
+    return score >= threshold
 
 
 def is_lobby(img: Image.Image, region: dict) -> bool:
-    from core.capture import crop_region
-    crop  = crop_region(img, region)
-    score = match_score(crop, _LOBBY_TMPL)
-    _log.debug(f"is_lobby: {score:.3f}")
-    return score >= THRESHOLD_LOBBY
+    return _match_menu_flag(
+        img,
+        region,
+        _LOBBY_TMPL,
+        label="is_lobby",
+        threshold=THRESHOLD_LOBBY,
+    )
+
+
+def is_student_menu(img: Image.Image, region: dict) -> bool:
+    return _match_menu_flag(
+        img,
+        region,
+        _STUDENT_MENU_TMPL,
+        label="is_student_menu",
+        threshold=THRESHOLD_STUDENT_MENU,
+    )
 
 
 # ══════════════════════════════════════════════════════════

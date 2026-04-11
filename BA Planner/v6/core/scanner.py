@@ -61,6 +61,8 @@ from core.matcher import (
     CheckFlag,
     EquipSlotFlag,
     match_student_texture,
+    is_lobby,
+    is_student_menu,
     detect_weapon_state,
     read_skill_check,
     read_equip_check,
@@ -94,6 +96,9 @@ MAX_CONSECUTIVE_DUP  = 3
 MAX_STUDENT_LEVEL    = 90
 STAT_UNLOCK_LEVEL    = 90
 STAT_UNLOCK_STAR     = 5
+DETAIL_READY_SCORE   = 0.40
+DETAIL_READY_WAIT    = 3.5
+LOBBY_EXIT_WAIT      = 3.0
 
 # retry 정책
 RETRY_IDENTIFY   = 2      # 학생 식별 최대 시도
@@ -809,6 +814,96 @@ class Scanner:
             self._student_basic_img = img
         return self._student_basic_img
 
+    def _adjust_region(
+        self,
+        region: dict,
+        *,
+        left: float = 0.0,
+        top: float = 0.0,
+        right: float = 0.0,
+        bottom: float = 0.0,
+    ) -> dict:
+        return {
+            "x1": max(0.0, min(1.0, region["x1"] + left)),
+            "y1": max(0.0, min(1.0, region["y1"] + top)),
+            "x2": max(0.0, min(1.0, region["x2"] + right)),
+            "y2": max(0.0, min(1.0, region["y2"] + bottom)),
+        }
+
+    def _is_lobby_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self.r.get("lobby", {}).get("detect_flag")
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_lobby(roi, {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0})
+
+    def _is_student_menu_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self.r.get("student_menu", {}).get("menu_detect_flag")
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_student_menu(roi, {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0})
+
+    def _student_detail_score(self, img: Optional[Image.Image]) -> float:
+        texture_r = self.r.get("student", {}).get("student_texture_region")
+        if img is None or not texture_r:
+            return 0.0
+        crop = crop_region(img, texture_r)
+        _, score = match_student_texture(crop)
+        return score
+
+    def _wait_for_student_menu_state(
+        self,
+        expected_in_student_menu: bool,
+        *,
+        timeout: float,
+        poll: float = 0.25,
+    ) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._stop_requested():
+                return False
+            img = self._capture()
+            if img is not None and self._is_student_menu_capture(img) == expected_in_student_menu:
+                self._invalidate_student_basic_capture()
+                return True
+            if not self._wait(poll):
+                return False
+        return False
+
+    def _wait_for_student_detail(
+        self,
+        *,
+        timeout: float = DETAIL_READY_WAIT,
+        poll: float = 0.25,
+    ) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._stop_requested():
+                return False
+            img = self._capture()
+            score = self._student_detail_score(img)
+            _log.debug(f"[detail_wait] texture_score={score:.3f}")
+            if score >= DETAIL_READY_SCORE:
+                self._student_basic_img = img
+                return True
+            if not self._wait(poll):
+                return False
+        return False
+
+    def _recover_first_student_entry(self) -> bool:
+        _log.warning("첫 학생 진입 복구 루틴 시작")
+        img = self._capture()
+        if img is not None:
+            if self._is_lobby_capture(img):
+                _log.warning("복구 감지: 아직 로비 화면에 머무름")
+                if not self.enter_student_menu():
+                    return False
+            elif self._is_student_menu_capture(img):
+                _log.warning("복구 감지: 학생 메뉴 화면에 머무름")
+        self._invalidate_student_basic_capture()
+        return self.enter_first_student()
+
     def _rect(self) -> Optional[tuple[int, int, int, int]]:
         return get_window_rect()
 
@@ -1333,8 +1428,22 @@ class Scanner:
 
     def enter_student_menu(self) -> bool:
         self.log("  학생 메뉴 진입...")
-        self._click_r(self.r["lobby"]["student_menu_button"], "student_menu")
-        return self._wait(STUDENT_MENU_WAIT)
+        btn = self.r["lobby"].get("student_menu_button")
+        if not btn:
+            self.log("  ⚠️ student_menu_button 미정의")
+            return False
+
+        attempts = [
+            btn,
+            self._adjust_region(btn, left=-0.01, top=-0.01, right=0.04, bottom=0.01),
+        ]
+        for attempt, region in enumerate(attempts, start=1):
+            self._click_r(region, f"student_menu_{attempt}")
+            if self._wait_for_student_menu_state(True, timeout=LOBBY_EXIT_WAIT):
+                return self._wait(0.6)
+            if attempt < len(attempts):
+                self.log(f"  학생 메뉴 재시도... ({attempt+1}/{len(attempts)})")
+        return False
 
     def enter_first_student(self) -> bool:
         self.log("  첫 학생 선택...")
@@ -1342,8 +1451,18 @@ class Scanner:
         if not btn:
             self.log("  ⚠️ first_student_button 미정의")
             return False
-        self._click_r(btn, "first_student")
-        return self._wait(0.8)
+
+        attempts = [
+            btn,
+            self._adjust_region(btn, left=-0.01, top=-0.02, right=0.08, bottom=0.02),
+        ]
+        for attempt, region in enumerate(attempts, start=1):
+            self._click_r(region, f"first_student_{attempt}")
+            if self._wait_for_student_detail():
+                return True
+            if attempt < len(attempts):
+                self.log(f"  첫 학생 재선택... ({attempt+1}/{len(attempts)})")
+        return False
 
     def go_next_student(self) -> bool:
         btn = self.r["student"].get("next_student_button")
@@ -1389,7 +1508,17 @@ class Scanner:
             self._warn(f"[{idx+1}] 텍스처 식별 실패 (score={score:.3f})")
             return None
 
-        return self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별")
+        sid = self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별")
+        if sid is not None or idx != 0:
+            return sid
+
+        _log.warning(f"{ctx} 첫 학생 식별 실패 → 진입 복구 시도")
+        self._warn(f"[{idx+1}] 첫 학생 진입 복구 시도")
+        if not self._recover_first_student_entry():
+            return None
+        self._restore_basic_tab()
+        self._invalidate_student_basic_capture()
+        return self._retry(_try, max_attempts=RETRY_IDENTIFY, delay=0.6, label="식별 복구")
 
     # ── 스킬 스캔 ─────────────────────────────────────────
 

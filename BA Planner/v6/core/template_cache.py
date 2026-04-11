@@ -29,7 +29,8 @@ core/template_cache.py — BA Analyzer v6
 
   분류          캐시 키 예시                   파일 경로 예시
   ─────────     ────────────────────────────   ─────────────────────────────
-  로비          "lobby_template"               lobby_template.png
+  로비          "menu_detect_flag/lobby_template" templates/menu_detect_flag/lobby_template.png
+  학생 메뉴     "menu_detect_flag/student_menu__menu_detect_flag" templates/menu_detect_flag/student_menu__menu_detect_flag.png
   별 등급       "star/star_5"                  templates/star/star_5.png
   무기 별       "weapon_star/star_4"           templates/weapon_star/star_4.png
   무기 상태     "weapon_state/WEAPON_EQUIPPED" templates/weapon_state/WEAPON_EQUIPPED.png
@@ -306,7 +307,7 @@ def _path_to_key(path: str) -> str:
 
     예:
       .../templates/star/star_5.png  →  "star/star_5"
-      .../lobby_template.png         →  "lobby_template"
+      .../templates/menu_detect_flag/lobby_template.png         →  "menu_detect_flag/lobby_template"
     """
     p = Path(path)
     try:
@@ -355,6 +356,7 @@ def _read_template(path: str) -> Optional[TemplateEntry]:
 def _default_warmup_dirs() -> list[Path]:
     """기본 warmup 대상 디렉터리 목록."""
     names = [
+        "menu_detect_flag",
         # 별 등급
         "star",
         "weapon_star",
@@ -399,15 +401,4 @@ def _default_warmup_dirs() -> list[Path]:
         "students",
     ]
     dirs = [TEMPLATE_DIR / n for n in names]
-    # 로비 템플릿은 BASE_DIR 바로 아래
-    lobby = BASE_DIR / "lobby_template.png"
-    if lobby.exists():
-        # 단일 파일은 디렉터리 warmup 과 별도로 처리
-        _direct_load_lobby()
     return dirs
-
-
-def _direct_load_lobby() -> None:
-    """로비 템플릿 단일 파일 로드."""
-    path = str(BASE_DIR / "lobby_template.png")
-    get_cache().load(path)

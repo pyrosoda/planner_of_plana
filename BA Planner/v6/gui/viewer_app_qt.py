@@ -8,6 +8,7 @@ import json
 import os
 import sqlite3
 import sys
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,8 +20,8 @@ import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
-from PySide6.QtCore import QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -49,13 +50,18 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
 
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
+UI_FONT_PATH = BASE_DIR / "gui" / "font" / "경기천년제목_Medium.ttf"
+POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
+POLI_BG_TEXTURES = sorted(POLI_BG_DIR.glob("UITex_BGPoliLight_*.png"))
+THUMB_STYLE_VERSION = "v3"
+PORTRAIT_RATIO = 252 / 204
 
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -80,9 +86,6 @@ ACCENT_SOFT = "#f4dfdf"
 ACCENT_PALE = "#fff1f1"
 SHADOW = "#eceef5"
 CARD_ROLE = Qt.UserRole + 1
-SCHOOL_ICON_DIR = BASE_DIR / "templates" / "icons" / "school_logo"
-STAR_ICON_PATH = BASE_DIR / "templates" / "icons" / "temp" / "Img_Growth_Effect_StarIcon.png"
-STAR_ICON2_PATH = BASE_DIR / "templates" / "icons" / "temp" / "Img_Growth_Effect_StarIcon2.png"
 
 
 def get_qt_ui_scale(
@@ -118,31 +121,6 @@ def scale_px(value: int | float, scale: float) -> int:
     return max(1, int(round(float(value) * scale)))
 
 
-def _school_icon_path(school: str | None) -> Path | None:
-    school_key = (school or "").strip()
-    mapping = {
-        "Abydos": "ABYDOS",
-        "Arius": "Arius",
-        "ETC": "ETC",
-        "Gehenna": "GEHENNA",
-        "Highlander": "HIGHLANDER",
-        "Hyakkiyako": "HYAKKIYAKO",
-        "Millennium": "MILLENNIUM",
-        "RedWinter": "REDWINTER",
-        "Red Winter": "REDWINTER",
-        "Sakugawa": "SAKUGAWA",
-        "Shanhaijing": "SHANHAIJING",
-        "SRT": "SRT",
-        "Tokiwadai": "Tokiwadai",
-        "Trinity": "TRINITY",
-        "Valkyrie": "VALKYRIE",
-        "Wildhunt": "WILDHUNT",
-    }
-    suffix = mapping.get(school_key, "ETC")
-    path = SCHOOL_ICON_DIR / f"School_Icon_{suffix}.png"
-    return path if path.exists() else None
-
-
 def _school_short_label(school: str | None) -> str:
     mapping = {
         "Abydos": "ABY",
@@ -162,6 +140,27 @@ def _school_short_label(school: str | None) -> str:
         "Wildhunt": "WLD",
     }
     return mapping.get((school or "").strip(), "ETC")
+
+
+def _school_accent_color(school: str | None) -> str:
+    mapping = {
+        "Abydos": "#00bcd4",
+        "Arius": "#7d8597",
+        "Gehenna": "#6a1b9a",
+        "Highlander": "#2a9d8f",
+        "Hyakkiyako": "#ff8f00",
+        "Millennium": "#1565c0",
+        "RedWinter": "#d84315",
+        "Red Winter": "#d84315",
+        "Sakugawa": "#00897b",
+        "Shanhaijing": "#ef6c00",
+        "SRT": "#455a64",
+        "Tokiwadai": "#5e35b1",
+        "Trinity": "#f06292",
+        "Valkyrie": "#546e7a",
+        "Wildhunt": "#8e24aa",
+    }
+    return mapping.get((school or "").strip(), "#5c6ea8")
 
 
 def _role_label(role: str | None) -> str:
@@ -196,6 +195,44 @@ def _defense_accent_color(defense_type: str | None) -> str:
     return mapping.get((defense_type or "").strip(), BORDER)
 
 
+def _student_divider_colors(record: "StudentRecord") -> tuple[str, str]:
+    primary = _attack_color(record.attack_type)
+    secondary = _defense_accent_color(record.defense_type)
+    if secondary.lower() == primary.lower():
+        secondary = _school_accent_color(record.school)
+    if secondary.lower() == primary.lower():
+        secondary = "#f4f6fb"
+    return primary, secondary
+
+
+def _load_ui_font_family() -> str | None:
+    if not UI_FONT_PATH.exists():
+        return None
+    font_id = QFontDatabase.addApplicationFont(str(UI_FONT_PATH))
+    if font_id < 0:
+        return None
+    families = QFontDatabase.applicationFontFamilies(font_id)
+    return families[0] if families else None
+
+
+def _bottom_rounded_path(rect: QRect, radius: int) -> QPainterPath:
+    radius = max(0, min(radius, rect.width() // 2, rect.height() // 2))
+    left = float(rect.left())
+    top = float(rect.top())
+    right = float(rect.right())
+    bottom = float(rect.bottom())
+
+    path = QPainterPath()
+    path.moveTo(left, top)
+    path.lineTo(right, top)
+    path.lineTo(right, bottom - radius)
+    path.quadTo(right, bottom, right - radius, bottom)
+    path.lineTo(left + radius, bottom)
+    path.quadTo(left, bottom, left, bottom - radius)
+    path.closeSubpath()
+    return path
+
+
 def _int_or_none(value: object) -> int | None:
     try:
         if value is None or value == "":
@@ -205,31 +242,10 @@ def _int_or_none(value: object) -> int | None:
         return None
 
 
-def _card_star_badge_value(record: "StudentRecord") -> int:
-    rarity = _int_or_none(record.rarity)
-    current_star = record.star or 0
-    return rarity or current_star
-
-
-def _tinted_pixmap(pixmap: QPixmap, color: QColor) -> QPixmap:
-    if pixmap.isNull():
-        return pixmap
-    tinted = QPixmap(pixmap.size())
-    tinted.fill(Qt.transparent)
-    painter = QPainter(tinted)
-    painter.drawPixmap(0, 0, pixmap)
-    painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-    painter.fillRect(tinted.rect(), color)
-    painter.end()
-    return tinted
-
-
 class StudentCardDelegate(QStyledItemDelegate):
     def __init__(self, ui_scale: float, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._ui_scale = ui_scale
-        self._star_icon = QPixmap(str(STAR_ICON_PATH)) if STAR_ICON_PATH.exists() else QPixmap()
-        self._star_icon2 = QPixmap(str(STAR_ICON2_PATH)) if STAR_ICON2_PATH.exists() else QPixmap()
 
     def paint(self, painter: QPainter, option, index) -> None:
         record = index.data(CARD_ROLE)
@@ -268,76 +284,61 @@ class StudentCardDelegate(QStyledItemDelegate):
             painter.fillRect(rect, QColor(SURFACE_ALT))
 
         if not pixmap.isNull():
-            icon_path = _school_icon_path(record.school)
-            badge_h = scale_px(24, self._ui_scale)
-
-            left_badge = QRect(rect.x() + scale_px(8, self._ui_scale), rect.y() + scale_px(8, self._ui_scale), scale_px(38, self._ui_scale), scale_px(34, self._ui_scale))
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(_attack_color(record.attack_type)))
-            painter.drawRoundedRect(left_badge, scale_px(8, self._ui_scale), scale_px(8, self._ui_scale))
-            if icon_path:
-                school_base = QPixmap(str(icon_path)).scaled(scale_px(22, self._ui_scale), scale_px(22, self._ui_scale), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                school_px = _tinted_pixmap(school_base, QColor("white"))
-                painter.drawPixmap(
-                    left_badge.x() + (left_badge.width() - school_px.width()) // 2,
-                    left_badge.y() + (left_badge.height() - school_px.height()) // 2,
-                    school_px,
-                )
+            divider_primary, divider_secondary = _student_divider_colors(record)
 
             font = QFont()
 
-            badge_value = _card_star_badge_value(record)
-            if badge_value > 0:
-                star_pix = self._star_icon2 if record.weapon_state == "weapon_equipped" and not self._star_icon2.isNull() else self._star_icon
-                star_size = scale_px(13, self._ui_scale)
-                badge_w = scale_px(10, self._ui_scale) + star_size * badge_value + scale_px(8, self._ui_scale)
-                star_badge = QRect(rect.right() - badge_w - scale_px(8, self._ui_scale), rect.y() + scale_px(8, self._ui_scale), badge_w, scale_px(30, self._ui_scale))
-                painter.setBrush(QColor(_defense_accent_color(record.defense_type)))
-                painter.drawRoundedRect(star_badge, scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
-                if not star_pix.isNull():
-                    star_img = star_pix.scaled(star_size, star_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    y = star_badge.y() + (star_badge.height() - star_img.height()) // 2
-                    total_w = badge_value * star_img.width()
-                    start_x = star_badge.x() + (star_badge.width() - total_w) // 2
-                    for idx in range(badge_value):
-                        painter.drawPixmap(start_x + idx * star_img.width(), y, star_img)
-                else:
-                    painter.setPen(QColor("#f6f6f9"))
-                    font.setBold(True)
-                    font.setPointSizeF(max(6.7, 7.8 * self._ui_scale))
-                    painter.setFont(font)
-                    painter.drawText(star_badge, Qt.AlignCenter, "\u2605" * badge_value)
-
             info_panel = QRect(
                 rect.x() + scale_px(8, self._ui_scale),
-                rect.bottom() - scale_px(54, self._ui_scale),
+                rect.bottom() - scale_px(24, self._ui_scale),
                 rect.width() - scale_px(16, self._ui_scale),
-                scale_px(44, self._ui_scale),
+                scale_px(24, self._ui_scale),
+            )
+            divider_h = scale_px(4, self._ui_scale)
+            divider_rect = QRect(
+                info_panel.x(),
+                info_panel.y() - divider_h,
+                info_panel.width(),
+                divider_h,
+            )
+            left_divider = QRect(
+                divider_rect.x(),
+                divider_rect.y(),
+                divider_rect.width() // 2,
+                divider_rect.height(),
+            )
+            right_divider = QRect(
+                left_divider.right() + 1,
+                divider_rect.y(),
+                divider_rect.width() - left_divider.width(),
+                divider_rect.height(),
             )
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(17, 19, 27, 186))
-            painter.drawRoundedRect(info_panel, scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+            painter.setBrush(QColor(divider_primary))
+            painter.drawRect(left_divider)
+            painter.setBrush(QColor(divider_secondary))
+            painter.drawRect(right_divider)
 
-            name_rect = QRect(info_panel.x() + scale_px(8, self._ui_scale), info_panel.y() + scale_px(4, self._ui_scale), info_panel.width() - scale_px(16, self._ui_scale), scale_px(20, self._ui_scale))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(17, 19, 27, 186))
+            painter.drawPath(_bottom_rounded_path(info_panel, scale_px(12, self._ui_scale)))
+
+            name_rect = QRect(
+                info_panel.x() + scale_px(8, self._ui_scale),
+                info_panel.y() + scale_px(3, self._ui_scale),
+                info_panel.width() - scale_px(16, self._ui_scale),
+                info_panel.height() - scale_px(4, self._ui_scale),
+            )
             font.setBold(True)
-            font.setPointSizeF(max(9.0, 11.0 * self._ui_scale))
+            font.setPointSizeF(max(8.8, 10.4 * self._ui_scale))
             painter.setFont(font)
             painter.setPen(QColor("#f6f6f9"))
-            painter.drawText(name_rect, Qt.AlignCenter, record.title)
-
-            sub_rect = QRect(info_panel.x() + scale_px(8, self._ui_scale), info_panel.bottom() - scale_px(18, self._ui_scale), info_panel.width() - scale_px(16, self._ui_scale), scale_px(14, self._ui_scale))
-            font.setBold(False)
-            font.setPointSizeF(max(7.0, 8.2 * self._ui_scale))
-            painter.setFont(font)
-            painter.setPen(QColor("#eef0f7"))
-            level_text = f"Lv.{record.level or 0}"
-            if record.owned:
-                painter.drawText(sub_rect, Qt.AlignCenter, level_text)
+            painter.drawText(name_rect, Qt.AlignCenter | Qt.TextSingleLine, record.title)
 
         painter.restore()
 
     def sizeHint(self, option, index) -> QSize:
-        return QSize(scale_px(212, self._ui_scale), scale_px(248, self._ui_scale))
+        return QSize(scale_px(232, self._ui_scale), scale_px(192, self._ui_scale))
 
 
 @dataclass(slots=True)
@@ -462,58 +463,104 @@ def portrait_path(student_id: str) -> Path | None:
     return None
 
 
-def thumb_cache_path(student_id: str, size: int) -> Path:
-    return BASE_DIR / "cache" / "student_thumbs" / f"{size}x{size}" / f"{student_id}.png"
+def thumb_cache_path(student_id: str, width: int, height: int) -> Path:
+    return BASE_DIR / "cache" / "student_thumbs" / THUMB_STYLE_VERSION / f"{width}x{height}" / f"{student_id}.png"
 
 
-def ensure_thumbnail(student_id: str, size: int = 128) -> Path | None:
+def _stable_texture_path(student_id: str) -> Path | None:
+    if not POLI_BG_TEXTURES:
+        return None
+    digest = hashlib.blake2b(student_id.encode("utf-8"), digest_size=2).digest()
+    index = int.from_bytes(digest, "big") % len(POLI_BG_TEXTURES)
+    return POLI_BG_TEXTURES[index]
+
+
+def _render_card_portrait(student_id: str, source: Path, width: int, height: int) -> Image.Image:
+    with Image.open(source) as img:
+        portrait = img.convert("RGBA")
+
+    alpha = portrait.getchannel("A")
+    bbox = alpha.getbbox()
+    if bbox:
+        portrait = portrait.crop(bbox)
+
+    texture_path = _stable_texture_path(student_id)
+    if texture_path is not None:
+        with Image.open(texture_path) as tex:
+            background = ImageOps.fit(tex.convert("RGBA"), (width, height), Image.LANCZOS, centering=(0.5, 0.5))
+    else:
+        background = Image.new("RGBA", (width, height), (16, 22, 30, 255))
+
+    background.alpha_composite(Image.new("RGBA", (width, height), (8, 12, 18, 88)))
+
+    if portrait.width <= 0 or portrait.height <= 0:
+        return background
+
+    scale = (height * 0.98) / portrait.height
+    resized = portrait.resize(
+        (
+            max(1, int(round(portrait.width * scale))),
+            max(1, int(round(portrait.height * scale))),
+        ),
+        Image.LANCZOS,
+    )
+
+    layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    offset_x = (width - resized.width) // 2
+    offset_y = (height - resized.height) // 2
+    layer.paste(resized, (offset_x, offset_y), resized)
+    background.alpha_composite(layer)
+    return background
+
+
+def ensure_thumbnail(student_id: str, width: int = 128, height: int | None = None) -> Path | None:
     if not HAS_PIL:
         return portrait_path(student_id)
+    if height is None:
+        height = width
 
     source = portrait_path(student_id)
     if source is None:
         return None
 
-    target = thumb_cache_path(student_id, size)
+    target = thumb_cache_path(student_id, width, height)
     if target.exists():
         return target
 
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with Image.open(source) as img:
-            prepared = img.convert("RGBA")
-            prepared.thumbnail((size, size), Image.LANCZOS)
-
-            canvas = Image.new("RGBA", (size, size), (16, 22, 30, 255))
-            offset = ((size - prepared.width) // 2, (size - prepared.height) // 2)
-            canvas.alpha_composite(prepared, offset)
-            canvas.convert("RGB").save(target, format="PNG")
+        canvas = _render_card_portrait(student_id, source, width, height)
+        canvas.convert("RGB").save(target, format="PNG")
         return target
     except Exception:
         return source
 
 
-def make_placeholder_icon(size: int = 128) -> QIcon:
-    pixmap = QPixmap(size, size)
+def make_placeholder_icon(width: int = 128, height: int | None = None) -> QIcon:
+    if height is None:
+        height = width
+    pixmap = QPixmap(width, height)
     pixmap.fill(QColor("#1a2430"))
     return QIcon(pixmap)
 
 
-def make_unowned_icon(student_id: str, size: int = 128) -> QIcon:
-    source = portrait_path(student_id)
+def make_unowned_icon(student_id: str, width: int = 128, height: int | None = None) -> QIcon:
+    if height is None:
+        height = width
+    source = ensure_thumbnail(student_id, width, height)
     if source and source.exists():
         pixmap = QPixmap(str(source))
         if not pixmap.isNull():
-            return QIcon(_make_dimmed_pixmap(pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation), size))
-    return QIcon(_make_dimmed_pixmap(QPixmap(size, size), size, fill="#1a2430"))
+            return QIcon(_make_dimmed_pixmap(pixmap.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation), width, height))
+    return QIcon(_make_dimmed_pixmap(QPixmap(width, height), width, height, fill="#1a2430"))
 
 
-def _make_dimmed_pixmap(pixmap: QPixmap, size: int, fill: str | None = None) -> QPixmap:
-    canvas = QPixmap(size, size)
+def _make_dimmed_pixmap(pixmap: QPixmap, width: int, height: int, fill: str | None = None) -> QPixmap:
+    canvas = QPixmap(width, height)
     canvas.fill(QColor(fill or "#101a24"))
     painter = QPainter(canvas)
-    x = max(0, (size - pixmap.width()) // 2)
-    y = max(0, (size - pixmap.height()) // 2)
+    x = max(0, (width - pixmap.width()) // 2)
+    y = max(0, (height - pixmap.height()) // 2)
     painter.setOpacity(0.35)
     painter.drawPixmap(x, y, pixmap)
     painter.setOpacity(1.0)
@@ -529,14 +576,15 @@ class ThumbSignals(QObject):
 
 
 class ThumbTask(QRunnable):
-    def __init__(self, student_id: str, size: int):
+    def __init__(self, student_id: str, width: int, height: int):
         super().__init__()
         self.student_id = student_id
-        self.size = size
+        self.width = width
+        self.height = height
         self.signals = ThumbSignals()
 
     def run(self) -> None:
-        path = ensure_thumbnail(self.student_id, self.size)
+        path = ensure_thumbnail(self.student_id, self.width, self.height)
         self.signals.loaded.emit(self.student_id, str(path) if path else "")
 
 
@@ -627,9 +675,11 @@ class StudentViewerWindow(QMainWindow):
     def __init__(self, ui_scale: float):
         super().__init__()
         self._ui_scale = ui_scale
-        self._thumb_size = scale_px(148, ui_scale)
-        self._grid_width = scale_px(212, ui_scale)
-        self._grid_height = scale_px(248, ui_scale)
+        self._base_thumb_width = scale_px(232, ui_scale)
+        self._thumb_width = self._base_thumb_width
+        self._thumb_height = max(1, int(round(self._thumb_width / PORTRAIT_RATIO)))
+        self._grid_width = self._thumb_width + scale_px(2, ui_scale)
+        self._grid_height = self._thumb_height + scale_px(2, ui_scale)
         self.setWindowTitle("Blue Archive Planner")
         self.resize(scale_px(1560, ui_scale), scale_px(980, ui_scale))
 
@@ -639,7 +689,7 @@ class StudentViewerWindow(QMainWindow):
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, QListWidgetItem] = {}
         self._thumb_loading: set[str] = set()
-        self._placeholder_icon = make_placeholder_icon(self._thumb_size)
+        self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
         self._unowned_icon_cache: dict[str, QIcon] = {}
         self._large_pixmap: QPixmap | None = None
         self._selected_filters: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
@@ -652,6 +702,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_item_by_id: dict[str, QListWidgetItem] = {}
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
+        self._card_layout_guard = False
 
         self._build_ui()
         self._apply_filters()
@@ -757,13 +808,13 @@ class StudentViewerWindow(QMainWindow):
                 background: {SURFACE_ALT};
                 border: 1px solid {BORDER};
                 border-radius: {scale_px(12, self._ui_scale)}px;
-                padding: {scale_px(10, self._ui_scale)}px;
+                padding: {scale_px(6, self._ui_scale)}px;
             }}
             QListWidget::item {{
                 background: {SURFACE};
                 border: 1px solid {SHADOW};
                 border-radius: {scale_px(12, self._ui_scale)}px;
-                padding: {scale_px(10, self._ui_scale)}px;
+                padding: 0px;
             }}
             QListWidget::item:selected {{
                 background: {ACCENT_PALE};
@@ -1004,19 +1055,68 @@ class StudentViewerWindow(QMainWindow):
         self._list.setMovement(QListWidget.Static)
         self._list.setMouseTracking(True)
         self._list.viewport().setMouseTracking(True)
-        self._list.setSpacing(scale_px(8, self._ui_scale))
-        self._list.setIconSize(QSize(self._thumb_size, self._thumb_size))
+        self._list.setSpacing(scale_px(4, self._ui_scale))
+        self._list.setIconSize(QSize(self._thumb_width, self._thumb_height))
         self._list.setGridSize(QSize(self._grid_width, self._grid_height))
         self._list.setUniformItemSizes(True)
         self._list.setItemDelegate(StudentCardDelegate(self._ui_scale, self._list))
+        self._list.viewport().installEventFilter(self)
         self._list.currentItemChanged.connect(self._on_item_changed)
         list_layout.addWidget(self._list, 1)
 
-        detail.setMinimumWidth(scale_px(420, self._ui_scale))
+        detail.setMinimumWidth(scale_px(252, self._ui_scale))
+        detail.setMaximumWidth(scale_px(320, self._ui_scale))
         content.addWidget(list_panel)
         content.addWidget(detail)
-        content.setStretchFactor(0, 3)
-        content.setStretchFactor(1, 2)
+        content.setStretchFactor(0, 5)
+        content.setStretchFactor(1, 1)
+        content.setSizes([scale_px(1180, self._ui_scale), scale_px(280, self._ui_scale)])
+
+    def eventFilter(self, watched, event) -> bool:
+        if (
+            hasattr(self, "_list")
+            and watched is self._list.viewport()
+            and event.type() == QEvent.Resize
+        ):
+            self._refresh_card_layout()
+        return super().eventFilter(watched, event)
+
+    def _refresh_card_layout(self) -> None:
+        if self._card_layout_guard or not hasattr(self, "_list"):
+            return
+        viewport_width = self._list.viewport().width()
+        if viewport_width <= 0:
+            return
+
+        spacing = self._list.spacing()
+        min_card_width = scale_px(180, self._ui_scale)
+        target_columns = max(1, round((viewport_width + spacing) / (self._base_thumb_width + spacing)))
+        thumb_width = max(min_card_width, (viewport_width - spacing * max(0, target_columns - 1)) // target_columns)
+        thumb_height = max(1, int(round(thumb_width / PORTRAIT_RATIO)))
+        grid_width = thumb_width + scale_px(2, self._ui_scale)
+        grid_height = thumb_height + scale_px(2, self._ui_scale)
+
+        if (
+            thumb_width == self._thumb_width
+            and thumb_height == self._thumb_height
+            and grid_width == self._grid_width
+            and grid_height == self._grid_height
+        ):
+            return
+
+        self._card_layout_guard = True
+        try:
+            self._thumb_width = thumb_width
+            self._thumb_height = thumb_height
+            self._grid_width = grid_width
+            self._grid_height = grid_height
+            self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
+            self._unowned_icon_cache.clear()
+            self._list.setIconSize(QSize(self._thumb_width, self._thumb_height))
+            self._list.setGridSize(QSize(self._grid_width, self._grid_height))
+            self._rebuild_list()
+        finally:
+            self._card_layout_guard = False
 
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -1576,7 +1676,7 @@ class StudentViewerWindow(QMainWindow):
             item.setData(Qt.UserRole, record.student_id)
             item.setData(CARD_ROLE, record)
             item.setToolTip(record.student_id)
-            item.setSizeHint(QSize(scale_px(220, self._ui_scale), scale_px(260, self._ui_scale)))
+            item.setSizeHint(QSize(self._grid_width, self._grid_height))
             self._list.addItem(item)
             self._item_by_id[record.student_id] = item
             self._queue_thumb(record.student_id)
@@ -1595,7 +1695,7 @@ class StudentViewerWindow(QMainWindow):
             return
 
         self._thumb_loading.add(student_id)
-        task = ThumbTask(student_id, self._thumb_size)
+        task = ThumbTask(student_id, self._thumb_width, self._thumb_height)
         task.signals.loaded.connect(self._apply_thumb)
         self._pool.start(task)
 
@@ -1662,7 +1762,11 @@ class StudentViewerWindow(QMainWindow):
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation,
                 )
-                self._large_pixmap = _make_dimmed_pixmap(scaled, max(self._hero.width(), self._hero.height())) if not record.owned else scaled
+                self._large_pixmap = (
+                    _make_dimmed_pixmap(scaled, self._hero.width(), self._hero.height())
+                    if not record.owned
+                    else scaled
+                )
                 self._hero.setPixmap(self._large_pixmap)
                 self._hero.setText("")
                 return
@@ -1699,7 +1803,7 @@ class StudentViewerWindow(QMainWindow):
     def _unowned_icon(self, student_id: str) -> QIcon:
         cached = self._unowned_icon_cache.get(student_id)
         if cached is None:
-            cached = make_unowned_icon(student_id, self._thumb_size)
+            cached = make_unowned_icon(student_id, self._thumb_width, self._thumb_height)
             self._unowned_icon_cache[student_id] = cached
         return cached
 
@@ -1714,6 +1818,9 @@ class StudentViewerWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication(sys.argv)
+    ui_font_family = _load_ui_font_family()
+    if ui_font_family:
+        app.setFont(QFont(ui_font_family))
     window = StudentViewerWindow(get_qt_ui_scale(app, base_width=1680, base_height=1080))
     window.show()
     return app.exec()

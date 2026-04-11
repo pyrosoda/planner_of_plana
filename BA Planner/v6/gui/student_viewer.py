@@ -9,6 +9,7 @@ import math
 import sqlite3
 import threading
 import tkinter as tk
+import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -25,7 +26,7 @@ from gui.student_filters import (
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
 try:
-    from PIL import Image, ImageTk
+    from PIL import Image, ImageOps, ImageTk
 
     HAS_PIL = True
 except ImportError:
@@ -33,6 +34,8 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "templates" / "students_portraits"
+POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
+POLI_BG_TEXTURES = sorted(POLI_BG_DIR.glob("UITex_BGPoliLight_*.png"))
 
 C = {
     "bg": "#080c14",
@@ -100,6 +103,58 @@ def star_color(n: int) -> str:
     return C.get(f"star{n}", C["dim"])
 
 
+def school_color(school: Optional[str]) -> str:
+    mapping = {
+        "Abydos": "#00bcd4",
+        "Arius": "#7d8597",
+        "Gehenna": "#6a1b9a",
+        "Highlander": "#2a9d8f",
+        "Hyakkiyako": "#ff8f00",
+        "Millennium": "#1565c0",
+        "RedWinter": "#d84315",
+        "Red Winter": "#d84315",
+        "Sakugawa": "#00897b",
+        "Shanhaijing": "#ef6c00",
+        "SRT": "#455a64",
+        "Tokiwadai": "#5e35b1",
+        "Trinity": "#f06292",
+        "Valkyrie": "#546e7a",
+        "Wildhunt": "#8e24aa",
+    }
+    return mapping.get((school or "").strip(), C["accent"])
+
+
+def attack_color(attack_type: Optional[str]) -> str:
+    mapping = {
+        "Explosive": "#731c25",
+        "Piercing": "#c3b37b",
+        "Mystic": "#a5c7da",
+        "Sonic": "#ae78b4",
+    }
+    return mapping.get((attack_type or "").strip(), C["accent"])
+
+
+def defense_color(defense_type: Optional[str]) -> str:
+    mapping = {
+        "Light": attack_color("Explosive"),
+        "Heavy": attack_color("Piercing"),
+        "Special": attack_color("Mystic"),
+        "Elastic": attack_color("Sonic"),
+        "Composite": "#458e8e",
+    }
+    return mapping.get((defense_type or "").strip(), C["sub"])
+
+
+def student_divider_colors(student: dict) -> tuple[str, str]:
+    primary = attack_color(student.get("attack_type"))
+    secondary = defense_color(student.get("defense_type"))
+    if secondary.lower() == primary.lower():
+        secondary = school_color(student.get("school"))
+    if secondary.lower() == primary.lower():
+        secondary = C["text"]
+    return primary, secondary
+
+
 def tier_color(tier: Optional[str]) -> str:
     if not tier or tier in ("empty", "null", "unknown"):
         return C["dim"]
@@ -136,6 +191,14 @@ def weapon_text(student: dict) -> str:
     return "-"
 
 
+def _stable_texture_path(student_id: str) -> Optional[Path]:
+    if not POLI_BG_TEXTURES:
+        return None
+    digest = hashlib.blake2b(student_id.encode("utf-8"), digest_size=2).digest()
+    index = int.from_bytes(digest, "big") % len(POLI_BG_TEXTURES)
+    return POLI_BG_TEXTURES[index]
+
+
 def _load_photo(student_id: str, size: tuple[int, int]) -> Optional[ImageTk.PhotoImage]:
     if not HAS_PIL:
         return None
@@ -153,13 +216,41 @@ def _load_photo(student_id: str, size: tuple[int, int]) -> Optional[ImageTk.Phot
         return None
 
     try:
-        img = Image.open(path).convert("RGBA")
-        img.thumbnail(size, Image.LANCZOS)
-        canvas = Image.new("RGBA", size, (0, 0, 0, 0))
-        offset = ((size[0] - img.width) // 2, (size[1] - img.height) // 2)
-        canvas.paste(img, offset)
-        bg = Image.new("RGB", size, C["surface"])
-        bg.paste(canvas, mask=canvas.split()[3])
+        with Image.open(path) as raw:
+            portrait = raw.convert("RGBA")
+
+        alpha = portrait.getchannel("A")
+        bbox = alpha.getbbox()
+        if bbox:
+            portrait = portrait.crop(bbox)
+
+        texture_path = _stable_texture_path(student_id)
+        if texture_path is not None:
+            with Image.open(texture_path) as tex:
+                background = ImageOps.fit(tex.convert("RGBA"), size, Image.LANCZOS, centering=(0.5, 0.5))
+        else:
+            background = Image.new("RGBA", size, (14, 21, 32, 255))
+
+        background.alpha_composite(Image.new("RGBA", size, (8, 12, 18, 88)))
+
+        if portrait.width > 0 and portrait.height > 0:
+            scale = (size[1] * 0.98) / portrait.height
+            portrait = portrait.resize(
+                (
+                    max(1, int(round(portrait.width * scale))),
+                    max(1, int(round(portrait.height * scale))),
+                ),
+                Image.LANCZOS,
+            )
+            layer = Image.new("RGBA", size, (0, 0, 0, 0))
+            offset = (
+                (size[0] - portrait.width) // 2,
+                (size[1] - portrait.height) // 2,
+            )
+            layer.paste(portrait, offset, portrait)
+            background.alpha_composite(layer)
+
+        bg = background.convert("RGB")
         photo = ImageTk.PhotoImage(bg)
         _img_cache[key] = photo
         return photo
@@ -647,6 +738,24 @@ class StudentViewer(tk.Toplevel):
         items["top_line"] = canvas.create_rectangle(0, 0, self._card_w, scale_px(4, self._ui_scale), fill=C["dim"], outline="")
         items["border"] = canvas.create_rectangle(0, 0, self._card_w - 1, self._card_h - 1, outline=C["border"], fill="", width=border_w)
         canvas.create_rectangle(0, scale_px(4, self._ui_scale), self._card_w, scale_px(4, self._ui_scale) + photo_h, fill=C["surface"], outline="")
+        divider_y = scale_px(4, self._ui_scale) + photo_h
+        divider_h = scale_px(4, self._ui_scale)
+        items["divider_left"] = canvas.create_rectangle(
+            0,
+            divider_y,
+            self._card_w // 2,
+            divider_y + divider_h,
+            fill=C["accent"],
+            outline="",
+        )
+        items["divider_right"] = canvas.create_rectangle(
+            self._card_w // 2,
+            divider_y,
+            self._card_w,
+            divider_y + divider_h,
+            fill=C["accent2"],
+            outline="",
+        )
 
         items["photo"] = canvas.create_image(self._card_w // 2, scale_px(4, self._ui_scale) + photo_h // 2, anchor="center", state="hidden")
         items["placeholder"] = canvas.create_text(
@@ -710,15 +819,6 @@ class StudentViewer(tk.Toplevel):
             anchor="n",
         )
         y += scale_px(24, self._ui_scale)
-        items["stars"] = canvas.create_text(
-            self._card_w // 2,
-            y,
-            text="",
-            font=scale_font(("Malgun Gothic", 8), self._ui_scale),
-            fill=C["gold"],
-            anchor="n",
-        )
-        y += scale_px(20, self._ui_scale)
 
         chip_gap = scale_px(4, self._ui_scale)
         chip_w = (self._card_w - scale_px(10, self._ui_scale) - chip_gap * 3) // 4
@@ -775,8 +875,10 @@ class StudentViewer(tk.Toplevel):
         canvas._student_data = student
         self._set_card_hover(canvas, False)
         canvas.itemconfig(items["top_line"], fill=star_color(star_n))
+        divider_primary, divider_secondary = student_divider_colors(student)
+        canvas.itemconfig(items["divider_left"], fill=divider_primary)
+        canvas.itemconfig(items["divider_right"], fill=divider_secondary)
         canvas.itemconfig(items["name"], text=student.get("display_name") or sid)
-        canvas.itemconfig(items["stars"], text="★" * star_n + "☆" * max(0, 5 - star_n))
 
         level = student.get("level")
         canvas.itemconfig(items["level_text"], text=f"Lv.{level}" if level else "Lv.?")
