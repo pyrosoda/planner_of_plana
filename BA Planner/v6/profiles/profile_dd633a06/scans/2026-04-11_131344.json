@@ -1,0 +1,558 @@
+{
+  "meta": {
+    "scan_id": "2026-04-11_131344",
+    "scanned_at": "2026-04-11T13:13:44+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다"
+  },
+  "scan_summary": {
+    "student_count": 3,
+    "item_count": 0,
+    "equipment_count": 0,
+    "state_counts": {
+      "partial": 3
+    },
+    "uncertain_ids": [
+      "fuuka_new_year",
+      "misaki_swimsuit",
+      "saten_ruiko"
+    ],
+    "partial_ids": [
+      "fuuka_new_year",
+      "misaki_swimsuit",
+      "saten_ruiko"
+    ]
+  },
+  "resources": {},
+  "students": [
+    {
+      "student_id": "fuuka_new_year",
+      "display_name": "후우카(새해)",
+      "level": null,
+      "student_star": 5,
+      "weapon_state": "weapon_equipped",
+      "weapon_star": null,
+      "weapon_level": null,
+      "ex_skill": null,
+      "skill1": null,
+      "skill2": null,
+      "skill3": null,
+      "equip1": "unknown",
+      "equip2": "unknown",
+      "equip3": "unknown",
+      "equip4": null,
+      "equip1_level": null,
+      "equip2_level": null,
+      "equip3_level": null,
+      "stat_hp": null,
+      "stat_atk": null,
+      "stat_heal": null,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.385,
+      "level_status": "failed",
+      "level_source": "template",
+      "level_note": "digit_read_fail",
+      "student_star_status": "inferred",
+      "student_star_source": "inferred",
+      "student_star_note": "weapon_state → 5★ 확정",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "uncertain",
+      "weapon_star_source": "template",
+      "weapon_star_score": 0.6,
+      "weapon_level_status": "failed",
+      "weapon_level_source": "template",
+      "weapon_level_note": "digit_read_fail",
+      "ex_skill_status": "failed",
+      "ex_skill_source": "template",
+      "ex_skill_note": "raw='unknown'",
+      "skill1_status": "failed",
+      "skill1_source": "template",
+      "skill1_note": "raw='unknown'",
+      "skill2_status": "failed",
+      "skill2_source": "template",
+      "skill2_note": "raw='unknown'",
+      "skill3_status": "failed",
+      "skill3_source": "template",
+      "skill3_note": "raw='unknown'",
+      "equip1_status": "uncertain",
+      "equip1_source": "template",
+      "equip1_note": "tier=unknown",
+      "equip2_status": "uncertain",
+      "equip2_source": "template",
+      "equip2_note": "tier=unknown",
+      "equip3_status": "uncertain",
+      "equip3_source": "template",
+      "equip3_note": "tier=unknown",
+      "equip4_status": "failed",
+      "equip1_level_status": "failed",
+      "equip1_level_source": "template",
+      "equip1_level_note": "digit_read_fail",
+      "equip2_level_status": "failed",
+      "equip2_level_source": "template",
+      "equip2_level_note": "digit_read_fail",
+      "equip3_level_status": "failed",
+      "equip3_level_source": "template",
+      "equip3_level_note": "digit_read_fail",
+      "stat_hp_status": "failed",
+      "stat_atk_status": "failed",
+      "stat_heal_status": "failed",
+      "_field_meta": {
+        "ex_skill": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill1": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill2": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill3": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_star": {
+          "status": "uncertain",
+          "source": "template",
+          "score": 0.6,
+          "note": ""
+        },
+        "weapon_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip1": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip1_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip2": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip2_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip3": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip3_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "student_star": {
+          "status": "inferred",
+          "source": "inferred",
+          "score": null,
+          "note": "weapon_state → 5★ 확정"
+        }
+      }
+    },
+    {
+      "student_id": "misaki_swimsuit",
+      "display_name": "미사키(수영복)",
+      "level": null,
+      "student_star": 1,
+      "weapon_state": "no_weapon_system",
+      "weapon_star": null,
+      "weapon_level": null,
+      "ex_skill": null,
+      "skill1": null,
+      "skill2": null,
+      "skill3": null,
+      "equip1": null,
+      "equip2": null,
+      "equip3": null,
+      "equip4": null,
+      "equip1_level": null,
+      "equip2_level": null,
+      "equip3_level": null,
+      "stat_hp": null,
+      "stat_atk": null,
+      "stat_heal": null,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.154,
+      "level_status": "failed",
+      "level_source": "template",
+      "level_note": "digit_read_fail",
+      "student_star_status": "uncertain",
+      "student_star_source": "template",
+      "student_star_score": 0.662,
+      "student_star_note": "value=1",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "failed",
+      "weapon_level_status": "failed",
+      "ex_skill_status": "failed",
+      "ex_skill_source": "template",
+      "ex_skill_note": "raw='unknown'",
+      "skill1_status": "failed",
+      "skill1_source": "template",
+      "skill1_note": "raw='unknown'",
+      "skill2_status": "failed",
+      "skill2_source": "template",
+      "skill2_note": "raw='unknown'",
+      "skill3_status": "failed",
+      "skill3_source": "template",
+      "skill3_note": "raw='unknown'",
+      "equip1_status": "skipped",
+      "equip1_source": "default",
+      "equip1_note": "equipment_impossible",
+      "equip2_status": "skipped",
+      "equip2_source": "default",
+      "equip2_note": "equipment_impossible",
+      "equip3_status": "skipped",
+      "equip3_source": "default",
+      "equip3_note": "equipment_impossible",
+      "equip4_status": "skipped",
+      "equip4_source": "default",
+      "equip4_note": "equipment_impossible",
+      "equip1_level_status": "skipped",
+      "equip1_level_source": "default",
+      "equip1_level_note": "equipment_impossible",
+      "equip2_level_status": "skipped",
+      "equip2_level_source": "default",
+      "equip2_level_note": "equipment_impossible",
+      "equip3_level_status": "skipped",
+      "equip3_level_source": "default",
+      "equip3_level_note": "equipment_impossible",
+      "stat_hp_status": "failed",
+      "stat_atk_status": "failed",
+      "stat_heal_status": "failed",
+      "_field_meta": {
+        "ex_skill": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill1": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill2": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill3": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "equip1": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip1_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip2": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip2_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip3": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip3_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip4": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "student_star": {
+          "status": "uncertain",
+          "source": "template",
+          "score": 0.662,
+          "note": "value=1"
+        }
+      }
+    },
+    {
+      "student_id": "saten_ruiko",
+      "display_name": "사텐 루이코",
+      "level": null,
+      "student_star": 1,
+      "weapon_state": "no_weapon_system",
+      "weapon_star": null,
+      "weapon_level": null,
+      "ex_skill": null,
+      "skill1": null,
+      "skill2": null,
+      "skill3": null,
+      "equip1": null,
+      "equip2": null,
+      "equip3": null,
+      "equip4": null,
+      "equip1_level": null,
+      "equip2_level": null,
+      "equip3_level": null,
+      "stat_hp": null,
+      "stat_atk": null,
+      "stat_heal": null,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.154,
+      "level_status": "failed",
+      "level_source": "template",
+      "level_note": "digit_read_fail",
+      "student_star_status": "uncertain",
+      "student_star_source": "template",
+      "student_star_score": 0.652,
+      "student_star_note": "value=1",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "failed",
+      "weapon_level_status": "failed",
+      "ex_skill_status": "failed",
+      "ex_skill_source": "template",
+      "ex_skill_note": "raw='unknown'",
+      "skill1_status": "failed",
+      "skill1_source": "template",
+      "skill1_note": "raw='unknown'",
+      "skill2_status": "failed",
+      "skill2_source": "template",
+      "skill2_note": "raw='unknown'",
+      "skill3_status": "failed",
+      "skill3_source": "template",
+      "skill3_note": "raw='unknown'",
+      "equip1_status": "skipped",
+      "equip1_source": "default",
+      "equip1_note": "equipment_impossible",
+      "equip2_status": "skipped",
+      "equip2_source": "default",
+      "equip2_note": "equipment_impossible",
+      "equip3_status": "skipped",
+      "equip3_source": "default",
+      "equip3_note": "equipment_impossible",
+      "equip4_status": "skipped",
+      "equip4_source": "default",
+      "equip4_note": "equipment_impossible",
+      "equip1_level_status": "skipped",
+      "equip1_level_source": "default",
+      "equip1_level_note": "equipment_impossible",
+      "equip2_level_status": "skipped",
+      "equip2_level_source": "default",
+      "equip2_level_note": "equipment_impossible",
+      "equip3_level_status": "skipped",
+      "equip3_level_source": "default",
+      "equip3_level_note": "equipment_impossible",
+      "stat_hp_status": "failed",
+      "stat_atk_status": "failed",
+      "stat_heal_status": "failed",
+      "_field_meta": {
+        "ex_skill": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill1": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill2": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill3": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "equip1": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip1_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip2": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip2_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip3": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip3_level": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "equip4": {
+          "status": "skipped",
+          "source": "default",
+          "score": null,
+          "note": "equipment_impossible"
+        },
+        "level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "student_star": {
+          "status": "uncertain",
+          "source": "template",
+          "score": 0.652,
+          "note": "value=1"
+        }
+      }
+    }
+  ],
+  "items": [],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-11_131344",
+    "session_started_at": "2026-04-11T13:13:44.070139",
+    "session_finished_at": "2026-04-11T13:14:27.847226",
+    "duration_sec": 43.8,
+    "students_total": 3,
+    "students_committed": 0,
+    "students_partial": 3,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 0,
+    "errors_by_step": {
+      "read_skills": 12,
+      "read_level": 3
+    },
+    "uncertain_by_field": {
+      "weapon_star": 1,
+      "equip1": 1,
+      "equip2": 1,
+      "equip3": 1,
+      "student_star": 2
+    },
+    "avg_confidence": 0.231,
+    "low_confidence_ids": [
+      "fuuka_new_year",
+      "misaki_swimsuit",
+      "saten_ruiko"
+    ],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-11T13:14:27.847226"
+}

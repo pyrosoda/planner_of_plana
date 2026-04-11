@@ -2,6 +2,7 @@
 Floating overlay tied to the selected Blue Archive window.
 """
 
+import ctypes
 import threading
 import time
 import tkinter as tk
@@ -33,6 +34,24 @@ EXPAND_H = 300
 SCAN_CARD_W = 360
 SCAN_CARD_H = 150
 
+GWL_EXSTYLE = -20
+WS_EX_LAYERED = 0x00080000
+WS_EX_TRANSPARENT = 0x00000020
+
+
+def _set_clickthrough(window: tk.Toplevel, enabled: bool) -> None:
+    try:
+        hwnd = window.winfo_id()
+        exstyle = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        if enabled:
+            exstyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT
+        else:
+            exstyle &= ~WS_EX_TRANSPARENT
+            exstyle |= WS_EX_LAYERED
+        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle)
+    except Exception:
+        pass
+
 
 class FloatingOverlay(tk.Toplevel):
     def __init__(
@@ -48,6 +67,7 @@ class FloatingOverlay(tk.Toplevel):
         on_view_students=None,
     ):
         super().__init__(master)
+        self._scan_backdrop = tk.Toplevel(master)
 
         self._cbs = {
             "items": on_scan_items,
@@ -87,6 +107,12 @@ class FloatingOverlay(tk.Toplevel):
         self.attributes("-alpha", 0.93)
         self.configure(bg=BG)
         self.withdraw()
+
+        self._scan_backdrop.overrideredirect(True)
+        self._scan_backdrop.attributes("-topmost", True)
+        self._scan_backdrop.attributes("-alpha", 0.22)
+        self._scan_backdrop.configure(bg="#08131d")
+        self._scan_backdrop.withdraw()
         self._init_progress_style()
 
         self._draw()
@@ -128,12 +154,10 @@ class FloatingOverlay(tk.Toplevel):
             self._draw_collapsed()
 
     def _draw_scan_overlay(self):
-        rect = get_window_rect()
-        if rect is None:
-            self.geometry(f"{scale_px(SCAN_CARD_W, self._ui_scale)}x{scale_px(SCAN_CARD_H, self._ui_scale)}")
-        else:
-            _, _, width, height = rect
-            self.geometry(f"{max(width, 1)}x{max(height, 1)}")
+        self.geometry(
+            f"{scale_px(SCAN_CARD_W, self._ui_scale)}x"
+            f"{scale_px(SCAN_CARD_H, self._ui_scale)}"
+        )
 
         root = tk.Frame(self, bg="#08131d")
         root.pack(fill="both", expand=True)
@@ -144,13 +168,7 @@ class FloatingOverlay(tk.Toplevel):
             highlightbackground=LBLUE,
             highlightthickness=2,
         )
-        card.place(
-            relx=0.5,
-            rely=0.5,
-            anchor="center",
-            width=scale_px(SCAN_CARD_W, self._ui_scale),
-            height=scale_px(SCAN_CARD_H, self._ui_scale),
-        )
+        card.pack(fill="both", expand=True)
 
         self._scan_title_label = tk.Label(
             card,
@@ -465,9 +483,13 @@ class FloatingOverlay(tk.Toplevel):
 
         left, top, width, height = rect
         if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-            ox = left
-            oy = top
-            tw, th = width, height
+            self._scan_backdrop.geometry(
+                f"{max(width, 1)}x{max(height, 1)}+{left}+{top}"
+            )
+            tw = scale_px(SCAN_CARD_W, self._ui_scale)
+            th = scale_px(SCAN_CARD_H, self._ui_scale)
+            ox = left + max(0, (width - tw) // 2)
+            oy = top + max(0, (height - th) // 2)
         elif self._expanded:
             ox = int(left + width * FLOAT_RX)
             scaled_expand_h = scale_px(EXPAND_H, self._ui_scale)
@@ -484,6 +506,21 @@ class FloatingOverlay(tk.Toplevel):
         ox = max(0, min(ox, sw - tw))
         oy = max(0, min(oy, sh - th))
         self.geometry(f"+{ox}+{oy}")
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self._scan_backdrop.lift()
+            self.lift()
+
+    def _show_scan_backdrop(self) -> None:
+        if self._app_state not in (AppState.SCANNING, AppState.STOPPING):
+            self._scan_backdrop.withdraw()
+            return
+        self._scan_backdrop.deiconify()
+        self._scan_backdrop.update_idletasks()
+        _set_clickthrough(self._scan_backdrop, True)
+        self._reposition()
+
+    def _hide_scan_backdrop(self) -> None:
+        self._scan_backdrop.withdraw()
 
     def _start_tracker(self):
         def loop():
@@ -507,12 +544,15 @@ class FloatingOverlay(tk.Toplevel):
     def show(self):
         if not self._visible:
             self._visible = True
+            if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+                self._show_scan_backdrop()
             self.deiconify()
             self._reposition()
 
     def hide(self):
         if self._visible:
             self._visible = False
+            self._hide_scan_backdrop()
             self.withdraw()
 
     def set_app_state(self, state: AppState):
@@ -532,6 +572,10 @@ class FloatingOverlay(tk.Toplevel):
         ):
             self.after(0, self._draw)
             self.after(0, self._reposition)
+        if state in (AppState.SCANNING, AppState.STOPPING):
+            self.after(0, self._show_scan_backdrop)
+        else:
+            self.after(0, self._hide_scan_backdrop)
 
     def set_lobby_state(self, in_lobby: bool) -> None:
         prev = self._in_lobby
@@ -562,4 +606,5 @@ class FloatingOverlay(tk.Toplevel):
         self._stop_event.set()
         if self._scan_progress is not None:
             self._scan_progress.stop()
+        self._scan_backdrop.destroy()
         super().destroy()

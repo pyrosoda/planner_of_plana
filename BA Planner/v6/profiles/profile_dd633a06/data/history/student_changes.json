@@ -1,1 +1,106 @@
-[]
+[
+  {
+    "student_id": "fuuka_new_year",
+    "field": "display_name",
+    "old": null,
+    "new": "후우카(새해)",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "fuuka_new_year",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "fuuka_new_year",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "미사키(수영복)",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "display_name",
+    "old": null,
+    "new": "사텐 루이코",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "student_star",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-11T13:13:44+09:00",
+    "scan_id": "2026-04-11_131344"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "display_name",
+    "old": null,
+    "new": "히비키",
+    "changed_at": "2026-04-11T13:56:03+09:00",
+    "scan_id": "2026-04-11_135603"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-11T13:56:03+09:00",
+    "scan_id": "2026-04-11_135603"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-11T13:56:03+09:00",
+    "scan_id": "2026-04-11_135603"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "weapon_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-11T13:56:03+09:00",
+    "scan_id": "2026-04-11_135603"
+  }
+]

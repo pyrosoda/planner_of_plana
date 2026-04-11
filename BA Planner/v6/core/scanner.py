@@ -96,9 +96,13 @@ MAX_CONSECUTIVE_DUP  = 3
 MAX_STUDENT_LEVEL    = 90
 STAT_UNLOCK_LEVEL    = 90
 STAT_UNLOCK_STAR     = 5
-DETAIL_READY_SCORE   = 0.40
-DETAIL_READY_WAIT    = 3.5
-LOBBY_EXIT_WAIT      = 3.0
+DETAIL_READY_SCORE   = 0.80
+DETAIL_READY_WAIT    = 6.0
+DETAIL_READY_STABLE_POLLS = 2
+LOBBY_EXIT_WAIT      = 5.5
+MENU_CLICK_SETTLE_WAIT = 1.2
+FIRST_STUDENT_PRECLICK_WAIT = 0.3
+DETAIL_CLICK_SETTLE_WAIT = 1.0
 
 # retry 정책
 RETRY_IDENTIFY   = 2      # 학생 식별 최대 시도
@@ -857,8 +861,11 @@ class Scanner:
         expected_in_student_menu: bool,
         *,
         timeout: float,
+        initial_wait: float = 0.0,
         poll: float = 0.25,
     ) -> bool:
+        if initial_wait > 0 and not self._wait(initial_wait):
+            return False
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self._stop_requested():
@@ -875,18 +882,32 @@ class Scanner:
         self,
         *,
         timeout: float = DETAIL_READY_WAIT,
+        initial_wait: float = 0.0,
         poll: float = 0.25,
     ) -> bool:
+        if initial_wait > 0 and not self._wait(initial_wait):
+            return False
         deadline = time.monotonic() + timeout
+        ready_streak = 0
         while time.monotonic() < deadline:
             if self._stop_requested():
                 return False
             img = self._capture()
             score = self._student_detail_score(img)
-            _log.debug(f"[detail_wait] texture_score={score:.3f}")
+            _log.debug(
+                f"[detail_wait] texture_score={score:.3f} "
+                f"ready_streak={ready_streak}"
+            )
             if score >= DETAIL_READY_SCORE:
+                ready_streak += 1
+                if ready_streak < DETAIL_READY_STABLE_POLLS:
+                    if not self._wait(poll):
+                        return False
+                    continue
                 self._student_basic_img = img
                 return True
+            else:
+                ready_streak = 0
             if not self._wait(poll):
                 return False
         return False
@@ -940,14 +961,22 @@ class Scanner:
         """region 중심 클릭 (HWND 기반 우선)."""
         rect = self._rect()
         if rect is None:
+            _log.warning(f"[click] rect 없음: {label}")
             return False
         hwnd = self._hwnd()
+        rx = (region["x1"] + region["x2"]) / 2
+        ry = (region["y1"] + region["y2"]) / 2
         if hwnd:
-            rx = (region["x1"] + region["x2"]) / 2
-            ry = (region["y1"] + region["y2"]) / 2
             cx, cy = ratio_to_client(rect, rx, ry)
-            return click_point(hwnd, cx, cy, label=label)
-        return click_center(rect, region, label)
+            ok = click_point(hwnd, cx, cy, label=label)
+            _log.debug(
+                f"[click] {label} hwnd={hwnd} ratio=({rx:.4f},{ry:.4f}) "
+                f"client=({cx},{cy}) ok={ok}"
+            )
+            return ok
+        ok = click_center(rect, region, label)
+        _log.debug(f"[click] {label} ratio=({rx:.4f},{ry:.4f}) fallback ok={ok}")
+        return ok
 
     def _tab(self, region_key: str, delay: float = DELAY_TAB_SWITCH) -> bool:
         """탭 버튼 클릭 + 대기."""
@@ -1438,8 +1467,15 @@ class Scanner:
             self._adjust_region(btn, left=-0.01, top=-0.01, right=0.04, bottom=0.01),
         ]
         for attempt, region in enumerate(attempts, start=1):
-            self._click_r(region, f"student_menu_{attempt}")
-            if self._wait_for_student_menu_state(True, timeout=LOBBY_EXIT_WAIT):
+            clicked = self._click_r(region, f"student_menu_{attempt}")
+            _log.info(f"[student_menu] attempt={attempt} clicked={clicked}")
+            if not clicked:
+                continue
+            if self._wait_for_student_menu_state(
+                True,
+                timeout=LOBBY_EXIT_WAIT,
+                initial_wait=MENU_CLICK_SETTLE_WAIT,
+            ):
                 return self._wait(0.6)
             if attempt < len(attempts):
                 self.log(f"  학생 메뉴 재시도... ({attempt+1}/{len(attempts)})")
@@ -1452,13 +1488,24 @@ class Scanner:
             self.log("  ⚠️ first_student_button 미정의")
             return False
 
+        if not self._wait(FIRST_STUDENT_PRECLICK_WAIT):
+            return False
+
         attempts = [
             btn,
-            self._adjust_region(btn, left=-0.01, top=-0.02, right=0.08, bottom=0.02),
+            self._adjust_region(btn, left=0.00, top=0.00, right=0.10, bottom=0.02),
+            self._adjust_region(btn, left=0.02, top=0.00, right=0.14, bottom=0.03),
+            self._adjust_region(btn, left=0.04, top=0.01, right=0.16, bottom=0.04),
         ]
         for attempt, region in enumerate(attempts, start=1):
-            self._click_r(region, f"first_student_{attempt}")
-            if self._wait_for_student_detail():
+            clicked = self._click_r(region, f"first_student_{attempt}")
+            _log.info(f"[first_student] attempt={attempt} clicked={clicked}")
+            if not clicked:
+                continue
+            if self._wait(0.12):
+                confirm_clicked = self._click_r(region, f"first_student_{attempt}_confirm")
+                _log.info(f"[first_student] attempt={attempt} confirm_clicked={confirm_clicked}")
+            if self._wait_for_student_detail(initial_wait=DETAIL_CLICK_SETTLE_WAIT):
                 return True
             if attempt < len(attempts):
                 self.log(f"  첫 학생 재선택... ({attempt+1}/{len(attempts)})")

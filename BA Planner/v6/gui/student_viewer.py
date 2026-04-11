@@ -226,12 +226,15 @@ def _load_photo(student_id: str, size: tuple[int, int]) -> Optional[ImageTk.Phot
 
         texture_path = _stable_texture_path(student_id)
         if texture_path is not None:
+            background = Image.new("RGBA", size, (14, 21, 32, 255))
             with Image.open(texture_path) as tex:
-                background = ImageOps.fit(tex.convert("RGBA"), size, Image.LANCZOS, centering=(0.5, 0.5))
+                texture = ImageOps.fit(tex.convert("RGBA"), size, Image.LANCZOS, centering=(0.5, 0.5))
+                texture.putalpha(32)
+                background.alpha_composite(texture)
         else:
             background = Image.new("RGBA", size, (14, 21, 32, 255))
 
-        background.alpha_composite(Image.new("RGBA", size, (8, 12, 18, 88)))
+        background.alpha_composite(Image.new("RGBA", size, (8, 12, 18, 112)))
 
         if portrait.width > 0 and portrait.height > 0:
             scale = (size[1] * 0.98) / portrait.height

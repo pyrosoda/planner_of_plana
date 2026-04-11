@@ -244,6 +244,37 @@ def click_point(
     return ok
 
 
+def click_point(
+    hwnd: int,
+    cx: int,
+    cy: int,
+    *,
+    label: str = "",
+    delay: float = 0.0,
+) -> bool:
+    """
+    Visible windows use a real screen click first because some games ignore
+    queued mouse messages even when PostMessage reports success.
+    """
+    ok = False
+    if _can_use_physical_fallback(hwnd):
+        sx, sy = cx, cy
+        converted = client_to_screen(hwnd, cx, cy)
+        if converted:
+            sx, sy = converted
+        _log.debug(f"physical click ({label}) screen=({sx},{sy})")
+        ok = _pag_click(sx, sy)
+        if not ok:
+            _log.debug(f"physical click failed -> PostMessage fallback ({label})")
+            ok = _post_click(hwnd, cx, cy)
+    else:
+        ok = _post_click(hwnd, cx, cy)
+
+    if delay > 0:
+        time.sleep(delay)
+    return ok
+
+
 def click_region(
     hwnd: int,
     rect: tuple[int, int, int, int],

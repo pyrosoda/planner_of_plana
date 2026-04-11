@@ -8,7 +8,6 @@ import json
 import os
 import sqlite3
 import sys
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,8 +19,8 @@ import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
-from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QObject, QRect, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -45,12 +44,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QScrollArea,
-    QStyledItemDelegate,
-    QStyle,
 )
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image
 
     HAS_PIL = True
 except ImportError:
@@ -59,9 +56,9 @@ except ImportError:
 PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
 UI_FONT_PATH = BASE_DIR / "gui" / "font" / "경기천년제목_Medium.ttf"
 POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
-POLI_BG_TEXTURES = sorted(POLI_BG_DIR.glob("UITex_BGPoliLight_*.png"))
-THUMB_STYLE_VERSION = "v3"
-PORTRAIT_RATIO = 252 / 204
+CARD_BUTTON_ASSET = POLI_BG_DIR / "square.png"
+MAIN_UI_PALETTE_PATH = BASE_DIR / "gui" / "main_ui_color_palete.txt"
+THUMB_STYLE_VERSION = "v4-parallelogram-card"
 
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -71,21 +68,76 @@ from gui.student_filters import (
     matches_student_filters,
     summarize_filters,
 )
+from gui.parallelogram_button import (
+    ParallelogramButton,
+    ParallelogramButtonRow,
+    build_card_button_style,
+)
+from gui.parallelogram_card import (
+    ParallelogramCardAsset,
+    ParallelogramCardGrid,
+    StudentCardWidget,
+    build_card_style,
+)
 from gui.student_stats import DonutWidget, build_distribution
 
 
-BG = "#f6f6f9"
-SURFACE = "#ffffff"
-SURFACE_ALT = "#f0f1f6"
-INK = "#323548"
-MUTED = "#73778a"
-BORDER = "#d8dbe5"
-ACCENT = "#c84d4d"
-ACCENT_STRONG = "#a63d3d"
-ACCENT_SOFT = "#f4dfdf"
-ACCENT_PALE = "#fff1f1"
-SHADOW = "#eceef5"
-CARD_ROLE = Qt.UserRole + 1
+def _normalize_hex(color: str, fallback: str) -> str:
+    value = (color or "").strip()
+    if len(value) == 7 and value.startswith("#"):
+        return value.lower()
+    return fallback.lower()
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    value = color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _rgb_to_hex(red: int, green: int, blue: int) -> str:
+    return f"#{max(0, min(255, red)):02x}{max(0, min(255, green)):02x}{max(0, min(255, blue)):02x}"
+
+
+def _mix_hex(color_a: str, color_b: str, amount_from_b: float) -> str:
+    amount = max(0.0, min(1.0, amount_from_b))
+    ar, ag, ab = _hex_to_rgb(color_a)
+    br, bg, bb = _hex_to_rgb(color_b)
+    return _rgb_to_hex(
+        int(round(ar + (br - ar) * amount)),
+        int(round(ag + (bg - ag) * amount)),
+        int(round(ab + (bb - ab) * amount)),
+    )
+
+
+def _load_main_palette() -> tuple[str, str, str, str, str]:
+    fallback = ("#f266b3", "#efe4f2", "#313b59", "#2c3140", "#f2f2f2")
+    if not MAIN_UI_PALETTE_PATH.exists():
+        return fallback
+
+    try:
+        values = [entry.strip() for entry in MAIN_UI_PALETTE_PATH.read_text(encoding="utf-8").split(",")]
+    except Exception:
+        return fallback
+
+    if len(values) < 5:
+        return fallback
+
+    return tuple(_normalize_hex(values[index], fallback[index]) for index in range(5))  # type: ignore[return-value]
+
+
+PALETTE_ACCENT, PALETTE_SOFT, PALETTE_PANEL, PALETTE_PANEL_ALT, PALETTE_TEXT = _load_main_palette()
+
+BG = _mix_hex(PALETTE_PANEL_ALT, "#090b12", 0.3)
+SURFACE = PALETTE_PANEL
+SURFACE_ALT = PALETTE_PANEL_ALT
+INK = PALETTE_TEXT
+MUTED = _mix_hex(PALETTE_TEXT, PALETTE_PANEL_ALT, 0.38)
+BORDER = _mix_hex(PALETTE_SOFT, PALETTE_PANEL_ALT, 0.72)
+ACCENT = PALETTE_ACCENT
+ACCENT_STRONG = _mix_hex(PALETTE_ACCENT, "#ffffff", 0.14)
+ACCENT_SOFT = _mix_hex(PALETTE_ACCENT, PALETTE_PANEL_ALT, 0.58)
+ACCENT_PALE = _mix_hex(PALETTE_SOFT, PALETTE_PANEL_ALT, 0.55)
+SHADOW = _mix_hex(PALETTE_PANEL_ALT, "#000000", 0.35)
 
 
 def get_qt_ui_scale(
@@ -215,24 +267,6 @@ def _load_ui_font_family() -> str | None:
     return families[0] if families else None
 
 
-def _bottom_rounded_path(rect: QRect, radius: int) -> QPainterPath:
-    radius = max(0, min(radius, rect.width() // 2, rect.height() // 2))
-    left = float(rect.left())
-    top = float(rect.top())
-    right = float(rect.right())
-    bottom = float(rect.bottom())
-
-    path = QPainterPath()
-    path.moveTo(left, top)
-    path.lineTo(right, top)
-    path.lineTo(right, bottom - radius)
-    path.quadTo(right, bottom, right - radius, bottom)
-    path.lineTo(left + radius, bottom)
-    path.quadTo(left, bottom, left, bottom - radius)
-    path.closeSubpath()
-    return path
-
-
 def _int_or_none(value: object) -> int | None:
     try:
         if value is None or value == "":
@@ -240,105 +274,6 @@ def _int_or_none(value: object) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
-
-
-class StudentCardDelegate(QStyledItemDelegate):
-    def __init__(self, ui_scale: float, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._ui_scale = ui_scale
-
-    def paint(self, painter: QPainter, option, index) -> None:
-        record = index.data(CARD_ROLE)
-        if record is None:
-            super().paint(painter, option, index)
-            return
-
-        hovered = bool(option.state & QStyle.State_MouseOver)
-        rect = option.rect.adjusted(4, 4, -4, -4)
-        if hovered:
-            rect = rect.adjusted(-3, -3, 3, 3)
-        radius = scale_px(14, self._ui_scale)
-        painter.save()
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        path = QPainterPath()
-        path.addRoundedRect(rect, radius, radius)
-        painter.fillPath(path, QColor(SURFACE))
-
-        border_color = QColor(ACCENT if option.state & QStyle.State_Selected else BORDER)
-        border_width = 2 if option.state & QStyle.State_Selected else 1
-        painter.setPen(QPen(border_color, border_width))
-        painter.drawPath(path)
-
-        icon = index.data(Qt.DecorationRole)
-        pixmap = icon.pixmap(rect.size()) if isinstance(icon, QIcon) else QPixmap()
-        if not pixmap.isNull():
-            source = pixmap.scaled(rect.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            x = rect.x() + (rect.width() - source.width()) // 2
-            y = rect.y() + (rect.height() - source.height()) // 2
-            painter.setClipPath(path)
-            painter.drawPixmap(x, y, source)
-            if not record.owned:
-                painter.fillRect(rect, QColor(10, 12, 18, 96))
-        else:
-            painter.fillRect(rect, QColor(SURFACE_ALT))
-
-        if not pixmap.isNull():
-            divider_primary, divider_secondary = _student_divider_colors(record)
-
-            font = QFont()
-
-            info_panel = QRect(
-                rect.x() + scale_px(8, self._ui_scale),
-                rect.bottom() - scale_px(24, self._ui_scale),
-                rect.width() - scale_px(16, self._ui_scale),
-                scale_px(24, self._ui_scale),
-            )
-            divider_h = scale_px(4, self._ui_scale)
-            divider_rect = QRect(
-                info_panel.x(),
-                info_panel.y() - divider_h,
-                info_panel.width(),
-                divider_h,
-            )
-            left_divider = QRect(
-                divider_rect.x(),
-                divider_rect.y(),
-                divider_rect.width() // 2,
-                divider_rect.height(),
-            )
-            right_divider = QRect(
-                left_divider.right() + 1,
-                divider_rect.y(),
-                divider_rect.width() - left_divider.width(),
-                divider_rect.height(),
-            )
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(divider_primary))
-            painter.drawRect(left_divider)
-            painter.setBrush(QColor(divider_secondary))
-            painter.drawRect(right_divider)
-
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(17, 19, 27, 186))
-            painter.drawPath(_bottom_rounded_path(info_panel, scale_px(12, self._ui_scale)))
-
-            name_rect = QRect(
-                info_panel.x() + scale_px(8, self._ui_scale),
-                info_panel.y() + scale_px(3, self._ui_scale),
-                info_panel.width() - scale_px(16, self._ui_scale),
-                info_panel.height() - scale_px(4, self._ui_scale),
-            )
-            font.setBold(True)
-            font.setPointSizeF(max(8.8, 10.4 * self._ui_scale))
-            painter.setFont(font)
-            painter.setPen(QColor("#f6f6f9"))
-            painter.drawText(name_rect, Qt.AlignCenter | Qt.TextSingleLine, record.title)
-
-        painter.restore()
-
-    def sizeHint(self, option, index) -> QSize:
-        return QSize(scale_px(232, self._ui_scale), scale_px(192, self._ui_scale))
 
 
 @dataclass(slots=True)
@@ -467,50 +402,16 @@ def thumb_cache_path(student_id: str, width: int, height: int) -> Path:
     return BASE_DIR / "cache" / "student_thumbs" / THUMB_STYLE_VERSION / f"{width}x{height}" / f"{student_id}.png"
 
 
-def _stable_texture_path(student_id: str) -> Path | None:
-    if not POLI_BG_TEXTURES:
-        return None
-    digest = hashlib.blake2b(student_id.encode("utf-8"), digest_size=2).digest()
-    index = int.from_bytes(digest, "big") % len(POLI_BG_TEXTURES)
-    return POLI_BG_TEXTURES[index]
-
-
 def _render_card_portrait(student_id: str, source: Path, width: int, height: int) -> Image.Image:
     with Image.open(source) as img:
         portrait = img.convert("RGBA")
 
-    alpha = portrait.getchannel("A")
-    bbox = alpha.getbbox()
-    if bbox:
-        portrait = portrait.crop(bbox)
-
-    texture_path = _stable_texture_path(student_id)
-    if texture_path is not None:
-        with Image.open(texture_path) as tex:
-            background = ImageOps.fit(tex.convert("RGBA"), (width, height), Image.LANCZOS, centering=(0.5, 0.5))
-    else:
-        background = Image.new("RGBA", (width, height), (16, 22, 30, 255))
-
-    background.alpha_composite(Image.new("RGBA", (width, height), (8, 12, 18, 88)))
-
     if portrait.width <= 0 or portrait.height <= 0:
-        return background
+        return Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
-    scale = (height * 0.98) / portrait.height
-    resized = portrait.resize(
-        (
-            max(1, int(round(portrait.width * scale))),
-            max(1, int(round(portrait.height * scale))),
-        ),
-        Image.LANCZOS,
-    )
-
-    layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    offset_x = (width - resized.width) // 2
-    offset_y = (height - resized.height) // 2
-    layer.paste(resized, (offset_x, offset_y), resized)
-    background.alpha_composite(layer)
-    return background
+    if portrait.width == width and portrait.height == height:
+        return portrait
+    return portrait.resize((width, height), Image.LANCZOS)
 
 
 def ensure_thumbnail(student_id: str, width: int = 128, height: int | None = None) -> Path | None:
@@ -530,7 +431,7 @@ def ensure_thumbnail(student_id: str, width: int = 128, height: int | None = Non
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         canvas = _render_card_portrait(student_id, source, width, height)
-        canvas.convert("RGB").save(target, format="PNG")
+        canvas.save(target, format="PNG")
         return target
     except Exception:
         return source
@@ -540,7 +441,7 @@ def make_placeholder_icon(width: int = 128, height: int | None = None) -> QIcon:
     if height is None:
         height = width
     pixmap = QPixmap(width, height)
-    pixmap.fill(QColor("#1a2430"))
+    pixmap.fill(Qt.transparent)
     return QIcon(pixmap)
 
 
@@ -557,7 +458,7 @@ def make_unowned_icon(student_id: str, width: int = 128, height: int | None = No
 
 def _make_dimmed_pixmap(pixmap: QPixmap, width: int, height: int, fill: str | None = None) -> QPixmap:
     canvas = QPixmap(width, height)
-    canvas.fill(QColor(fill or "#101a24"))
+    canvas.fill(QColor(fill or Qt.transparent))
     painter = QPainter(canvas)
     x = max(0, (width - pixmap.width()) // 2)
     y = max(0, (height - pixmap.height()) // 2)
@@ -675,11 +576,14 @@ class StudentViewerWindow(QMainWindow):
     def __init__(self, ui_scale: float):
         super().__init__()
         self._ui_scale = ui_scale
-        self._base_thumb_width = scale_px(232, ui_scale)
+        self._student_card_asset = ParallelogramCardAsset(build_card_style(CARD_BUTTON_ASSET, ui_scale))
+        self._card_button_style = build_card_button_style(CARD_BUTTON_ASSET, ui_scale)
+        self._base_thumb_width = scale_px(self._student_card_asset.base_size.width(), ui_scale)
         self._thumb_width = self._base_thumb_width
-        self._thumb_height = max(1, int(round(self._thumb_width / PORTRAIT_RATIO)))
-        self._grid_width = self._thumb_width + scale_px(2, ui_scale)
-        self._grid_height = self._thumb_height + scale_px(2, ui_scale)
+        self._thumb_height = scale_px(self._student_card_asset.base_size.height(), ui_scale)
+        outer_margin = self._student_card_asset.style.outer_margin * 2
+        self._grid_width = self._thumb_width + outer_margin
+        self._grid_height = self._thumb_height + outer_margin
         self.setWindowTitle("Blue Archive Planner")
         self.resize(scale_px(1560, ui_scale), scale_px(980, ui_scale))
 
@@ -687,7 +591,7 @@ class StudentViewerWindow(QMainWindow):
         self._all_students = load_students()
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filtered_students = list(self._all_students)
-        self._item_by_id: dict[str, QListWidgetItem] = {}
+        self._item_by_id: dict[str, StudentCardWidget] = {}
         self._thumb_loading: set[str] = set()
         self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
         self._unowned_icon_cache: dict[str, QIcon] = {}
@@ -755,6 +659,10 @@ class StudentViewerWindow(QMainWindow):
                 margin-right: {scale_px(6, self._ui_scale)}px;
                 border-radius: {scale_px(10, self._ui_scale)}px;
             }}
+            QTabBar::tab:hover {{
+                background: {ACCENT_SOFT};
+                color: {INK};
+            }}
             QTabBar::tab:selected {{
                 background: {ACCENT_PALE};
                 color: {ACCENT_STRONG};
@@ -808,17 +716,19 @@ class StudentViewerWindow(QMainWindow):
                 background: {SURFACE_ALT};
                 border: 1px solid {BORDER};
                 border-radius: {scale_px(12, self._ui_scale)}px;
-                padding: {scale_px(6, self._ui_scale)}px;
+                padding: 0px;
             }}
             QListWidget::item {{
-                background: {SURFACE};
-                border: 1px solid {SHADOW};
-                border-radius: {scale_px(12, self._ui_scale)}px;
+                background: transparent;
+                border: none;
                 padding: 0px;
             }}
             QListWidget::item:selected {{
-                background: {ACCENT_PALE};
-                border: 1px solid {ACCENT};
+                background: transparent;
+                border: none;
+            }}
+            QAbstractItemView {{
+                selection-background-color: transparent;
             }}
             QLabel#hero {{
                 background: transparent;
@@ -846,6 +756,23 @@ class StudentViewerWindow(QMainWindow):
                 border: 1px solid {BORDER};
                 border-radius: {scale_px(8, self._ui_scale)}px;
                 padding: {scale_px(6, self._ui_scale)}px {scale_px(8, self._ui_scale)}px;
+            }}
+            QScrollBar:vertical {{
+                background: {SURFACE_ALT};
+                width: {scale_px(12, self._ui_scale)}px;
+                margin: {scale_px(4, self._ui_scale)}px;
+                border-radius: {scale_px(6, self._ui_scale)}px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {ACCENT_SOFT};
+                min-height: {scale_px(36, self._ui_scale)}px;
+                border-radius: {scale_px(6, self._ui_scale)}px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: transparent;
+                border: none;
+                height: 0px;
             }}
             """
         )
@@ -910,13 +837,15 @@ class StudentViewerWindow(QMainWindow):
         self._show_unowned.stateChanged.connect(self._apply_filters)
         toolbar_layout.addWidget(self._show_unowned)
 
-        self._filter_button = QPushButton("Filters")
+        toolbar_buttons = ParallelogramButtonRow()
+        self._filter_button = ParallelogramButton("Filters", style=self._card_button_style)
         self._filter_button.clicked.connect(self._open_filter_dialog)
-        toolbar_layout.addWidget(self._filter_button)
+        toolbar_buttons.addButton(self._filter_button)
 
-        refresh_button = QPushButton("Refresh")
+        refresh_button = ParallelogramButton("Refresh", style=self._card_button_style)
         refresh_button.clicked.connect(self._reload_data)
-        toolbar_layout.addWidget(refresh_button)
+        toolbar_buttons.addButton(refresh_button)
+        toolbar_layout.addWidget(toolbar_buttons, 0, Qt.AlignVCenter)
         layout.addWidget(toolbar)
 
         self._filter_summary = QLabel("No filters applied")
@@ -960,7 +889,7 @@ class StudentViewerWindow(QMainWindow):
             scale_px(16, self._ui_scale),
         )
         self._hero = QLabel()
-        self._hero.setMinimumSize(scale_px(320, self._ui_scale), scale_px(280, self._ui_scale))
+        self._hero.setMinimumSize(scale_px(286, self._ui_scale), scale_px(250, self._ui_scale))
         self._hero.setAlignment(Qt.AlignCenter)
         self._hero.setObjectName("hero")
         hero_layout.addWidget(self._hero)
@@ -979,9 +908,13 @@ class StudentViewerWindow(QMainWindow):
         self._detail_badges.setWordWrap(True)
         detail_layout.addWidget(self._detail_badges)
 
-        self._detail_plan_button = QPushButton("Add To Plan")
+        self._detail_plan_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
         self._detail_plan_button.clicked.connect(self._add_current_student_to_plan)
-        detail_layout.addWidget(self._detail_plan_button)
+        detail_action_row = QHBoxLayout()
+        detail_action_row.setContentsMargins(0, 0, 0, 0)
+        detail_action_row.addWidget(self._detail_plan_button, 0, Qt.AlignLeft)
+        detail_action_row.addStretch(1)
+        detail_layout.addLayout(detail_action_row)
 
         quick_grid = QGridLayout()
         quick_grid.setHorizontalSpacing(scale_px(10, self._ui_scale))
@@ -1049,52 +982,35 @@ class StudentViewerWindow(QMainWindow):
         self._detail_stats_line.setObjectName("detailSub")
         equip_form.addRow("Stats", self._detail_stats_line)
         detail_layout.addWidget(equips)
-        self._list = QListWidget()
-        self._list.setViewMode(QListWidget.IconMode)
-        self._list.setResizeMode(QListWidget.Adjust)
-        self._list.setMovement(QListWidget.Static)
-        self._list.setMouseTracking(True)
-        self._list.viewport().setMouseTracking(True)
-        self._list.setSpacing(scale_px(4, self._ui_scale))
-        self._list.setIconSize(QSize(self._thumb_width, self._thumb_height))
-        self._list.setGridSize(QSize(self._grid_width, self._grid_height))
-        self._list.setUniformItemSizes(True)
-        self._list.setItemDelegate(StudentCardDelegate(self._ui_scale, self._list))
-        self._list.viewport().installEventFilter(self)
-        self._list.currentItemChanged.connect(self._on_item_changed)
-        list_layout.addWidget(self._list, 1)
+        self._student_grid = ParallelogramCardGrid(self._student_card_asset, self._ui_scale)
+        self._student_grid.setObjectName("studentGrid")
+        self._student_grid.current_changed.connect(self._on_student_card_changed)
+        self._student_grid.layout_changed.connect(self._on_student_grid_layout_changed)
+        list_layout.addWidget(self._student_grid, 1)
 
-        detail.setMinimumWidth(scale_px(252, self._ui_scale))
-        detail.setMaximumWidth(scale_px(320, self._ui_scale))
+        detail.setMinimumWidth(scale_px(332, self._ui_scale))
+        detail.setMaximumWidth(scale_px(376, self._ui_scale))
         content.addWidget(list_panel)
         content.addWidget(detail)
         content.setStretchFactor(0, 5)
         content.setStretchFactor(1, 1)
-        content.setSizes([scale_px(1180, self._ui_scale), scale_px(280, self._ui_scale)])
+        content.setSizes([scale_px(1168, self._ui_scale), scale_px(352, self._ui_scale)])
 
     def eventFilter(self, watched, event) -> bool:
-        if (
-            hasattr(self, "_list")
-            and watched is self._list.viewport()
-            and event.type() == QEvent.Resize
-        ):
-            self._refresh_card_layout()
         return super().eventFilter(watched, event)
 
     def _refresh_card_layout(self) -> None:
-        if self._card_layout_guard or not hasattr(self, "_list"):
+        if self._card_layout_guard or not hasattr(self, "_student_grid"):
             return
-        viewport_width = self._list.viewport().width()
-        if viewport_width <= 0:
-            return
+        size = self._student_grid.current_card_size()
+        thumb_width = size.width()
+        thumb_height = size.height()
+        outer_margin = self._student_card_asset.style.outer_margin * 2
+        grid_width = thumb_width + outer_margin
+        grid_height = thumb_height + outer_margin
 
-        spacing = self._list.spacing()
-        min_card_width = scale_px(180, self._ui_scale)
-        target_columns = max(1, round((viewport_width + spacing) / (self._base_thumb_width + spacing)))
-        thumb_width = max(min_card_width, (viewport_width - spacing * max(0, target_columns - 1)) // target_columns)
-        thumb_height = max(1, int(round(thumb_width / PORTRAIT_RATIO)))
-        grid_width = thumb_width + scale_px(2, self._ui_scale)
-        grid_height = thumb_height + scale_px(2, self._ui_scale)
+        if thumb_width <= 0 or thumb_height <= 0:
+            return
 
         if (
             thumb_width == self._thumb_width
@@ -1112,9 +1028,9 @@ class StudentViewerWindow(QMainWindow):
             self._grid_height = grid_height
             self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
             self._unowned_icon_cache.clear()
-            self._list.setIconSize(QSize(self._thumb_width, self._thumb_height))
-            self._list.setGridSize(QSize(self._grid_width, self._grid_height))
-            self._rebuild_list()
+            self._thumb_loading.clear()
+            for student_id in self._item_by_id:
+                self._queue_thumb(student_id)
         finally:
             self._card_layout_guard = False
 
@@ -1213,9 +1129,13 @@ class StudentViewerWindow(QMainWindow):
         self._plan_all_list = QListWidget()
         self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
         all_layout.addWidget(self._plan_all_list, 1)
-        add_button = QPushButton("Add To Plan")
+        add_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
         add_button.clicked.connect(self._add_selected_student_to_plan)
-        all_layout.addWidget(add_button)
+        add_button_row = QHBoxLayout()
+        add_button_row.setContentsMargins(0, 0, 0, 0)
+        add_button_row.addWidget(add_button, 0, Qt.AlignLeft)
+        add_button_row.addStretch(1)
+        all_layout.addLayout(add_button_row)
         splitter.addWidget(all_panel)
 
         plan_panel = QFrame()
@@ -1433,9 +1353,8 @@ class StudentViewerWindow(QMainWindow):
     def _focus_selected_plan_student_in_viewer(self) -> None:
         if not self._selected_plan_student_id:
             return
-        item = self._item_by_id.get(self._selected_plan_student_id)
-        if item is not None:
-            self._list.setCurrentItem(item)
+        if self._selected_plan_student_id in self._item_by_id:
+            self._student_grid.set_current_card(self._selected_plan_student_id)
 
     def _load_plan_student(self, student_id: str) -> None:
         record = self._records_by_id.get(student_id)
@@ -1666,28 +1585,33 @@ class StudentViewerWindow(QMainWindow):
 
     def _rebuild_list(self) -> None:
         selected_id = self._current_student_id()
-        self._list.clear()
+        self._student_grid.clear_cards()
         self._item_by_id.clear()
         self._thumb_loading.clear()
 
         for record in self._filtered_students:
-            icon = self._placeholder_icon
-            item = QListWidgetItem(icon, "")
-            item.setData(Qt.UserRole, record.student_id)
-            item.setData(CARD_ROLE, record)
-            item.setToolTip(record.student_id)
-            item.setSizeHint(QSize(self._grid_width, self._grid_height))
-            self._list.addItem(item)
-            self._item_by_id[record.student_id] = item
+            divider_primary, divider_secondary = _student_divider_colors(record)
+            card = StudentCardWidget(
+                card_asset=self._student_card_asset,
+                student_id=record.student_id,
+                title=record.title,
+                owned=record.owned,
+                divider_left=QColor(divider_primary),
+                divider_right=QColor(divider_secondary),
+            )
+            card.setToolTip(record.student_id)
+            self._student_grid.add_card(card)
+            self._item_by_id[record.student_id] = card
             self._queue_thumb(record.student_id)
 
         owned_count = sum(1 for record in self._all_students if record.owned)
         self._count_label.setText(f"{len(self._filtered_students)} shown / {len(self._all_students)} total ({owned_count} owned)")
 
         if self._filtered_students:
-            restore = self._item_by_id.get(selected_id or "")
-            self._list.setCurrentItem(restore or self._list.item(0))
+            restore_id = selected_id if selected_id in self._item_by_id else self._filtered_students[0].student_id
+            self._student_grid.set_current_card(restore_id)
         else:
+            self._student_grid.set_current_card(None)
             self._clear_detail()
 
     def _queue_thumb(self, student_id: str) -> None:
@@ -1701,26 +1625,28 @@ class StudentViewerWindow(QMainWindow):
 
     def _apply_thumb(self, student_id: str, path: str) -> None:
         self._thumb_loading.discard(student_id)
-        item = self._item_by_id.get(student_id)
-        if item is None or not path:
+        card = self._item_by_id.get(student_id)
+        if card is None or not path:
             return
 
-        icon = QIcon(path)
-        if not icon.isNull():
-            item.setIcon(icon)
+        pixmap = QPixmap(path)
+        if not pixmap.isNull():
+            self._student_grid.set_card_pixmap(student_id, pixmap)
 
-    def _on_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
-        if current is None:
+    def _on_student_card_changed(self, current: str | None, _previous: str | None) -> None:
+        if not current:
             self._clear_detail()
             return
 
-        student_id = current.data(Qt.UserRole)
-        record = next((entry for entry in self._filtered_students if entry.student_id == student_id), None)
+        record = next((entry for entry in self._filtered_students if entry.student_id == current), None)
         if record is None:
             self._clear_detail()
             return
 
         self._populate_detail(record)
+
+    def _on_student_grid_layout_changed(self, _width: int, _height: int) -> None:
+        self._refresh_card_layout()
 
     def _populate_detail(self, record: StudentRecord) -> None:
         self._name.setText(record.title)
@@ -1795,10 +1721,9 @@ class StudentViewerWindow(QMainWindow):
         self._hero.setText("No selection")
 
     def _current_student_id(self) -> str | None:
-        item = self._list.currentItem()
-        if item is None:
+        if not hasattr(self, "_student_grid"):
             return None
-        return item.data(Qt.UserRole)
+        return self._student_grid.current_card_id()
 
     def _unowned_icon(self, student_id: str) -> QIcon:
         cached = self._unowned_icon_cache.get(student_id)

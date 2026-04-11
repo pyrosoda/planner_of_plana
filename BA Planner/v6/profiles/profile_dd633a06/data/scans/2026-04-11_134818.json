@@ -1,0 +1,16 @@
+{
+  "scan_id": "2026-04-11_134818",
+  "scanned_at": "2026-04-11T13:48:18+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": []
+  }
+}
