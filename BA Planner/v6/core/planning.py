@@ -5,9 +5,13 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 MAX_TARGET_STAR = 5
+MAX_TARGET_LEVEL = 100
+MAX_TARGET_EX_SKILL = 5
+MAX_TARGET_SKILL = 10
 MAX_TARGET_WEAPON_STAR = 4
 MAX_TARGET_WEAPON_LEVEL = 60
 MAX_TARGET_EQUIP_TIER = 10
+MAX_TARGET_EQUIP_LEVEL = 70
 MAX_TARGET_STAT = 25
 
 
@@ -26,6 +30,9 @@ class StudentGoal:
     target_equip1_tier: int | None = None
     target_equip2_tier: int | None = None
     target_equip3_tier: int | None = None
+    target_equip1_level: int | None = None
+    target_equip2_level: int | None = None
+    target_equip3_level: int | None = None
     target_stat_hp: int | None = None
     target_stat_atk: int | None = None
     target_stat_heal: int | None = None
@@ -60,12 +67,20 @@ def _clamp_optional_int(
 
 
 def sanitize_goal(goal: StudentGoal) -> StudentGoal:
+    goal.target_level = _clamp_optional_int(goal.target_level, maximum=MAX_TARGET_LEVEL)
     goal.target_star = _clamp_optional_int(goal.target_star, maximum=MAX_TARGET_STAR)
+    goal.target_ex_skill = _clamp_optional_int(goal.target_ex_skill, maximum=MAX_TARGET_EX_SKILL)
+    goal.target_skill1 = _clamp_optional_int(goal.target_skill1, maximum=MAX_TARGET_SKILL)
+    goal.target_skill2 = _clamp_optional_int(goal.target_skill2, maximum=MAX_TARGET_SKILL)
+    goal.target_skill3 = _clamp_optional_int(goal.target_skill3, maximum=MAX_TARGET_SKILL)
     goal.target_weapon_level = _clamp_optional_int(goal.target_weapon_level, maximum=MAX_TARGET_WEAPON_LEVEL)
     goal.target_weapon_star = _clamp_optional_int(goal.target_weapon_star, maximum=MAX_TARGET_WEAPON_STAR)
     goal.target_equip1_tier = _clamp_optional_int(goal.target_equip1_tier, maximum=MAX_TARGET_EQUIP_TIER)
     goal.target_equip2_tier = _clamp_optional_int(goal.target_equip2_tier, maximum=MAX_TARGET_EQUIP_TIER)
     goal.target_equip3_tier = _clamp_optional_int(goal.target_equip3_tier, maximum=MAX_TARGET_EQUIP_TIER)
+    goal.target_equip1_level = _clamp_optional_int(goal.target_equip1_level, maximum=MAX_TARGET_EQUIP_LEVEL)
+    goal.target_equip2_level = _clamp_optional_int(goal.target_equip2_level, maximum=MAX_TARGET_EQUIP_LEVEL)
+    goal.target_equip3_level = _clamp_optional_int(goal.target_equip3_level, maximum=MAX_TARGET_EQUIP_LEVEL)
     goal.target_stat_hp = _clamp_optional_int(goal.target_stat_hp, maximum=MAX_TARGET_STAT)
     goal.target_stat_atk = _clamp_optional_int(goal.target_stat_atk, maximum=MAX_TARGET_STAT)
     goal.target_stat_heal = _clamp_optional_int(goal.target_stat_heal, maximum=MAX_TARGET_STAT)

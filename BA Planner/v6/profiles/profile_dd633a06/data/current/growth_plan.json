@@ -1,4 +1,43 @@
 {
   "version": 1,
-  "goals": []
+  "goals": [
+    {
+      "student_id": "nagisa",
+      "favorite": true,
+      "target_level": null,
+      "target_star": null,
+      "target_weapon_level": null,
+      "target_weapon_star": null,
+      "target_ex_skill": null,
+      "target_skill1": null,
+      "target_skill2": null,
+      "target_skill3": null,
+      "target_equip1_tier": null,
+      "target_equip2_tier": null,
+      "target_equip3_tier": null,
+      "target_stat_hp": null,
+      "target_stat_atk": null,
+      "target_stat_heal": null,
+      "notes": ""
+    },
+    {
+      "student_id": "himari_battle",
+      "favorite": true,
+      "target_level": null,
+      "target_star": null,
+      "target_weapon_level": null,
+      "target_weapon_star": null,
+      "target_ex_skill": null,
+      "target_skill1": null,
+      "target_skill2": null,
+      "target_skill3": null,
+      "target_equip1_tier": null,
+      "target_equip2_tier": null,
+      "target_equip3_tier": null,
+      "target_stat_hp": null,
+      "target_stat_atk": null,
+      "target_stat_heal": null,
+      "notes": ""
+    }
+  ]
 }

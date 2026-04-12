@@ -539,6 +539,25 @@ def _equipment_level_cumulative_maps() -> tuple[dict[int, int], dict[int, int]]:
 
 
 @lru_cache(maxsize=1)
+def _equipment_tier_level_full_costs() -> dict[int, tuple[int, int]]:
+    exp_map, credit_map = _equipment_level_cumulative_maps()
+    costs: dict[int, tuple[int, int]] = {}
+    for tier, max_level in _EQUIPMENT_TIER_MAX_LEVEL.items():
+        costs[tier] = (exp_map.get(max_level, 0), credit_map.get(max_level, 0))
+    return costs
+
+
+@lru_cache(maxsize=1)
+def _equipment_tier_up_costs() -> dict[int, int]:
+    full_level_costs = _equipment_tier_level_full_costs()
+    tier_up_costs: dict[int, int] = {0: 0, 1: 0}
+    for tier in range(2, max(_EQUIPMENT_TIER_MAX_LEVEL) + 1):
+        total_delta = _EQUIPMENT_TOTAL_CREDIT_CUMULATIVE.get(tier, 0) - _EQUIPMENT_TOTAL_CREDIT_CUMULATIVE.get(tier - 1, 0)
+        tier_up_costs[tier] = max(0, total_delta - full_level_costs.get(tier, (0, 0))[1])
+    return tier_up_costs
+
+
+@lru_cache(maxsize=1)
 def _weapon_level_cumulative_maps() -> tuple[dict[int, int], dict[int, int]]:
     return _build_cumulative_maps(_WEAPON_LEVEL_ROWS)
 
@@ -549,30 +568,51 @@ def _equipment_current_level(current_tier: int, raw_level: object) -> int:
         return min(level, _EQUIPMENT_TIER_MAX_LEVEL.get(max(current_tier, 0), 70))
     if current_tier <= 0:
         return 0
-    previous_max = _EQUIPMENT_TIER_MAX_LEVEL.get(max(current_tier - 1, 0), 0)
-    return previous_max
+    return 1
 
 
-def _calculate_single_equipment_cost(current_tier: int, current_level: int, target_tier: int) -> tuple[int, int, dict[str, int]]:
+def _minimum_equipment_tier_for_level(target_level: int) -> int:
+    level = max(0, target_level)
+    for tier, max_level in sorted(_EQUIPMENT_TIER_MAX_LEVEL.items()):
+        if level <= max_level:
+            return tier
+    return max(_EQUIPMENT_TIER_MAX_LEVEL)
+
+
+def _calculate_single_equipment_cost(current_tier: int, current_level: int, target_tier: int, target_level: int) -> tuple[int, int, dict[str, int]]:
     current = min(max(current_tier, 0), 10)
-    target = min(max(target_tier, current), 10)
+    effective_target_level = min(max(target_level, current_level), _EQUIPMENT_TIER_MAX_LEVEL[10])
+    required_tier = _minimum_equipment_tier_for_level(effective_target_level)
+    target = min(max(target_tier, required_tier, current), 10)
     if target <= 0:
         return 0, 0, {}
 
     exp_map, credit_map = _equipment_level_cumulative_maps()
-    target_max_level = _EQUIPMENT_TIER_MAX_LEVEL[target]
+    full_level_costs = _equipment_tier_level_full_costs()
+    tier_up_costs = _equipment_tier_up_costs()
     current_max_level = _EQUIPMENT_TIER_MAX_LEVEL[current]
-    effective_current_level = min(max(current_level, 0), target_max_level)
+    effective_current_level = min(max(current_level, 0), current_max_level)
+    target_max_level = _EQUIPMENT_TIER_MAX_LEVEL[target]
+    effective_target_level = min(max(effective_target_level, effective_current_level), target_max_level)
 
-    equipment_exp = max(0, exp_map.get(target_max_level, 0) - exp_map.get(effective_current_level, 0))
-    remaining_current_tier_level_credit = max(
-        0,
-        credit_map.get(current_max_level, 0) - credit_map.get(min(effective_current_level, current_max_level), 0),
-    )
-    credits = max(
-        0,
-        _EQUIPMENT_TOTAL_CREDIT_CUMULATIVE.get(target, 0) - _EQUIPMENT_TOTAL_CREDIT_CUMULATIVE.get(current, 0),
-    ) + remaining_current_tier_level_credit
+    equipment_exp = 0
+    credits = 0
+
+    if current > 0:
+        bridge_level = current_max_level if target > current else effective_target_level
+        equipment_exp += max(0, exp_map.get(bridge_level, 0) - exp_map.get(effective_current_level, 0))
+        credits += max(0, credit_map.get(bridge_level, 0) - credit_map.get(effective_current_level, 0))
+
+    for tier in range(max(current + 1, 1), target + 1):
+        credits += tier_up_costs.get(tier, 0)
+        if tier == target:
+            tier_target_level = effective_target_level
+            tier_exp = exp_map.get(tier_target_level, 0)
+            tier_credit = credit_map.get(tier_target_level, 0)
+        else:
+            tier_exp, tier_credit = full_level_costs.get(tier, (0, 0))
+        equipment_exp += tier_exp
+        credits += tier_credit
 
     materials: dict[str, int] = {}
     target_materials = _EQUIPMENT_TIER_MATERIALS_CUMULATIVE.get(target, tuple())
@@ -663,15 +703,21 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     summary.credits += star_credits
     summary.star_materials = star_materials
 
-    for equip_slot, equip_level_field, goal_target in (
-        ("equip1", "equip1_level", goal.target_equip1_tier),
-        ("equip2", "equip2_level", goal.target_equip2_tier),
-        ("equip3", "equip3_level", goal.target_equip3_tier),
+    for equip_slot, equip_level_field, goal_target, goal_target_level in (
+        ("equip1", "equip1_level", goal.target_equip1_tier, goal.target_equip1_level),
+        ("equip2", "equip2_level", goal.target_equip2_tier, goal.target_equip2_level),
+        ("equip3", "equip3_level", goal.target_equip3_tier, goal.target_equip3_level),
     ):
         current_tier = _parse_tier_number(getattr(record, equip_slot, None))
         target_tier = max(current_tier, _safe_int(goal_target, current_tier))
         current_equip_level = _equipment_current_level(current_tier, getattr(record, equip_level_field, 0))
-        equip_credits, equip_exp, equip_materials = _calculate_single_equipment_cost(current_tier, current_equip_level, target_tier)
+        target_equip_level = max(current_equip_level, _safe_int(goal_target_level, current_equip_level))
+        equip_credits, equip_exp, equip_materials = _calculate_single_equipment_cost(
+            current_tier,
+            current_equip_level,
+            target_tier,
+            target_equip_level,
+        )
         summary.credits += equip_credits
         summary.equipment_exp += equip_exp
         for key, value in equip_materials.items():

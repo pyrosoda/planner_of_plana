@@ -19,7 +19,19 @@ if str(BASE_DIR) not in sys.path:
 
 import core.student_meta as student_meta
 from core.config import get_storage_paths
-from core.planning import MAX_TARGET_STAR, StudentGoal, load_plan, save_plan
+from core.planning import (
+    MAX_TARGET_EQUIP_LEVEL,
+    MAX_TARGET_EQUIP_TIER,
+    MAX_TARGET_EX_SKILL,
+    MAX_TARGET_LEVEL,
+    MAX_TARGET_SKILL,
+    MAX_TARGET_STAR,
+    MAX_TARGET_WEAPON_LEVEL,
+    MAX_TARGET_WEAPON_STAR,
+    StudentGoal,
+    load_plan,
+    save_plan,
+)
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
 from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
@@ -599,6 +611,279 @@ class DetailProgressStrip(QWidget):
         painter.end()
 
 
+EQUIPMENT_TIER_MAX_LEVEL = {
+    0: 0,
+    1: 10,
+    2: 20,
+    3: 30,
+    4: 40,
+    5: 45,
+    6: 50,
+    7: 55,
+    8: 60,
+    9: 65,
+    10: 70,
+}
+
+
+class PlanEditorCell(ParallelogramPanel):
+    clicked = Signal()
+
+    def __init__(self, label: str = "", *, compact: bool = False, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(fill=SURFACE_ALT, border=BORDER, slant=DETAIL_SLANT, parent=parent)
+        self._label = label
+        self._text_color = QColor(INK)
+        self._current_marker = False
+        self._clickable = True
+        self._compact = compact
+        self._ui_scale = ui_scale
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(scale_px(28 if compact else 34, self._ui_scale))
+
+    def setCellState(
+        self,
+        *,
+        label: str | None = None,
+        fill: str,
+        border: str,
+        text_color: str,
+        current_marker: bool = False,
+        clickable: bool = True,
+    ) -> None:
+        if label is not None:
+            self._label = label
+        self.setColors(fill, border)
+        self._text_color = QColor(text_color)
+        self._current_marker = current_marker
+        self._clickable = clickable
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton and self._clickable and self.isEnabled():
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        font = QFont(self.font())
+        font.setBold(True)
+        font.setPixelSize(scale_px(11 if self._compact else 12, self._ui_scale))
+        painter.setFont(font)
+        painter.setPen(self._text_color)
+        rect = self.rect().adjusted(scale_px(6, self._ui_scale), 0, -scale_px(6, self._ui_scale), 0)
+        painter.drawText(rect, Qt.AlignCenter, self._label)
+        if self._current_marker:
+            marker_h = max(3, scale_px(3, self._ui_scale))
+            marker_rect = QRect(
+                scale_px(8, self._ui_scale),
+                self.height() - marker_h - scale_px(5, self._ui_scale),
+                max(scale_px(16, self._ui_scale), self.width() - scale_px(16, self._ui_scale)),
+                marker_h,
+            )
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#f4fbff"))
+            painter.drawRoundedRect(marker_rect, marker_h, marker_h)
+        painter.end()
+
+
+class PlanSegmentSelector(QWidget):
+    valueChanged = Signal(int)
+
+    def __init__(self, count: int, *, color_break: int = 0, active_fill: str = ACCENT_STRONG, active_border: str = ACCENT, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._count = count
+        self._color_break = color_break
+        self._fallback_fill = active_fill
+        self._fallback_border = active_border
+        self._ui_scale = ui_scale
+        self._minimum_value = 0
+        self._value = 0
+        self._enabled_count = count
+        self._cells: list[PlanEditorCell] = []
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(4, self._ui_scale))
+        for index in range(1, count + 1):
+            cell = PlanEditorCell(compact=True, ui_scale=self._ui_scale)
+            cell.clicked.connect(lambda idx=index: self._on_cell_clicked(idx))
+            self._cells.append(cell)
+            layout.addWidget(cell, 1)
+        self._refresh_cells()
+
+    def setState(self, *, minimum_value: int, value: int, enabled_count: int | None = None) -> None:
+        self._minimum_value = max(0, min(self._count, minimum_value))
+        self._enabled_count = max(0, min(self._count, enabled_count if enabled_count is not None else self._count))
+        self._value = max(self._minimum_value, min(self._enabled_count, value))
+        self._refresh_cells()
+
+    def value(self) -> int:
+        return self._value
+
+    def _colors_for_index(self, index: int) -> tuple[str, str]:
+        if self._color_break and index > self._color_break:
+            return "#69c6ff", "#b6e6ff"
+        if self._color_break:
+            return "#ffd84a", "#ffe88f"
+        return self._fallback_fill, self._fallback_border
+
+    def _refresh_cells(self) -> None:
+        for index, cell in enumerate(self._cells, start=1):
+            accent_fill, accent_border = self._colors_for_index(index)
+            clickable = self.isEnabled() and index <= self._enabled_count
+            if not clickable:
+                fill = _mix_hex(SURFACE_ALT, BG, 0.22)
+                border = _mix_hex(BORDER, SURFACE_ALT, 0.4)
+                text_color = MUTED
+            elif index <= self._value:
+                if index <= self._minimum_value:
+                    fill = _mix_hex(accent_fill, SURFACE_ALT, 0.36)
+                    border = _mix_hex(accent_border, "#ffffff", 0.18)
+                else:
+                    fill = accent_fill
+                    border = accent_border
+                text_color = "#112031"
+            else:
+                fill = _mix_hex(SURFACE_ALT, BG, 0.08)
+                border = _mix_hex(BORDER, SURFACE_ALT, 0.18)
+                text_color = MUTED
+            cell.setCellState(fill=fill, border=border, text_color=text_color, clickable=clickable)
+
+    def _on_cell_clicked(self, index: int) -> None:
+        if index > self._enabled_count:
+            return
+        candidate = max(self._minimum_value, index)
+        if index == self._value:
+            candidate = max(self._minimum_value, index - 1)
+        if candidate == self._value:
+            return
+        self._value = candidate
+        self._refresh_cells()
+        self.valueChanged.emit(candidate)
+
+
+class PlanOptionStrip(QWidget):
+    valueClicked = Signal(int)
+
+    def __init__(self, options: list[int], *, compact: bool = True, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._options = list(options)
+        self._selected_value = self._options[0] if self._options else 0
+        self._current_value: int | None = None
+        self._enabled_values: set[int] = set(self._options)
+        self._ui_scale = ui_scale
+        self._cells: dict[int, PlanEditorCell] = {}
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(4, self._ui_scale))
+        for option in self._options:
+            cell = PlanEditorCell(str(option), compact=compact, ui_scale=self._ui_scale)
+            cell.clicked.connect(lambda value=option: self.valueClicked.emit(value))
+            self._cells[option] = cell
+            layout.addWidget(cell, 1)
+        self._refresh_cells()
+
+    def setState(self, *, selected_value: int, current_value: int | None = None, enabled_values: set[int] | None = None) -> None:
+        self._selected_value = selected_value
+        self._current_value = current_value
+        self._enabled_values = set(self._options if enabled_values is None else enabled_values)
+        self._refresh_cells()
+
+    def _refresh_cells(self) -> None:
+        for value, cell in self._cells.items():
+            enabled = self.isEnabled() and value in self._enabled_values
+            is_selected = value == self._selected_value
+            is_current = self._current_value is not None and value == self._current_value
+            if not enabled:
+                fill = _mix_hex(SURFACE_ALT, BG, 0.22)
+                border = _mix_hex(BORDER, SURFACE_ALT, 0.4)
+                text_color = MUTED
+            elif is_selected:
+                fill = ACCENT_STRONG
+                border = ACCENT
+                text_color = "#ffffff"
+            elif is_current:
+                fill = _mix_hex(PALETTE_SOFT, SURFACE_ALT, 0.44)
+                border = _mix_hex("#ffffff", PALETTE_SOFT, 0.22)
+                text_color = INK
+            else:
+                fill = _mix_hex(SURFACE_ALT, BG, 0.08)
+                border = _mix_hex(BORDER, SURFACE_ALT, 0.18)
+                text_color = MUTED
+            cell.setCellState(
+                fill=fill,
+                border=border,
+                text_color=text_color,
+                current_marker=is_current and not is_selected,
+                clickable=enabled,
+            )
+
+
+class PlanDualDigitSelector(QWidget):
+    valueChanged = Signal(int)
+
+    def __init__(self, max_value: int, *, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._max_value = max_value
+        self._ui_scale = ui_scale
+        self._minimum_value = 0
+        self._value = 0
+        self._tens_options = list(range((max_value // 10) + 1))
+        self._tens_strip = PlanOptionStrip(self._tens_options, ui_scale=self._ui_scale)
+        self._ones_strip = PlanOptionStrip(list(range(10)), ui_scale=self._ui_scale)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(6, self._ui_scale))
+
+        tens_caption = QLabel("10s")
+        tens_caption.setObjectName("detailSectionTitle")
+        layout.addWidget(tens_caption)
+        self._tens_strip.valueClicked.connect(self._on_tens_clicked)
+        layout.addWidget(self._tens_strip)
+
+        ones_caption = QLabel("1s")
+        ones_caption.setObjectName("detailSectionTitle")
+        layout.addWidget(ones_caption)
+        self._ones_strip.valueClicked.connect(self._on_ones_clicked)
+        layout.addWidget(self._ones_strip)
+
+    def setState(self, *, minimum_value: int, value: int) -> None:
+        self._minimum_value = max(0, min(self._max_value, minimum_value))
+        self._value = max(self._minimum_value, min(self._max_value, value))
+        self._refresh_strips()
+
+    def value(self) -> int:
+        return self._value
+
+    def _refresh_strips(self) -> None:
+        current_tens, current_ones = divmod(self._minimum_value, 10)
+        selected_tens, selected_ones = divmod(self._value, 10)
+        max_ones = self._max_value - (selected_tens * 10) if selected_tens == max(self._tens_options) else 9
+        enabled_ones = {value for value in range(max(0, min(9, max_ones)) + 1)}
+        self._tens_strip.setState(selected_value=selected_tens, current_value=current_tens, enabled_values=set(self._tens_options))
+        self._ones_strip.setState(selected_value=selected_ones, current_value=current_ones, enabled_values=enabled_ones)
+
+    def _apply_candidate(self, candidate: int) -> None:
+        clamped = max(self._minimum_value, min(self._max_value, candidate))
+        if clamped == self._value:
+            self._refresh_strips()
+            return
+        self._value = clamped
+        self._refresh_strips()
+        self.valueChanged.emit(clamped)
+
+    def _on_tens_clicked(self, tens: int) -> None:
+        ones = self._value % 10
+        self._apply_candidate((tens * 10) + ones)
+
+    def _on_ones_clicked(self, ones: int) -> None:
+        tens = self._value // 10
+        self._apply_candidate((tens * 10) + ones)
+
+
 def _parse_tier_number(tier: str | None) -> int | None:
     value = (tier or "").strip().upper()
     if not value.startswith("T"):
@@ -980,6 +1265,7 @@ class StudentViewerWindow(QMainWindow):
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, StudentCardWidget] = {}
+        self._plan_card_by_id: dict[str, StudentCardWidget] = {}
         self._thumb_loading: set[tuple[str, int, int]] = set()
         self._pending_thumb_requests: list[tuple[str, int, int]] = []
         self._pending_thumb_lookup: set[tuple[str, int, int]] = set()
@@ -993,8 +1279,8 @@ class StudentViewerWindow(QMainWindow):
         self._plan = load_plan(self._plan_path)
         self._plan_editor_guard = False
         self._selected_plan_student_id: str | None = None
-        self._plan_inputs: dict[str, QSpinBox] = {}
-        self._plan_item_by_id: dict[str, QListWidgetItem] = {}
+        self._plan_segment_inputs: dict[str, PlanSegmentSelector] = {}
+        self._plan_level_inputs: dict[str, PlanDualDigitSelector] = {}
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
         self._card_layout_guard = False
@@ -1609,9 +1895,11 @@ class StudentViewerWindow(QMainWindow):
     def _refresh_card_layout(self) -> None:
         if self._card_layout_guard or not hasattr(self, "_student_grid"):
             return
-        size = self._student_grid.current_card_size()
-        thumb_width = size.width()
-        thumb_height = size.height()
+        sizes = [self._student_grid.current_card_size()]
+        if hasattr(self, "_plan_grid"):
+            sizes.append(self._plan_grid.current_card_size())
+        thumb_width = max(size.width() for size in sizes)
+        thumb_height = max(size.height() for size in sizes)
         outer_margin = self._student_card_asset.style.outer_margin * 2
         grid_width = thumb_width + outer_margin
         grid_height = thumb_height + outer_margin
@@ -1636,7 +1924,7 @@ class StudentViewerWindow(QMainWindow):
             self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
             self._unowned_icon_cache.clear()
             self._clear_thumb_requests()
-            for student_id in self._item_by_id:
+            for student_id in sorted(set(self._item_by_id) | set(self._plan_card_by_id)):
                 self._enqueue_thumb(student_id)
         finally:
             self._card_layout_guard = False
@@ -1712,57 +2000,96 @@ class StudentViewerWindow(QMainWindow):
         title.setObjectName("title")
         header_layout.addWidget(title)
 
-        summary = QLabel("Add students, define target growth, and review required resources in one place.")
+        summary = QLabel("Search only when needed, then manage planned students as cards like the Students tab.")
         summary.setObjectName("count")
         header_layout.addWidget(summary, 1)
-
-        self._plan_search = QLineEdit()
-        self._plan_search.setPlaceholderText("Search students for plan")
-        self._plan_search.textChanged.connect(self._refresh_plan_lists)
-        header_layout.addWidget(self._plan_search, 2)
         layout.addWidget(header)
 
-        splitter = QSplitter(Qt.Horizontal)
-        layout.addWidget(splitter, 1)
+        quick_add_panel = QFrame()
+        quick_add_panel.setObjectName("panel")
+        quick_add_layout = QVBoxLayout(quick_add_panel)
+        quick_add_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        quick_add_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        all_panel = QFrame()
-        all_panel.setObjectName("panel")
-        all_layout = QVBoxLayout(all_panel)
-        all_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
-        all_layout.setSpacing(scale_px(10, self._ui_scale))
-        title_all = QLabel("Student Library")
-        title_all.setObjectName("sectionTitle")
-        all_layout.addWidget(title_all)
+        quick_add_header = QHBoxLayout()
+        quick_add_header.setContentsMargins(0, 0, 0, 0)
+        quick_add_header.setSpacing(scale_px(10, self._ui_scale))
+        title_add = QLabel("Quick Add")
+        title_add.setObjectName("sectionTitle")
+        quick_add_header.addWidget(title_add)
+        quick_add_note = QLabel("Search by student name or id only when you want to add someone.")
+        quick_add_note.setObjectName("count")
+        quick_add_header.addWidget(quick_add_note, 1)
+        quick_add_layout.addLayout(quick_add_header)
+
+        quick_add_row = QHBoxLayout()
+        quick_add_row.setContentsMargins(0, 0, 0, 0)
+        quick_add_row.setSpacing(scale_px(10, self._ui_scale))
+        self._plan_search = QLineEdit()
+        self._plan_search.setPlaceholderText("Type student name or id")
+        self._plan_search.textChanged.connect(self._refresh_plan_lists)
+        quick_add_row.addWidget(self._plan_search, 1)
+        self._plan_add_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
+        self._plan_add_button.clicked.connect(self._add_selected_student_to_plan)
+        quick_add_row.addWidget(self._plan_add_button, 0, Qt.AlignVCenter)
+        quick_add_layout.addLayout(quick_add_row)
+
         self._plan_all_list = QListWidget()
         self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
-        all_layout.addWidget(self._plan_all_list, 1)
-        add_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
-        add_button.clicked.connect(self._add_selected_student_to_plan)
-        add_button_row = QHBoxLayout()
-        add_button_row.setContentsMargins(0, 0, 0, 0)
-        add_button_row.addWidget(add_button, 0, Qt.AlignLeft)
-        add_button_row.addStretch(1)
-        all_layout.addLayout(add_button_row)
-        splitter.addWidget(all_panel)
+        self._plan_all_list.setMaximumHeight(scale_px(170, self._ui_scale))
+        self._plan_all_list.setVisible(False)
+        quick_add_layout.addWidget(self._plan_all_list)
+
+        self._plan_search_state = QLabel("Type a student name or id to search.")
+        self._plan_search_state.setObjectName("filterSummary")
+        quick_add_layout.addWidget(self._plan_search_state)
+        layout.addWidget(quick_add_panel)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        layout.addWidget(splitter, 1)
 
         plan_panel = QFrame()
         plan_panel.setObjectName("panel")
         plan_layout = QVBoxLayout(plan_panel)
         plan_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
         plan_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        plan_header = QHBoxLayout()
+        plan_header.setContentsMargins(0, 0, 0, 0)
+        plan_header.setSpacing(scale_px(10, self._ui_scale))
         title_plan = QLabel("Planned Students")
         title_plan.setObjectName("sectionTitle")
-        plan_layout.addWidget(title_plan)
-        self._plan_list = QListWidget()
-        self._plan_list.currentItemChanged.connect(self._on_plan_item_changed)
-        plan_layout.addWidget(self._plan_list, 1)
+        plan_header.addWidget(title_plan)
+        self._plan_count_label = QLabel("")
+        self._plan_count_label.setObjectName("count")
+        plan_header.addWidget(self._plan_count_label, 1, Qt.AlignRight)
+        plan_layout.addLayout(plan_header)
+
+        self._plan_empty_label = QLabel("No students in plan yet. Search above to add your first student.")
+        self._plan_empty_label.setObjectName("filterSummary")
+        self._plan_empty_label.setWordWrap(True)
+        plan_layout.addWidget(self._plan_empty_label)
+
+        self._plan_grid = ParallelogramCardGrid(self._student_card_asset, self._ui_scale)
+        self._plan_grid.setObjectName("studentGrid")
+        self._plan_grid.current_changed.connect(self._on_plan_card_changed)
+        self._plan_grid.layout_changed.connect(lambda *_: self._refresh_card_layout())
+        plan_layout.addWidget(self._plan_grid, 1)
+
         plan_buttons = QHBoxLayout()
-        remove_button = QPushButton("Remove")
-        remove_button.clicked.connect(self._remove_selected_plan_student)
-        plan_buttons.addWidget(remove_button)
-        open_button = QPushButton("Open In Viewer")
-        open_button.clicked.connect(self._focus_selected_plan_student_in_viewer)
-        plan_buttons.addWidget(open_button)
+        self._plan_remove_button = QPushButton("Remove")
+        self._plan_remove_button.clicked.connect(self._remove_selected_plan_student)
+        plan_buttons.addWidget(self._plan_remove_button)
+        self._plan_open_button = QPushButton("Open In Viewer")
+        self._plan_open_button.clicked.connect(self._focus_selected_plan_student_in_viewer)
+        plan_buttons.addWidget(self._plan_open_button)
+        plan_buttons.addStretch(1)
         plan_layout.addLayout(plan_buttons)
         splitter.addWidget(plan_panel)
 
@@ -1780,84 +2107,128 @@ class StudentViewerWindow(QMainWindow):
         self._plan_current.setObjectName("detailSub")
         editor_layout.addWidget(self._plan_current)
 
-        form_wrap = QWidget()
-        form_wrap_layout = QGridLayout(form_wrap)
-        form_wrap_layout.setContentsMargins(0, 0, 0, 0)
-        form_wrap_layout.setHorizontalSpacing(scale_px(12, self._ui_scale))
-        form_wrap_layout.setVerticalSpacing(scale_px(12, self._ui_scale))
+        controls_wrap = QWidget()
+        controls_layout = QHBoxLayout(controls_wrap)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(scale_px(14, self._ui_scale))
 
-        sections = (
-            (
-                "Progression",
-                (
-                    ("target_level", "Target Level", 0, 100),
-                    ("target_star", "Target Star", 0, MAX_TARGET_STAR),
-                    ("target_ex_skill", "Target EX", 0, 5),
-                    ("target_weapon_level", "Target Weapon Lv", 0, 60),
-                    ("target_weapon_star", "Target Weapon Star", 0, 4),
-                ),
-            ),
-            (
-                "Skills",
-                (
-                    ("target_skill1", "Target Skill 1", 0, 10),
-                    ("target_skill2", "Target Skill 2", 0, 10),
-                    ("target_skill3", "Target Skill 3", 0, 10),
-                ),
-            ),
-            (
-                "Equipment",
-                (
-                    ("target_equip1_tier", "Target Equip 1", 0, 10),
-                    ("target_equip2_tier", "Target Equip 2", 0, 10),
-                    ("target_equip3_tier", "Target Equip 3", 0, 10),
-                ),
-            ),
-            (
-                "Stats",
-                (
-                    ("target_stat_hp", "Target Stat HP", 0, 25),
-                    ("target_stat_atk", "Target Stat ATK", 0, 25),
-                    ("target_stat_heal", "Target Stat HEAL", 0, 25),
-                ),
-            ),
-        )
-        for index, (section_title, fields) in enumerate(sections):
-            box = QGroupBox(section_title)
-            form = QFormLayout(box)
-            form.setHorizontalSpacing(scale_px(14, self._ui_scale))
-            form.setVerticalSpacing(scale_px(8, self._ui_scale))
-            for field_name, label, minimum, maximum in fields:
-                spin = QSpinBox()
-                spin.setRange(minimum, maximum)
-                spin.setSpecialValueText("-")
-                spin.valueChanged.connect(self._on_plan_editor_changed)
-                self._plan_inputs[field_name] = spin
-                form.addRow(label, spin)
-            form_wrap_layout.addWidget(box, index // 2, index % 2)
-        editor_layout.addWidget(form_wrap)
+        left_column = QVBoxLayout()
+        left_column.setContentsMargins(0, 0, 0, 0)
+        left_column.setSpacing(scale_px(12, self._ui_scale))
+        right_column = QVBoxLayout()
+        right_column.setContentsMargins(0, 0, 0, 0)
+        right_column.setSpacing(scale_px(12, self._ui_scale))
+        controls_layout.addLayout(left_column, 3)
+        controls_layout.addLayout(right_column, 2)
 
-        student_result_box = QGroupBox("Selected Student Resource Summary")
-        student_result_layout = QVBoxLayout(student_result_box)
-        self._plan_student_summary = QLabel("No student selected")
-        self._plan_student_summary.setWordWrap(True)
-        self._plan_student_summary.setObjectName("filterSummary")
-        student_result_layout.addWidget(self._plan_student_summary)
-        editor_layout.addWidget(student_result_box)
+        progression_panel = QFrame()
+        progression_panel.setObjectName("panel")
+        progression_layout = QVBoxLayout(progression_panel)
+        progression_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+        progression_layout.setSpacing(scale_px(8, self._ui_scale))
+        progression_title = QLabel("Growth Target")
+        progression_title.setObjectName("sectionTitle")
+        progression_layout.addWidget(progression_title)
+        progression_sub = QLabel("Yellow fills star growth, blue fills weapon star growth.")
+        progression_sub.setObjectName("filterSummary")
+        progression_sub.setWordWrap(True)
+        progression_layout.addWidget(progression_sub)
+        progression_label = QLabel("Star / Weapon Star")
+        progression_label.setObjectName("detailSectionTitle")
+        progression_layout.addWidget(progression_label)
+        star_selector = PlanSegmentSelector(9, color_break=5, ui_scale=self._ui_scale)
+        star_selector.valueChanged.connect(lambda value: self._on_plan_segment_changed("star_weapon", value))
+        self._plan_segment_inputs["star_weapon"] = star_selector
+        progression_layout.addWidget(star_selector)
+        left_column.addWidget(progression_panel)
 
-        totals_frame = QGroupBox("Total Resources")
-        totals_layout = QVBoxLayout(totals_frame)
-        totals_layout.setSpacing(scale_px(8, self._ui_scale))
+        skill_panel = QFrame()
+        skill_panel.setObjectName("panel")
+        skill_layout = QVBoxLayout(skill_panel)
+        skill_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+        skill_layout.setSpacing(scale_px(8, self._ui_scale))
+        skill_title = QLabel("Skills")
+        skill_title.setObjectName("sectionTitle")
+        skill_layout.addWidget(skill_title)
+        for field_name, label, count in (
+            ("target_ex_skill", "EX", MAX_TARGET_EX_SKILL),
+            ("target_skill1", "Normal", MAX_TARGET_SKILL),
+            ("target_skill2", "Passive", MAX_TARGET_SKILL),
+            ("target_skill3", "Sub", MAX_TARGET_SKILL),
+        ):
+            row_title = QLabel(label)
+            row_title.setObjectName("detailSectionTitle")
+            skill_layout.addWidget(row_title)
+            selector = PlanSegmentSelector(count, active_fill=ACCENT_STRONG, active_border=ACCENT, ui_scale=self._ui_scale)
+            selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_segment_changed(name, value))
+            self._plan_segment_inputs[field_name] = selector
+            skill_layout.addWidget(selector)
+        left_column.addWidget(skill_panel, 1)
+
+        equipment_panel = QFrame()
+        equipment_panel.setObjectName("panel")
+        equipment_layout = QVBoxLayout(equipment_panel)
+        equipment_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+        equipment_layout.setSpacing(scale_px(8, self._ui_scale))
+        equipment_title = QLabel("Equipment Tier")
+        equipment_title.setObjectName("sectionTitle")
+        equipment_layout.addWidget(equipment_title)
+        for field_name, label in (
+            ("target_equip1_tier", "Equip 1"),
+            ("target_equip2_tier", "Equip 2"),
+            ("target_equip3_tier", "Equip 3"),
+        ):
+            row_title = QLabel(label)
+            row_title.setObjectName("detailSectionTitle")
+            equipment_layout.addWidget(row_title)
+            selector = PlanSegmentSelector(MAX_TARGET_EQUIP_TIER, active_fill=ACCENT_STRONG, active_border=ACCENT, ui_scale=self._ui_scale)
+            selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_segment_changed(name, value))
+            self._plan_segment_inputs[field_name] = selector
+            equipment_layout.addWidget(selector)
+        left_column.addWidget(equipment_panel, 1)
+
+        level_panel = QFrame()
+        level_panel.setObjectName("panel")
+        level_layout = QVBoxLayout(level_panel)
+        level_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+        level_layout.setSpacing(scale_px(10, self._ui_scale))
+        level_title = QLabel("Level Targets")
+        level_title.setObjectName("sectionTitle")
+        level_layout.addWidget(level_title)
+        level_hint = QLabel("Select tens and ones separately. Equipment tier rises automatically when a level needs it.")
+        level_hint.setObjectName("filterSummary")
+        level_hint.setWordWrap(True)
+        level_layout.addWidget(level_hint)
+        for field_name, label, maximum in (
+            ("target_level", "Student Level", MAX_TARGET_LEVEL),
+            ("target_weapon_level", "Weapon Level", MAX_TARGET_WEAPON_LEVEL),
+            ("target_equip1_level", "Equip 1 Level", MAX_TARGET_EQUIP_LEVEL),
+            ("target_equip2_level", "Equip 2 Level", MAX_TARGET_EQUIP_LEVEL),
+            ("target_equip3_level", "Equip 3 Level", MAX_TARGET_EQUIP_LEVEL),
+        ):
+            block = QWidget()
+            block_layout = QVBoxLayout(block)
+            block_layout.setContentsMargins(0, 0, 0, 0)
+            block_layout.setSpacing(scale_px(6, self._ui_scale))
+            row_title = QLabel(label)
+            row_title.setObjectName("detailSectionTitle")
+            block_layout.addWidget(row_title)
+            selector = PlanDualDigitSelector(maximum, ui_scale=self._ui_scale)
+            selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_digit_changed(name, value))
+            self._plan_level_inputs[field_name] = selector
+            block_layout.addWidget(selector)
+            level_layout.addWidget(block)
+        right_column.addWidget(level_panel, 1)
+
+        self._plan_student_summary = QLabel("Need materials preview will come later.")
         self._plan_total_summary = QLabel("")
-        self._plan_total_summary.setWordWrap(True)
-        totals_layout.addWidget(self._plan_total_summary)
-        editor_layout.addWidget(totals_frame)
-        editor_layout.addStretch(1)
+        self._plan_student_summary.setVisible(False)
+        self._plan_total_summary.setVisible(False)
+        editor_layout.addWidget(controls_wrap, 1)
         splitter.addWidget(editor_panel)
 
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 3)
+        splitter.setStretchFactor(0, 5)
+        splitter.setStretchFactor(1, 3)
 
     def _plan_goal_map(self) -> dict[str, StudentGoal]:
         return self._plan.goal_map()
@@ -1873,89 +2244,368 @@ class StudentViewerWindow(QMainWindow):
         self._plan.goals.append(goal)
         return goal
 
+    def _build_student_card(self, record) -> StudentCardWidget:
+        divider_primary, divider_secondary = _student_divider_colors(record)
+        card = StudentCardWidget(
+            card_asset=self._student_card_asset,
+            student_id=record.student_id,
+            title=record.title,
+            owned=record.owned,
+            divider_left=QColor(divider_primary),
+            divider_right=QColor(divider_secondary),
+        )
+        card.setToolTip(record.student_id)
+        return card
+
+    def _current_plan_grid_student_id(self) -> str | None:
+        if not hasattr(self, "_plan_grid"):
+            return None
+        return self._plan_grid.current_card_id()
+
+    def _set_plan_search_selection(self, student_id: str | None) -> None:
+        if not hasattr(self, "_plan_all_list"):
+            return
+        previous = self._plan_all_list.blockSignals(True)
+        try:
+            self._plan_all_list.clearSelection()
+            self._plan_all_list.setCurrentRow(-1)
+            if not student_id:
+                return
+            for index in range(self._plan_all_list.count()):
+                item = self._plan_all_list.item(index)
+                if item.data(Qt.UserRole) == student_id:
+                    self._plan_all_list.setCurrentItem(item)
+                    break
+        finally:
+            self._plan_all_list.blockSignals(previous)
+
+    def _set_plan_grid_selection(self, student_id: str | None) -> None:
+        if not hasattr(self, "_plan_grid"):
+            return
+        target_id = student_id if student_id in self._plan_card_by_id else None
+        previous = self._plan_grid.blockSignals(True)
+        try:
+            self._plan_grid.set_current_card(target_id)
+        finally:
+            self._plan_grid.blockSignals(previous)
+
+    def _has_any_card_target(self, student_id: str) -> bool:
+        return student_id in self._item_by_id or student_id in self._plan_card_by_id
+
+    def _update_plan_actions(self) -> None:
+        search_selected = self._plan_current_all_student_id()
+        planned_selected = self._current_plan_grid_student_id()
+        if hasattr(self, "_plan_add_button"):
+            self._plan_add_button.setEnabled(bool(search_selected))
+        if hasattr(self, "_plan_remove_button"):
+            self._plan_remove_button.setEnabled(bool(planned_selected))
+        if hasattr(self, "_plan_open_button"):
+            self._plan_open_button.setEnabled(bool(planned_selected))
+
+    @staticmethod
+    def _record_has_weapon_system(record: StudentRecord) -> bool:
+        return (record.weapon_state or "") != "no_weapon_system"
+
+    @staticmethod
+    def _record_weapon_level(record: StudentRecord) -> int:
+        if (record.weapon_state or "") in ("weapon_equipped", "weapon_unlocked_not_equipped"):
+            return max(1, int(record.weapon_level or 0) or 1)
+        return 0
+
+    @staticmethod
+    def _record_star_weapon_total(record: StudentRecord) -> int:
+        weapon_star = max(0, int(record.weapon_star or 0))
+        if (record.weapon_state or "") == "no_weapon_system":
+            weapon_star = 0
+        if weapon_star > 0:
+            return 5 + weapon_star
+        return max(0, int(record.star or 0))
+
+    @staticmethod
+    def _current_equipment_level(current_tier: int, raw_level: int | None) -> int:
+        if raw_level and raw_level > 0:
+            return min(int(raw_level), EQUIPMENT_TIER_MAX_LEVEL.get(max(current_tier, 0), MAX_TARGET_EQUIP_LEVEL))
+        if current_tier <= 0:
+            return 0
+        return 1
+
+    @staticmethod
+    def _minimum_equipment_tier_for_level(level: int) -> int:
+        normalized = max(0, int(level))
+        for tier, max_level in sorted(EQUIPMENT_TIER_MAX_LEVEL.items()):
+            if normalized <= max_level:
+                return tier
+        return MAX_TARGET_EQUIP_TIER
+
+    @staticmethod
+    def _goal_value(goal: StudentGoal | None, field_name: str, current_value: int) -> int:
+        if goal is None:
+            return current_value
+        raw_value = getattr(goal, field_name, None)
+        if raw_value is None:
+            return current_value
+        return max(current_value, int(raw_value))
+
+    def _sync_plan_goal(self, goal: StudentGoal, record: StudentRecord) -> None:
+        current_star = max(0, int(record.star or 0))
+        current_weapon_star = max(0, int(record.weapon_star or 0))
+        current_weapon_level = self._record_weapon_level(record)
+        has_weapon_system = self._record_has_weapon_system(record)
+
+        target_star = max(current_star, int(goal.target_star or 0))
+        target_weapon_star = max(current_weapon_star, int(goal.target_weapon_star or 0))
+        target_weapon_level = max(current_weapon_level, int(goal.target_weapon_level or 0))
+
+        if not has_weapon_system:
+            target_weapon_star = current_weapon_star
+            target_weapon_level = current_weapon_level
+        if target_weapon_star > 0 or target_weapon_level > 0:
+            target_star = max(target_star, 5)
+
+        goal.target_star = target_star if target_star > current_star else None
+        goal.target_weapon_star = target_weapon_star if has_weapon_system and target_weapon_star > current_weapon_star else None
+        goal.target_weapon_level = target_weapon_level if has_weapon_system and target_weapon_level > current_weapon_level else None
+
+        for slot_index in range(1, 4):
+            tier_field = f"target_equip{slot_index}_tier"
+            level_field = f"target_equip{slot_index}_level"
+            current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
+            current_level = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
+            target_level = max(current_level, int(getattr(goal, level_field) or 0))
+            target_tier = max(current_tier, int(getattr(goal, tier_field) or 0))
+            if target_level > 0:
+                target_tier = max(target_tier, self._minimum_equipment_tier_for_level(target_level))
+                target_level = min(target_level, EQUIPMENT_TIER_MAX_LEVEL.get(target_tier, MAX_TARGET_EQUIP_LEVEL))
+            setattr(goal, level_field, target_level if target_level > current_level else None)
+            setattr(goal, tier_field, target_tier if target_tier > current_tier else None)
+
+    def _refresh_plan_editor_controls(self, record: StudentRecord, goal: StudentGoal | None) -> None:
+        current_total = self._record_star_weapon_total(record)
+        current_star = max(0, int(record.star or 0))
+        current_weapon_star = max(0, int(record.weapon_star or 0))
+        target_star = self._goal_value(goal, "target_star", current_star)
+        target_weapon_star = self._goal_value(goal, "target_weapon_star", current_weapon_star)
+        target_total = target_star if target_weapon_star <= 0 else 5 + target_weapon_star
+        self._plan_segment_inputs["star_weapon"].setState(
+            minimum_value=current_total,
+            value=target_total,
+            enabled_count=9 if self._record_has_weapon_system(record) else 5,
+        )
+
+        for field_name, current_value in (
+            ("target_ex_skill", max(0, int(record.ex_skill or 0))),
+            ("target_skill1", max(0, int(record.skill1 or 0))),
+            ("target_skill2", max(0, int(record.skill2 or 0))),
+            ("target_skill3", max(0, int(record.skill3 or 0))),
+        ):
+            self._plan_segment_inputs[field_name].setState(
+                minimum_value=current_value,
+                value=self._goal_value(goal, field_name, current_value),
+            )
+
+        for slot_index in range(1, 4):
+            tier_field = f"target_equip{slot_index}_tier"
+            level_field = f"target_equip{slot_index}_level"
+            current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
+            current_level = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
+            self._plan_segment_inputs[tier_field].setState(
+                minimum_value=current_tier,
+                value=self._goal_value(goal, tier_field, current_tier),
+            )
+            self._plan_level_inputs[level_field].setState(
+                minimum_value=current_level,
+                value=self._goal_value(goal, level_field, current_level),
+            )
+
+        current_level = max(0, int(record.level or 0))
+        current_weapon_level = self._record_weapon_level(record)
+        self._plan_level_inputs["target_level"].setState(
+            minimum_value=current_level,
+            value=self._goal_value(goal, "target_level", current_level),
+        )
+        weapon_level_selector = self._plan_level_inputs["target_weapon_level"]
+        weapon_level_selector.setEnabled(self._record_has_weapon_system(record))
+        weapon_level_selector.setState(
+            minimum_value=current_weapon_level,
+            value=self._goal_value(goal, "target_weapon_level", current_weapon_level),
+        )
+
+    def _on_plan_segment_changed(self, field_name: str, value: int) -> None:
+        if self._plan_editor_guard:
+            return
+        student_id = self._selected_plan_student_id or self._plan_current_all_student_id()
+        if not student_id:
+            return
+        record = self._records_by_id.get(student_id)
+        if record is None:
+            return
+        goal = self._get_or_create_goal(student_id)
+
+        if field_name == "star_weapon":
+            target_star = min(5, value)
+            target_weapon_star = max(0, value - 5)
+            goal.target_star = target_star if target_star > max(0, int(record.star or 0)) else None
+            goal.target_weapon_star = target_weapon_star if target_weapon_star > max(0, int(record.weapon_star or 0)) else None
+        else:
+            current_value = 0
+            if field_name == "target_ex_skill":
+                current_value = max(0, int(record.ex_skill or 0))
+            elif field_name == "target_skill1":
+                current_value = max(0, int(record.skill1 or 0))
+            elif field_name == "target_skill2":
+                current_value = max(0, int(record.skill2 or 0))
+            elif field_name == "target_skill3":
+                current_value = max(0, int(record.skill3 or 0))
+            elif field_name.startswith("target_equip"):
+                slot_index = int(field_name[len("target_equip")])
+                current_value = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
+            setattr(goal, field_name, value if value > current_value else None)
+
+        self._sync_plan_goal(goal, record)
+        self._save_plan()
+        self._selected_plan_student_id = student_id
+        self._load_plan_student(student_id)
+        self._refresh_plan_lists()
+        self._set_plan_grid_selection(student_id)
+        self._refresh_plan_totals()
+
+    def _on_plan_digit_changed(self, field_name: str, value: int) -> None:
+        if self._plan_editor_guard:
+            return
+        student_id = self._selected_plan_student_id or self._plan_current_all_student_id()
+        if not student_id:
+            return
+        record = self._records_by_id.get(student_id)
+        if record is None:
+            return
+        goal = self._get_or_create_goal(student_id)
+
+        if field_name == "target_level":
+            current_value = max(0, int(record.level or 0))
+        elif field_name == "target_weapon_level":
+            current_value = self._record_weapon_level(record)
+        else:
+            slot_index = int(field_name[len("target_equip")])
+            current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
+            current_value = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
+        setattr(goal, field_name, value if value > current_value else None)
+
+        self._sync_plan_goal(goal, record)
+        self._save_plan()
+        self._selected_plan_student_id = student_id
+        self._load_plan_student(student_id)
+        self._refresh_plan_lists()
+        self._set_plan_grid_selection(student_id)
+        self._refresh_plan_totals()
+
     def _refresh_plan_lists(self) -> None:
         if not hasattr(self, "_plan_all_list"):
             return
         query = self._plan_search.text().strip().lower()
         current_all = self._plan_current_all_student_id()
-        current_plan = self._selected_plan_student_id
+        current_plan = self._current_plan_grid_student_id() or self._selected_plan_student_id
         goal_map = self._plan_goal_map()
 
         self._plan_all_list.clear()
-        for record in sorted(self._all_students, key=lambda item: item.title.lower()):
-            if query and query not in record.title.lower() and query not in record.student_id.lower():
-                continue
-            status = "Planned" if record.student_id in goal_map else ("Owned" if record.owned else "Unowned")
-            item = QListWidgetItem(f"{record.title}\n{status}")
-            item.setData(Qt.UserRole, record.student_id)
-            if record.student_id in goal_map:
-                item.setForeground(QColor("#84d0ff"))
-            self._plan_all_list.addItem(item)
+        match_count = 0
+        if query:
+            for record in sorted(self._all_students, key=lambda item: item.title.lower()):
+                if query not in record.title.lower() and query not in record.student_id.lower():
+                    continue
+                status = "Planned" if record.student_id in goal_map else ("Owned" if record.owned else "Unowned")
+                item = QListWidgetItem(f"{record.title}\n{status}")
+                item.setData(Qt.UserRole, record.student_id)
+                if record.student_id in goal_map:
+                    item.setForeground(QColor("#84d0ff"))
+                self._plan_all_list.addItem(item)
+                match_count += 1
 
-        self._plan_list.clear()
-        self._plan_item_by_id.clear()
+        self._plan_all_list.setVisible(bool(query))
+        if not query:
+            self._plan_search_state.setText("Type a student name or id to search.")
+        elif match_count:
+            self._plan_search_state.setText(f"{match_count} students found. Select one and add it to the plan.")
+        else:
+            self._plan_search_state.setText("No students matched that search.")
+
+        self._plan_grid.clear_cards()
+        self._plan_card_by_id.clear()
+        planned_cards: list[StudentCardWidget] = []
         for goal in sorted(self._plan.goals, key=lambda entry: self._records_by_id.get(entry.student_id).title.lower() if entry.student_id in self._records_by_id else entry.student_id):
             record = self._records_by_id.get(goal.student_id)
             if record is None:
                 continue
-            item = QListWidgetItem(record.title)
-            item.setData(Qt.UserRole, record.student_id)
-            self._plan_list.addItem(item)
-            self._plan_item_by_id[record.student_id] = item
+            card = self._build_student_card(record)
+            planned_cards.append(card)
+            self._plan_card_by_id[record.student_id] = card
 
-        self._restore_selection(self._plan_all_list, current_all)
-        self._restore_selection(self._plan_list, current_plan)
+        if planned_cards:
+            self._plan_grid.add_cards(planned_cards)
+            for student_id in self._plan_card_by_id:
+                self._enqueue_thumb(student_id)
 
-    @staticmethod
-    def _restore_selection(widget: QListWidget, student_id: str | None) -> None:
-        if not student_id:
-            return
-        for index in range(widget.count()):
-            item = widget.item(index)
-            if item.data(Qt.UserRole) == student_id:
-                widget.setCurrentItem(item)
-                break
+        self._plan_count_label.setText(f"{len(planned_cards)} students")
+        self._plan_empty_label.setVisible(not planned_cards)
+        self._plan_grid.setVisible(bool(planned_cards))
+
+        self._set_plan_search_selection(current_all)
+        self._set_plan_grid_selection(current_plan)
+        focused_id = current_plan if current_plan in self._plan_card_by_id else self._plan_current_all_student_id()
+        if focused_id:
+            self._selected_plan_student_id = focused_id if focused_id in goal_map else None
+            self._load_plan_student(focused_id)
+        else:
+            self._selected_plan_student_id = None
+            self._clear_plan_editor()
+        self._update_plan_actions()
 
     def _plan_current_all_student_id(self) -> str | None:
         item = self._plan_all_list.currentItem() if hasattr(self, "_plan_all_list") else None
         return item.data(Qt.UserRole) if item else None
 
     def _on_plan_all_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
-        if current is not None:
-            student_id = str(current.data(Qt.UserRole))
-            self._selected_plan_student_id = student_id if student_id in self._plan_goal_map() else None
-            self._load_plan_student(student_id)
+        if current is None:
+            self._update_plan_actions()
+            return
+        student_id = str(current.data(Qt.UserRole))
+        self._selected_plan_student_id = student_id if student_id in self._plan_goal_map() else None
+        self._set_plan_grid_selection(student_id if student_id in self._plan_goal_map() else None)
+        self._load_plan_student(student_id)
+        self._update_plan_actions()
 
-    def _on_plan_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
-        if current is not None:
-            self._selected_plan_student_id = str(current.data(Qt.UserRole))
-            self._load_plan_student(self._selected_plan_student_id)
+    def _on_plan_card_changed(self, current: str | None, _previous: str | None) -> None:
+        if current is None:
+            self._selected_plan_student_id = None
+            self._update_plan_actions()
+            return
+        self._selected_plan_student_id = current
+        self._set_plan_search_selection(current)
+        self._load_plan_student(current)
+        self._update_plan_actions()
 
     def _add_selected_student_to_plan(self) -> None:
-        student_id = self._plan_current_all_student_id()
+        student_id = self._plan_current_all_student_id() or self._selected_plan_student_id
         if not student_id:
             return
         self._get_or_create_goal(student_id)
         self._selected_plan_student_id = student_id
         self._save_plan()
         self._refresh_plan_lists()
-        self._restore_selection(self._plan_list, student_id)
+        self._set_plan_grid_selection(student_id)
         self._update_plan_student_summary(student_id)
         self._refresh_plan_totals()
+        self._update_plan_actions()
 
     def _remove_selected_plan_student(self) -> None:
-        student_id = self._selected_plan_student_id
-        if not student_id:
-            item = self._plan_list.currentItem()
-            student_id = str(item.data(Qt.UserRole)) if item else None
+        student_id = self._current_plan_grid_student_id() or self._selected_plan_student_id
         if not student_id:
             return
         self._plan.goals = [goal for goal in self._plan.goals if goal.student_id != student_id]
         self._selected_plan_student_id = None
         self._save_plan()
         self._refresh_plan_lists()
-        self._clear_plan_editor()
         self._refresh_plan_totals()
+        self._update_plan_actions()
 
     def _focus_selected_plan_student_in_viewer(self) -> None:
         if not self._selected_plan_student_id:
@@ -1972,12 +2622,14 @@ class StudentViewerWindow(QMainWindow):
         self._plan_editor_guard = True
         try:
             self._plan_name.setText(record.title)
-            self._plan_current.setText(
-                f"{record.student_id}  |  Current Lv.{record.level or 0}  Star {record.star}  EX {record.ex_skill or 0}  Skills {record.skill1 or 0}/{record.skill2 or 0}/{record.skill3 or 0}  Stats {record.stat_hp or 0}/{record.stat_atk or 0}/{record.stat_heal or 0}"
-            )
-            for field_name, spin in self._plan_inputs.items():
-                value = getattr(goal, field_name, None) if goal else None
-                spin.setValue(int(value) if value else 0)
+            status = "Owned" if record.owned else "Unowned"
+            weapon_state = "Weapon System Ready" if self._record_has_weapon_system(record) else "No Weapon System"
+            self._plan_current.setText(f"{record.student_id}  |  {status}  |  {weapon_state}")
+            for selector in self._plan_segment_inputs.values():
+                selector.setEnabled(True)
+            for selector in self._plan_level_inputs.values():
+                selector.setEnabled(True)
+            self._refresh_plan_editor_controls(record, goal)
         finally:
             self._plan_editor_guard = False
         self._update_plan_student_summary(student_id)
@@ -1987,26 +2639,16 @@ class StudentViewerWindow(QMainWindow):
         try:
             self._plan_name.setText("Select a student")
             self._plan_current.setText("")
-            for spin in self._plan_inputs.values():
-                spin.setValue(0)
+            for selector in self._plan_segment_inputs.values():
+                selector.setEnabled(False)
+                selector.setState(minimum_value=0, value=0, enabled_count=selector._count)
+            for selector in self._plan_level_inputs.values():
+                selector.setEnabled(False)
+                selector.setState(minimum_value=0, value=0)
         finally:
             self._plan_editor_guard = False
         self._plan_student_summary.setText("No student selected")
-
-    def _on_plan_editor_changed(self) -> None:
-        if self._plan_editor_guard:
-            return
-        student_id = self._selected_plan_student_id or self._plan_current_all_student_id()
-        if not student_id:
-            return
-        goal = self._get_or_create_goal(student_id)
-        for field_name, spin in self._plan_inputs.items():
-            setattr(goal, field_name, int(spin.value()) or None)
-        self._selected_plan_student_id = student_id
-        self._save_plan()
-        self._refresh_plan_lists()
-        self._update_plan_student_summary(student_id)
-        self._refresh_plan_totals()
+        self._update_plan_actions()
 
     def _update_plan_student_summary(self, student_id: str) -> None:
         record = self._records_by_id.get(student_id)
@@ -2025,7 +2667,9 @@ class StudentViewerWindow(QMainWindow):
         self._selected_plan_student_id = student_id
         self._save_plan()
         self._refresh_plan_lists()
+        self._set_plan_grid_selection(student_id)
         self._refresh_plan_totals()
+        self._update_plan_actions()
 
     def _refresh_plan_totals(self) -> None:
         if not hasattr(self, "_plan_total_summary"):
@@ -2230,16 +2874,7 @@ class StudentViewerWindow(QMainWindow):
         cards: list[StudentCardWidget] = []
 
         for record in self._filtered_students:
-            divider_primary, divider_secondary = _student_divider_colors(record)
-            card = StudentCardWidget(
-                card_asset=self._student_card_asset,
-                student_id=record.student_id,
-                title=record.title,
-                owned=record.owned,
-                divider_left=QColor(divider_primary),
-                divider_right=QColor(divider_secondary),
-            )
-            card.setToolTip(record.student_id)
+            card = self._build_student_card(record)
             cards.append(card)
             self._item_by_id[record.student_id] = card
 
@@ -2280,7 +2915,7 @@ class StudentViewerWindow(QMainWindow):
             student_id, width, height = self._pending_thumb_requests.pop(0)
             request = (student_id, width, height)
             self._pending_thumb_lookup.discard(request)
-            if student_id not in self._item_by_id:
+            if not self._has_any_card_target(student_id):
                 continue
             self._queue_thumb(student_id, width, height)
             started += 1
@@ -2299,15 +2934,17 @@ class StudentViewerWindow(QMainWindow):
 
     def _apply_thumb(self, student_id: str, path: str, width: int, height: int) -> None:
         self._thumb_loading.discard((student_id, width, height))
-        card = self._item_by_id.get(student_id)
-        if card is None or not path:
+        if not path:
             return
         if width != self._thumb_width or height != self._thumb_height:
             return
 
         pixmap = QPixmap(path)
         if not pixmap.isNull():
-            self._student_grid.set_card_pixmap(student_id, pixmap)
+            if student_id in self._item_by_id:
+                self._student_grid.set_card_pixmap(student_id, pixmap)
+            if student_id in self._plan_card_by_id:
+                self._plan_grid.set_card_pixmap(student_id, pixmap)
 
     def _on_student_card_changed(self, current: str | None, _previous: str | None) -> None:
         if not current:
