@@ -373,6 +373,48 @@ def debug_click_screen(
     return ok
 
 
+def debug_click_client(
+    hwnd: int,
+    cx: int,
+    cy: int,
+    *,
+    method: str,
+    label: str = "",
+    delay: float = 0.0,
+) -> bool:
+    """Run one explicit click strategy against a client-space position for debugging."""
+    needs_activate = method.startswith("activate_")
+    base_method = method[len("activate_"):] if needs_activate else method
+
+    if needs_activate and _can_use_physical_fallback(hwnd):
+        activated = _activate_window(hwnd)
+        _log.debug(f"debug activate window ({label}) ok={activated}")
+        time.sleep(0.05)
+
+    screen = client_to_screen(hwnd, cx, cy)
+    ok = False
+    if base_method == "postmessage":
+        ok = _post_click(hwnd, cx, cy)
+    elif base_method == "pag":
+        ok = bool(screen) and _pag_click(screen[0], screen[1])
+    elif base_method == "downup":
+        ok = bool(screen) and _pag_click_downup(screen[0], screen[1])
+    elif base_method == "mouse_event":
+        ok = bool(screen) and _mouse_event_click(screen[0], screen[1])
+    elif base_method == "sendinput":
+        ok = bool(screen) and _sendinput_click(screen[0], screen[1])
+    else:
+        raise ValueError(f"unknown debug click method: {method}")
+
+    _log.debug(
+        f"debug click ({label}) method={method} client=({cx},{cy}) "
+        f"screen={screen} ok={ok}"
+    )
+    if delay > 0:
+        time.sleep(delay)
+    return ok
+
+
 # ══════════════════════════════════════════════════════════
 # 공개 입력 함수
 # ══════════════════════════════════════════════════════════
@@ -386,45 +428,9 @@ def click_point(
     delay: float = 0.0,
 ) -> bool:
     """
-    HWND 클라이언트 좌표 (cx, cy) 를 클릭.
-    PostMessage 실패 시 화면 좌표로 변환 후 pyautogui fallback.
-
-    Parameters
-    ----------
-    hwnd  : 대상 창 핸들
-    cx,cy : 클라이언트 기준 픽셀 좌표
-    label : 디버그 로그용 레이블
-    delay : 클릭 후 대기 시간 (초)
-    """
-    ok = _post_click(hwnd, cx, cy)
-    if not ok:
-        if not _can_use_physical_fallback(hwnd):
-            if delay > 0:
-                time.sleep(delay)
-            return False
-        _log.debug(f"PostMessage 실패 → pyautogui fallback ({label})")
-        sx, sy = cx, cy   # 변환 실패 시 원본 사용
-        converted = client_to_screen(hwnd, cx, cy)
-        if converted:
-            sx, sy = converted
-        ok = _pag_click(sx, sy)
-
-    if delay > 0:
-        time.sleep(delay)
-    return ok
-
-
-def click_point(
-    hwnd: int,
-    cx: int,
-    cy: int,
-    *,
-    label: str = "",
-    delay: float = 0.0,
-) -> bool:
-    """
-    Use PostMessage only. The scanner now relies on HWND-directed input so
-    overlay layers and cursor focus do not affect click delivery.
+    Move the system cursor first, then send the click through PostMessage.
+    Blue Archive appears to use the live cursor position during hit testing,
+    so foreground scans are more reliable when the cursor is aligned first.
     """
     _move_cursor_to_client(hwnd, cx, cy)
     ok = _post_click(hwnd, cx, cy)

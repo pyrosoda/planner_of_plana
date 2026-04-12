@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from core.capture import get_window_rect, is_target_foreground
+from core.capture import get_window_rect
 from core.states import AppState
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
@@ -137,9 +137,6 @@ class FloatingOverlay(tk.Toplevel):
 
         self._draw()
         self._start_tracker()
-
-    def _should_render(self) -> bool:
-        return self._visible and is_target_foreground()
 
     def _init_progress_style(self) -> None:
         style = ttk.Style(self)
@@ -556,7 +553,7 @@ class FloatingOverlay(tk.Toplevel):
         self.geometry(f"{tw}x{th}+{ox}+{oy}")
 
     def _show_scan_backdrop(self) -> None:
-        if not self._should_render() or self._app_state not in (AppState.SCANNING, AppState.STOPPING):
+        if not self._visible or self._app_state not in (AppState.SCANNING, AppState.STOPPING):
             self._scan_backdrop.withdraw()
             return
         self._position_scan_windows()
@@ -589,10 +586,6 @@ class FloatingOverlay(tk.Toplevel):
 
     def _sync_visibility(self) -> None:
         if not self._visible:
-            self._hide_scan_backdrop()
-            self.withdraw()
-            return
-        if not is_target_foreground():
             self._hide_scan_backdrop()
             self.withdraw()
             return

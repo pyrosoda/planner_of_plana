@@ -3878,5 +3878,301 @@
     "new": "40",
     "changed_at": "2026-04-12T10:09:56+09:00",
     "scan_id": "2026-04-12_100956"
+  },
+  {
+    "student_id": "utaha",
+    "field": "weapon_state",
+    "old": "weapon_unlocked_not_equipped",
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "weapon_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "weapon_level",
+    "old": null,
+    "new": "50",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip1",
+    "old": null,
+    "new": "T10",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip2",
+    "old": null,
+    "new": "T10",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip3",
+    "old": null,
+    "new": "T10",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip1_level",
+    "old": null,
+    "new": "70",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip2_level",
+    "old": null,
+    "new": "70",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "equip3_level",
+    "old": null,
+    "new": "70",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "stat_atk",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "utaha",
+    "field": "stat_heal",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T10:42:12+09:00",
+    "scan_id": "2026-04-12_104212"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "stat_hp",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "hibiki",
+    "field": "stat_heal",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "nagisa",
+    "field": "stat_hp",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "stat_hp",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "stat_atk",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "stat_heal",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:07:20+09:00",
+    "scan_id": "2026-04-12_110720"
+  },
+  {
+    "student_id": "airi",
+    "field": "weapon_state",
+    "old": "weapon_unlocked_not_equipped",
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T11:34:55+09:00",
+    "scan_id": "2026-04-12_113455"
+  },
+  {
+    "student_id": "airi",
+    "field": "weapon_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T11:34:55+09:00",
+    "scan_id": "2026-04-12_113455"
+  },
+  {
+    "student_id": "airi",
+    "field": "weapon_level",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T11:34:55+09:00",
+    "scan_id": "2026-04-12_113455"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_hp",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:36:58+09:00",
+    "scan_id": "2026-04-12_113658"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_atk",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:36:58+09:00",
+    "scan_id": "2026-04-12_113658"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_heal",
+    "old": "0",
+    "new": "4",
+    "changed_at": "2026-04-12T11:36:58+09:00",
+    "scan_id": "2026-04-12_113658"
+  },
+  {
+    "student_id": "airi",
+    "field": "weapon_level",
+    "old": "4",
+    "new": "50",
+    "changed_at": "2026-04-12T11:43:31+09:00",
+    "scan_id": "2026-04-12_114331"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_hp",
+    "old": "4",
+    "new": "0",
+    "changed_at": "2026-04-12T11:44:38+09:00",
+    "scan_id": "2026-04-12_114438"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_atk",
+    "old": "4",
+    "new": "0",
+    "changed_at": "2026-04-12T11:44:38+09:00",
+    "scan_id": "2026-04-12_114438"
+  },
+  {
+    "student_id": "airi",
+    "field": "stat_heal",
+    "old": "4",
+    "new": "0",
+    "changed_at": "2026-04-12T11:44:38+09:00",
+    "scan_id": "2026-04-12_114438"
+  },
+  {
+    "student_id": "iroha",
+    "field": "weapon_state",
+    "old": "weapon_unlocked_not_equipped",
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "weapon_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "weapon_level",
+    "old": null,
+    "new": "40",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip1",
+    "old": null,
+    "new": "T9",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip2",
+    "old": null,
+    "new": "T9",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip3",
+    "old": null,
+    "new": "T8",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip1_level",
+    "old": null,
+    "new": "65",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip2_level",
+    "old": null,
+    "new": "65",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
+  },
+  {
+    "student_id": "iroha",
+    "field": "equip3_level",
+    "old": null,
+    "new": "60",
+    "changed_at": "2026-04-12T12:02:52+09:00",
+    "scan_id": "2026-04-12_120252"
   }
 ]

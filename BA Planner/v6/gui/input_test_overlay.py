@@ -14,7 +14,13 @@ from pathlib import Path
 
 from core.capture import find_target_hwnd, get_window_rect
 from core.config import BASE_DIR
-from core.input import DEBUG_CLICK_METHODS, debug_click_screen, get_cursor_pos
+from core.input import (
+    DEBUG_CLICK_METHODS,
+    debug_click_client,
+    debug_click_screen,
+    get_cursor_pos,
+    ratio_to_client,
+)
 from core.logger import LOG_APP, get_logger
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
@@ -92,6 +98,9 @@ class InputTestOverlay(tk.Toplevel):
         self._ui_scale = get_ui_scale(self, base_width=1600, base_height=1080)
         self._overlay_mode = tk.StringVar(value="none")
         self._click_method = tk.StringVar(value="activate_pag")
+        self._coord_mode = tk.StringVar(value="client")
+        self._coord_x = tk.StringVar(value="")
+        self._coord_y = tk.StringVar(value="")
         self._capture_name = tk.StringVar(value=DEFAULT_CAPTURE_NAME)
         self._status_text = tk.StringVar(value="Ready")
         self._countdown_text = tk.StringVar(value="No pending action")
@@ -144,6 +153,7 @@ class InputTestOverlay(tk.Toplevel):
         self._draw_overlay_mode_section(body)
         self._draw_click_method_section(body)
         self._draw_click_action_section(body)
+        self._draw_exact_coord_section(body)
         self._draw_capture_section(body)
 
         tk.Label(
@@ -245,6 +255,102 @@ class InputTestOverlay(tk.Toplevel):
             cursor="hand2",
             font=scale_font((FONT, 9, "bold"), self._ui_scale),
             command=lambda: self._arm_click("center"),
+        ).pack(fill="x", pady=(scale_px(6, self._ui_scale), 0))
+
+    def _draw_exact_coord_section(self, body: tk.Frame) -> None:
+        tk.Label(
+            body,
+            text="Exact Coordinate Click",
+            bg=CARD,
+            fg=TEXT,
+            anchor="w",
+            font=scale_font((FONT, 10, "bold"), self._ui_scale),
+        ).pack(fill="x", pady=(scale_px(14, self._ui_scale), 0))
+
+        mode_row = tk.Frame(body, bg=CARD)
+        mode_row.pack(fill="x", pady=(scale_px(4, self._ui_scale), 0))
+        for value, label in [("client", "Client"), ("screen", "Screen"), ("ratio", "Ratio")]:
+            tk.Radiobutton(
+                mode_row,
+                text=label,
+                value=value,
+                variable=self._coord_mode,
+                bg=CARD,
+                fg=TEXT,
+                selectcolor=BG,
+                activebackground=CARD,
+                activeforeground=TEXT,
+                anchor="w",
+                font=scale_font((FONT, 8), self._ui_scale),
+            ).pack(side="left", padx=(0, scale_px(10, self._ui_scale)))
+
+        entry_row = tk.Frame(body, bg=CARD)
+        entry_row.pack(fill="x", pady=(scale_px(6, self._ui_scale), 0))
+        tk.Entry(
+            entry_row,
+            textvariable=self._coord_x,
+            bg=BG,
+            fg=TEXT,
+            insertbackground=TEXT,
+            relief="flat",
+            width=10,
+            font=scale_font((FONT, 9), self._ui_scale),
+        ).pack(side="left", fill="x", expand=True, ipady=scale_px(5, self._ui_scale))
+        tk.Entry(
+            entry_row,
+            textvariable=self._coord_y,
+            bg=BG,
+            fg=TEXT,
+            insertbackground=TEXT,
+            relief="flat",
+            width=10,
+            font=scale_font((FONT, 9), self._ui_scale),
+        ).pack(side="left", fill="x", expand=True, padx=(scale_px(6, self._ui_scale), 0), ipady=scale_px(5, self._ui_scale))
+
+        helper_row = tk.Frame(body, bg=CARD)
+        helper_row.pack(fill="x", pady=(scale_px(6, self._ui_scale), 0))
+        tk.Button(
+            helper_row,
+            text="Load cursor",
+            bg="#24384d",
+            fg=TEXT,
+            relief="flat",
+            cursor="hand2",
+            font=scale_font((FONT, 8), self._ui_scale),
+            command=self._fill_exact_from_cursor,
+        ).pack(side="left", fill="x", expand=True)
+        tk.Button(
+            helper_row,
+            text="Load center",
+            bg="#24384d",
+            fg=TEXT,
+            relief="flat",
+            cursor="hand2",
+            font=scale_font((FONT, 8), self._ui_scale),
+            command=self._fill_exact_from_center,
+        ).pack(side="left", fill="x", expand=True, padx=(scale_px(6, self._ui_scale), 0))
+
+        fire_row = tk.Frame(body, bg=CARD)
+        fire_row.pack(fill="x", pady=(scale_px(6, self._ui_scale), 0))
+        tk.Button(
+            fire_row,
+            text="Click exact now",
+            bg=GREEN,
+            fg=BG,
+            relief="flat",
+            cursor="hand2",
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
+            command=lambda: self._arm_click("exact", delay=0.0),
+        ).pack(fill="x")
+        tk.Button(
+            fire_row,
+            text="Click exact in 2s",
+            bg=LBLUE,
+            fg=BG,
+            relief="flat",
+            cursor="hand2",
+            font=scale_font((FONT, 9, "bold"), self._ui_scale),
+            command=lambda: self._arm_click("exact", delay=2.0),
         ).pack(fill="x", pady=(scale_px(6, self._ui_scale), 0))
 
     def _draw_capture_section(self, body: tk.Frame) -> None:
@@ -388,14 +494,19 @@ class InputTestOverlay(tk.Toplevel):
             self._countdown_job = None
         self._countdown_text.set("No pending action")
 
-    def _arm_click(self, target_mode: str) -> None:
+    def _arm_click(self, target_mode: str, delay: float | None = None) -> None:
         if find_target_hwnd() is None:
             self._status_text.set("No target game window selected.")
             return
         self._cancel_countdown()
         self._pending_action = "click"
         self._target_mode = target_mode
-        self._countdown_deadline = time.monotonic() + (0.25 if target_mode == "center" else 2.0)
+        if delay is None:
+            delay = 0.25 if target_mode == "center" else 2.0
+        self._countdown_deadline = time.monotonic() + max(0.0, delay)
+        if delay <= 0:
+            self._fire_pending_action()
+            return
         self._tick_countdown()
 
     def _arm_capture(self, delay: float) -> None:
@@ -428,6 +539,10 @@ class InputTestOverlay(tk.Toplevel):
 
         if self._target_mode == "center":
             pos = self._game_center()
+        elif self._target_mode == "exact":
+            self._fire_exact_click(hwnd)
+            self._countdown_text.set("No pending action")
+            return
         else:
             pos = get_cursor_pos()
 
@@ -449,6 +564,102 @@ class InputTestOverlay(tk.Toplevel):
             f"method={method} target={self._target_mode} screen=({sx},{sy}) ok={ok}"
         )
         self._countdown_text.set("No pending action")
+
+    def _fill_exact_from_cursor(self) -> None:
+        pos = get_cursor_pos()
+        rect = get_window_rect()
+        if pos is None or rect is None:
+            self._status_text.set("Failed to read cursor or game window.")
+            return
+        self._set_exact_inputs_from_screen(pos[0], pos[1], rect)
+
+    def _fill_exact_from_center(self) -> None:
+        pos = self._game_center()
+        rect = get_window_rect()
+        if pos is None or rect is None:
+            self._status_text.set("Failed to read game center.")
+            return
+        self._set_exact_inputs_from_screen(pos[0], pos[1], rect)
+
+    def _set_exact_inputs_from_screen(
+        self,
+        sx: int,
+        sy: int,
+        rect: tuple[int, int, int, int],
+    ) -> None:
+        left, top, width, height = rect
+        width = max(width, 1)
+        height = max(height, 1)
+        cx = sx - left
+        cy = sy - top
+        mode = self._coord_mode.get()
+        if mode == "screen":
+            self._coord_x.set(str(sx))
+            self._coord_y.set(str(sy))
+        elif mode == "ratio":
+            self._coord_x.set(f"{cx / width:.6f}")
+            self._coord_y.set(f"{cy / height:.6f}")
+        else:
+            self._coord_x.set(str(cx))
+            self._coord_y.set(str(cy))
+        self._status_text.set(
+            f"Loaded {mode} coords from screen=({sx},{sy}) client=({cx},{cy})"
+        )
+
+    def _fire_exact_click(self, hwnd: int) -> None:
+        method = self._click_method.get()
+        mode = self._coord_mode.get()
+        rect = get_window_rect()
+        try:
+            if mode == "screen":
+                sx = int(float(self._coord_x.get().strip()))
+                sy = int(float(self._coord_y.get().strip()))
+                ok = debug_click_screen(
+                    hwnd,
+                    sx,
+                    sy,
+                    method=method,
+                    label=f"input_test:screen:{method}",
+                )
+                self._status_text.set(
+                    f"method={method} target=screen screen=({sx},{sy}) ok={ok}"
+                )
+                return
+
+            if rect is None:
+                self._status_text.set("Target game window bounds are unavailable.")
+                return
+
+            if mode == "ratio":
+                rx = float(self._coord_x.get().strip())
+                ry = float(self._coord_y.get().strip())
+                cx, cy = ratio_to_client(rect, rx, ry)
+                ok = debug_click_client(
+                    hwnd,
+                    cx,
+                    cy,
+                    method=method,
+                    label=f"input_test:ratio:{method}",
+                )
+                self._status_text.set(
+                    f"method={method} target=ratio ratio=({rx:.6f},{ry:.6f}) client=({cx},{cy}) ok={ok}"
+                )
+                return
+
+            cx = int(float(self._coord_x.get().strip()))
+            cy = int(float(self._coord_y.get().strip()))
+            ok = debug_click_client(
+                hwnd,
+                cx,
+                cy,
+                method=method,
+                label=f"input_test:client:{method}",
+            )
+            self._status_text.set(
+                f"method={method} target=client client=({cx},{cy}) ok={ok}"
+            )
+        except ValueError:
+            self._status_text.set("Enter valid exact coordinates first.")
 
     def _record_capture_point(self) -> None:
         pos = get_cursor_pos()

@@ -1,0 +1,40 @@
+{
+  "scan_id": "2026-04-12_120252",
+  "scanned_at": "2026-04-12T12:02:52+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": [
+      {
+        "student_id": "iroha",
+        "display_name": "이로하",
+        "level": 90,
+        "student_star": 5,
+        "weapon_state": "weapon_equipped",
+        "weapon_star": 2,
+        "weapon_level": 40,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 8,
+        "skill3": 8,
+        "equip1": "T9",
+        "equip2": "T9",
+        "equip3": "T8",
+        "equip4": null,
+        "equip1_level": 65,
+        "equip2_level": 65,
+        "equip3_level": 60,
+        "stat_hp": 0,
+        "stat_atk": 0,
+        "stat_heal": 0
+      }
+    ]
+  }
+}

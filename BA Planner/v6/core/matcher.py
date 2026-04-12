@@ -621,6 +621,7 @@ _STUDENT_MENU_TMPL = str(_MENU_DETECT_DIR / "student_menu__menu_detect_flag.png"
 _STUDENT_ADDITIONAL_MENU_ON_TMPL = str(_MENU_DETECT_DIR / "student_additional_menu_on_flag.png")
 _LEVELCHECK_BUTTON_ON_TMPL = str(_MENU_DETECT_DIR / "student_data__levelcheck_button_on.png")
 _BASIC_INFO_BUTTON_ON_TMPL = str(_MENU_DETECT_DIR / "student_data__basic_info_button_on.png")
+_STAR_MENU_BUTTON_ON_TMPL = str(_MENU_DETECT_DIR / "student_data__star_menu_button_on.png")
 
 
 def _match_menu_flag(
@@ -684,6 +685,16 @@ def is_basic_info_tab_on(img: Image.Image, region: dict) -> bool:
         region,
         _BASIC_INFO_BUTTON_ON_TMPL,
         label="is_basic_info_tab_on",
+        threshold=THRESHOLD_STUDENT_TAB_ON,
+    )
+
+
+def is_star_tab_on(img: Image.Image, region: dict) -> bool:
+    return _match_menu_flag(
+        img,
+        region,
+        _STAR_MENU_BUTTON_ON_TMPL,
+        label="is_star_tab_on",
         threshold=THRESHOLD_STUDENT_TAB_ON,
     )
 
@@ -906,12 +917,32 @@ def read_stat_value(crop: Image.Image, stat_key: str) -> Optional[int]:
     }
     if not cands:
         return None
-    lbl, score = best_match(crop, cands, threshold=0.60,
-                             resized=True, focus_center=True)
-    if lbl is None:
+    scores: dict[str, tuple[float, float, float]] = {}
+    for lbl, path in cands.items():
+        ui = match_score_resized(crop, path, focus_center=True)
+        text = match_score_textonly(crop, path)
+        final = 0.35 * ui + 0.65 * text
+        scores[lbl] = (final, ui, text)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+    if not ranked:
         return None
-    _log.debug(f"stat_{stat_key}: {lbl} ({score:.3f})")
-    return int(lbl)
+    best_lbl, (best_score, best_ui, best_text) = ranked[0]
+
+    if best_lbl == "4" and "0" in scores:
+        zero_score, zero_ui, zero_text = scores["0"]
+        if best_score < 0.72 and zero_score >= best_score - 0.03 and zero_text >= best_text:
+            best_lbl = "0"
+            best_score, best_ui, best_text = zero_score, zero_ui, zero_text
+
+    if best_score < 0.60:
+        return None
+
+    _log.debug(
+        f"stat_{stat_key}: {best_lbl} "
+        f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})"
+    )
+    return int(best_lbl)
 
 
 def read_stat_value_result(crop: Image.Image, stat_key: str) -> RecognitionResult:
@@ -931,12 +962,31 @@ def read_stat_value_result(crop: Image.Image, stat_key: str) -> RecognitionResul
     }
     if not cands:
         return RecognitionResult.skipped("no_templates")
+    scores: dict[str, tuple[float, float, float]] = {}
+    for lbl, path in cands.items():
+        ui = match_score_resized(crop, path, focus_center=True)
+        text = match_score_textonly(crop, path)
+        final = 0.35 * ui + 0.65 * text
+        scores[lbl] = (final, ui, text)
 
-    lbl, score = best_match(crop, cands, threshold=0.60,
-                             resized=True, focus_center=True)
-    _log.debug(f"stat_{stat_key}_result: {lbl} ({score:.3f})")
-    value = int(lbl) if lbl is not None else None
-    return _make_result(value, score, RecogSource.TEMPLATE_RESIZED)
+    ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
+    if not ranked:
+        return RecognitionResult.skipped("no_scores")
+
+    best_lbl, (best_score, best_ui, best_text) = ranked[0]
+
+    if best_lbl == "4" and "0" in scores:
+        zero_score, zero_ui, zero_text = scores["0"]
+        if best_score < 0.72 and zero_score >= best_score - 0.03 and zero_text >= best_text:
+            best_lbl = "0"
+            best_score, best_ui, best_text = zero_score, zero_ui, zero_text
+
+    _log.debug(
+        f"stat_{stat_key}_result: {best_lbl} "
+        f"(final={best_score:.3f} ui={best_ui:.3f} text={best_text:.3f})"
+    )
+    value = int(best_lbl) if best_score >= 0.60 else None
+    return _make_result(value, best_score, RecogSource.COMBINED)
 
 
 # ══════════════════════════════════════════════════════════

@@ -52,6 +52,7 @@ from core.matcher import (
     is_student_additional_menu_on,
     is_level_tab_on,
     is_basic_info_tab_on,
+    is_star_tab_on,
     detect_weapon_state,
     read_skill_check,
     read_equip_check,
@@ -104,6 +105,8 @@ EQUIP_CHECK_RETRY_WAIT = 0.25
 UI_FLAG_POLL = 0.12
 ADDITIONAL_PANEL_READY_WAIT = 1.8
 TAB_ON_READY_WAIT = 1.5
+UI_FLAG_MATCH_DELAY = 0.10
+STAT_PANEL_MATCH_DELAY = 0.22
 CAPTURED_CLICK_POINTS_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 
 # Retry policy
@@ -963,6 +966,16 @@ class Scanner:
             {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0},
         )
 
+    def _is_star_tab_on_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self.r.get("student", {}).get("star_menu_button")
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_star_tab_on(
+            roi,
+            {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0},
+        )
+
     def _student_detail_score(self, img: Optional[Image.Image]) -> float:
         texture_r = self.r.get("student", {}).get("student_texture_region")
         if img is None or not texture_r:
@@ -1081,6 +1094,7 @@ class Scanner:
         poll: float = UI_FLAG_POLL,
         stable_polls: int = 1,
         fallback_delay: float = DELAY_TAB_SWITCH,
+        match_delay: float = UI_FLAG_MATCH_DELAY,
     ) -> Optional[Image.Image]:
         region = self.r.get("student", {}).get(region_key)
         if not region:
@@ -1091,7 +1105,7 @@ class Scanner:
         img = self._wait_for_capture_match(
             predicate,
             timeout=timeout,
-            initial_wait=initial_wait,
+            initial_wait=initial_wait + max(0.0, match_delay),
             poll=poll,
             stable_polls=stable_polls,
             label=label,
@@ -1194,9 +1208,13 @@ class Scanner:
             else:
                 press_esc()
 
-    def _restore_basic_tab(self) -> None:
+    def _restore_basic_tab(self) -> bool:
         """Return to the basic info tab."""
         sr = self.r["student"]
+        current = self._get_student_basic_capture(refresh=True)
+        if current is not None and self._is_basic_info_tab_on_capture(current):
+            self._student_basic_img = current
+            return True
         if "basic_info_button" in sr:
             img = self._click_student_region_and_wait(
                 "basic_info_button",
@@ -1210,10 +1228,10 @@ class Scanner:
             )
             if img is not None:
                 self._student_basic_img = img
-                return
+                return True
         else:
             self._esc()
-        self._settle_student_detail("basic_info_tab", initial_wait=0.0)
+        return self._settle_student_detail("basic_info_tab", initial_wait=0.0)
 
     def _settle_student_detail(
         self,
@@ -2180,14 +2198,14 @@ class Scanner:
             self.log("  전용무기 보유 학생 -> 별 스캔 생략 (5성 확정)")
             return
 
-        sr       = self.r["student"]
-        star_btn = sr.get("star_menu_button")
-        if star_btn:
-            self._click_r(star_btn, "star_menu")
-            if not self._wait(0.3):
-                return
-
-        img = self._capture()
+        sr = self.r["student"]
+        img = self._click_student_region_and_wait(
+            "star_menu_button",
+            "star_menu",
+            self._is_star_tab_on_capture,
+            timeout=TAB_ON_READY_WAIT,
+            fallback_delay=0.3,
+        )
         if img is None:
             entry.set_meta("student_star",
                            FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
@@ -2243,6 +2261,7 @@ class Scanner:
             self._is_student_additional_menu_capture,
             timeout=ADDITIONAL_PANEL_READY_WAIT,
             fallback_delay=0.4,
+            match_delay=STAT_PANEL_MATCH_DELAY,
         )
         if img is None:
             self._esc()
