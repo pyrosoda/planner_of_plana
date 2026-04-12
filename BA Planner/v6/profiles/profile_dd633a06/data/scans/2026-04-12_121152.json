@@ -1,0 +1,40 @@
+{
+  "scan_id": "2026-04-12_121152",
+  "scanned_at": "2026-04-12T12:11:52+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": [
+      {
+        "student_id": "shiroko_swimsuit",
+        "display_name": "시로코(수영복)",
+        "level": 90,
+        "student_star": 5,
+        "weapon_state": "weapon_equipped",
+        "weapon_star": 2,
+        "weapon_level": 40,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 10,
+        "skill3": 10,
+        "equip1": "unknown",
+        "equip2": "unknown",
+        "equip3": "unknown",
+        "equip4": null,
+        "equip1_level": null,
+        "equip2_level": null,
+        "equip3_level": null,
+        "stat_hp": 0,
+        "stat_atk": 0,
+        "stat_heal": 0
+      }
+    ]
+  }
+}

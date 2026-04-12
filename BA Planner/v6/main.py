@@ -2,6 +2,8 @@
 Blue Archive Analyzer v6 entry point.
 """
 
+import ctypes
+import hashlib
 import importlib.util
 import os
 import queue
@@ -13,6 +15,71 @@ from tkinter import TclError
 import tkinter as tk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+_ERROR_ALREADY_EXISTS = 183
+_kernel32 = None
+
+if sys.platform == "win32":
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+    _kernel32.CreateMutexW.restype = ctypes.c_void_p
+    _kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    _kernel32.CloseHandle.restype = ctypes.c_bool
+
+
+class SingleInstanceGuard:
+    def __init__(self, name: str):
+        self._name = name
+        self._handle = None
+
+    def acquire(self) -> bool:
+        if _kernel32 is None:
+            return True
+        if self._handle is not None:
+            return True
+
+        handle = _kernel32.CreateMutexW(None, False, self._name)
+        if not handle:
+            raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
+        if ctypes.get_last_error() == _ERROR_ALREADY_EXISTS:
+            _kernel32.CloseHandle(handle)
+            return False
+
+        self._handle = handle
+        return True
+
+    def release(self) -> None:
+        if _kernel32 is None or self._handle is None:
+            return
+        _kernel32.CloseHandle(self._handle)
+        self._handle = None
+
+
+def _build_single_instance_name() -> str:
+    script_path = os.path.abspath(__file__).encode("utf-8")
+    digest = hashlib.sha1(script_path).hexdigest()[:12]
+    return f"Local\\BAAnalyzerV6Main_{digest}"
+
+
+_STARTUP_INSTANCE_GUARD: SingleInstanceGuard | None = None
+
+
+def _ensure_single_instance() -> bool:
+    global _STARTUP_INSTANCE_GUARD
+    if _STARTUP_INSTANCE_GUARD is not None:
+        return True
+
+    guard = SingleInstanceGuard(_build_single_instance_name())
+    if not guard.acquire():
+        return False
+
+    _STARTUP_INSTANCE_GUARD = guard
+    return True
+
+
+if __name__ == "__main__" and not _ensure_single_instance():
+    print("BA Analyzer v6 is already running. Closing the new instance.")
+    sys.exit(0)
 
 REQUIRED = {
     "cv2": "opencv-python",
@@ -549,5 +616,14 @@ class App(tk.Tk):
         self.mainloop()
 
 
+def main() -> int:
+    try:
+        App().run()
+        return 0
+    finally:
+        if _STARTUP_INSTANCE_GUARD is not None:
+            _STARTUP_INSTANCE_GUARD.release()
+
+
 if __name__ == "__main__":
-    App().run()
+    raise SystemExit(main())
