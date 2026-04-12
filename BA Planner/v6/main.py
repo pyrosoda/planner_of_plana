@@ -8,6 +8,7 @@ import queue
 import sys
 import threading
 import traceback
+import winsound
 from tkinter import TclError
 
 import tkinter as tk
@@ -31,7 +32,7 @@ if missing:
 
 try:
     from core.analyzer import analyze_scan_summary, is_student_maxed
-    from core.capture import clear_target, set_target_window
+    from core.capture import clear_target, set_target_window, is_target_foreground
     from core.config import (
         activate_profile,
         get_active_profile_name,
@@ -112,6 +113,7 @@ class App(tk.Tk):
         self._result: ScanResult | None = None
         self._scan_thread: threading.Thread | None = None
         self._asv = None
+        self._active_scan_mode: str | None = None
         self._closing = False
         self._shutdown_requested = False
         self._destroyed = False
@@ -332,6 +334,7 @@ class App(tk.Tk):
     def _scan(self, mode: str) -> None:
         meta = build_scan_meta()
         self._result = None
+        self._active_scan_mode = mode
         self._overlay.reset_scan_progress()
         self._scanner = self._build_scanner(meta)
         if self._scanner:
@@ -400,6 +403,8 @@ class App(tk.Tk):
             self._dispatch_ui(self._transition_to, AppState.ERROR, str(exc))
 
     def _on_scan_finished(self) -> None:
+        finished_mode = self._active_scan_mode
+        self._active_scan_mode = None
         self._scanner = None
         self._scan_thread = None
         self._overlay.reset_scan_progress()
@@ -414,6 +419,8 @@ class App(tk.Tk):
             return
 
         if self.state == AppState.SCANNING:
+            if finished_mode in ("students", "all") and not is_target_foreground():
+                self._notify_background_scan_finished()
             self._transition_to(AppState.WATCHING, reason="scan_finished")
             return
 
@@ -422,6 +429,17 @@ class App(tk.Tk):
             return
         self._overlay.add_log("스캔 중지 요청...")
         self._transition_to(AppState.STOPPING, reason="user_stop_requested")
+
+    def _notify_background_scan_finished(self) -> None:
+        try:
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            self.after(250, lambda: winsound.MessageBeep(winsound.MB_ICONASTERISK))
+        except Exception:
+            try:
+                self.bell()
+            except Exception:
+                pass
+        self._overlay.add_log("학생 스캔이 완료되었습니다.")
 
     def _auto_save(self, result: ScanResult, meta: dict) -> None:
         from core.serializer import make_status_report, save_scan_json

@@ -165,6 +165,8 @@ THRESHOLD         = 0.80
 THRESHOLD_LOOSE   = 0.72
 THRESHOLD_LOBBY   = 0.90
 THRESHOLD_STUDENT_MENU = 0.90
+THRESHOLD_STUDENT_ADDITIONAL_MENU = 0.90
+THRESHOLD_STUDENT_TAB_ON = 0.90
 TEXTURE_THRESHOLD        = 0.60
 TEXTURE_MARGIN_REQUIRED  = 0.05
 
@@ -616,6 +618,9 @@ def best_match(
 _MENU_DETECT_DIR = TEMPLATE_DIR / "menu_detect_flag"
 _LOBBY_TMPL = str(_MENU_DETECT_DIR / "lobby_template.png")
 _STUDENT_MENU_TMPL = str(_MENU_DETECT_DIR / "student_menu__menu_detect_flag.png")
+_STUDENT_ADDITIONAL_MENU_ON_TMPL = str(_MENU_DETECT_DIR / "student_additional_menu_on_flag.png")
+_LEVELCHECK_BUTTON_ON_TMPL = str(_MENU_DETECT_DIR / "student_data__levelcheck_button_on.png")
+_BASIC_INFO_BUTTON_ON_TMPL = str(_MENU_DETECT_DIR / "student_data__basic_info_button_on.png")
 
 
 def _match_menu_flag(
@@ -650,6 +655,36 @@ def is_student_menu(img: Image.Image, region: dict) -> bool:
         _STUDENT_MENU_TMPL,
         label="is_student_menu",
         threshold=THRESHOLD_STUDENT_MENU,
+    )
+
+
+def is_student_additional_menu_on(img: Image.Image, region: dict) -> bool:
+    return _match_menu_flag(
+        img,
+        region,
+        _STUDENT_ADDITIONAL_MENU_ON_TMPL,
+        label="is_student_additional_menu_on",
+        threshold=THRESHOLD_STUDENT_ADDITIONAL_MENU,
+    )
+
+
+def is_level_tab_on(img: Image.Image, region: dict) -> bool:
+    return _match_menu_flag(
+        img,
+        region,
+        _LEVELCHECK_BUTTON_ON_TMPL,
+        label="is_level_tab_on",
+        threshold=THRESHOLD_STUDENT_TAB_ON,
+    )
+
+
+def is_basic_info_tab_on(img: Image.Image, region: dict) -> bool:
+    return _match_menu_flag(
+        img,
+        region,
+        _BASIC_INFO_BUTTON_ON_TMPL,
+        label="is_basic_info_tab_on",
+        threshold=THRESHOLD_STUDENT_TAB_ON,
     )
 
 

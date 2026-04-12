@@ -3854,5 +3854,29 @@
     "new": "50",
     "changed_at": "2026-04-12T09:33:16+09:00",
     "scan_id": "2026-04-12_093316"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "weapon_state",
+    "old": "weapon_unlocked_not_equipped",
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T10:09:56+09:00",
+    "scan_id": "2026-04-12_100956"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "weapon_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T10:09:56+09:00",
+    "scan_id": "2026-04-12_100956"
+  },
+  {
+    "student_id": "shiroko_swimsuit",
+    "field": "weapon_level",
+    "old": null,
+    "new": "40",
+    "changed_at": "2026-04-12T10:09:56+09:00",
+    "scan_id": "2026-04-12_100956"
   }
 ]

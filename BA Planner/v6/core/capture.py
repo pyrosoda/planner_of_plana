@@ -186,6 +186,17 @@ def is_target_minimized() -> bool:
     return bool(hwnd and _is_minimized(hwnd))
 
 
+def is_target_foreground() -> bool:
+    """Return True when the selected target window is the foreground window."""
+    hwnd = find_target_hwnd()
+    if hwnd is None:
+        return False
+    try:
+        return int(_u32.GetForegroundWindow()) == int(hwnd)
+    except Exception:
+        return False
+
+
 def get_window_rect() -> Optional[tuple[int, int, int, int]]:
     """Client area (left, top, width, height) 반환."""
     hwnd = find_target_hwnd()

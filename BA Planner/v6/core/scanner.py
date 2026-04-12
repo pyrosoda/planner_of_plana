@@ -49,6 +49,9 @@ from core.matcher import (
     match_student_texture,
     is_lobby,
     is_student_menu,
+    is_student_additional_menu_on,
+    is_level_tab_on,
+    is_basic_info_tab_on,
     detect_weapon_state,
     read_skill_check,
     read_equip_check,
@@ -98,6 +101,9 @@ LEVEL_CAPTURE_RETRY_WAIT = 0.40
 WEAPON_CAPTURE_RETRY_WAIT = 0.40
 MENU_CLOSE_DETAIL_WAIT = 0.35
 EQUIP_CHECK_RETRY_WAIT = 0.25
+UI_FLAG_POLL = 0.12
+ADDITIONAL_PANEL_READY_WAIT = 1.8
+TAB_ON_READY_WAIT = 1.5
 CAPTURED_CLICK_POINTS_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 
 # Retry policy
@@ -922,6 +928,41 @@ class Scanner:
         roi = crop_region(img, detect_r)
         return is_student_menu(roi, {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0})
 
+    def _student_additional_menu_region(self) -> Optional[dict]:
+        # Reuse the student-menu detect ROI by default because the additional
+        # menu applies the same dimmed effect to that area.
+        return (
+            self.r.get("student", {}).get("student_additional_menu_on_flag")
+            or self.r.get("student_menu", {}).get("menu_detect_flag")
+        )
+
+    def _is_student_additional_menu_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self._student_additional_menu_region()
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_student_additional_menu_on(
+            roi,
+            {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0},
+        )
+
+    def _is_level_tab_on_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self.r.get("student", {}).get("levelcheck_button")
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_level_tab_on(roi, {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0})
+
+    def _is_basic_info_tab_on_capture(self, img: Optional[Image.Image]) -> bool:
+        detect_r = self.r.get("student", {}).get("basic_info_button")
+        if img is None or not detect_r:
+            return False
+        roi = crop_region(img, detect_r)
+        return is_basic_info_tab_on(
+            roi,
+            {"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0},
+        )
+
     def _student_detail_score(self, img: Optional[Image.Image]) -> float:
         texture_r = self.r.get("student", {}).get("student_texture_region")
         if img is None or not texture_r:
@@ -993,6 +1034,73 @@ class Scanner:
             if not self._wait(poll):
                 return False
         return False
+
+    def _wait_for_capture_match(
+        self,
+        predicate: Callable[[Optional[Image.Image]], bool],
+        *,
+        timeout: float,
+        initial_wait: float = 0.0,
+        poll: float = UI_FLAG_POLL,
+        stable_polls: int = 1,
+        label: str = "",
+    ) -> Optional[Image.Image]:
+        if initial_wait > 0 and not self._wait(initial_wait):
+            return None
+        deadline = time.monotonic() + timeout
+        ready_streak = 0
+        last_img: Optional[Image.Image] = None
+        while time.monotonic() < deadline:
+            if self._stop_requested():
+                return None
+            img = self._capture()
+            last_img = img
+            matched = img is not None and predicate(img)
+            _log.debug(
+                f"[wait_match] label={label} matched={matched} "
+                f"ready_streak={ready_streak}"
+            )
+            if matched:
+                ready_streak += 1
+                if ready_streak >= stable_polls:
+                    return img
+            else:
+                ready_streak = 0
+            if not self._wait(poll):
+                return last_img if matched else None
+        return None
+
+    def _click_student_region_and_wait(
+        self,
+        region_key: str,
+        label: str,
+        predicate: Callable[[Optional[Image.Image]], bool],
+        *,
+        timeout: float,
+        initial_wait: float = DELAY_AFTER_CLICK,
+        poll: float = UI_FLAG_POLL,
+        stable_polls: int = 1,
+        fallback_delay: float = DELAY_TAB_SWITCH,
+    ) -> Optional[Image.Image]:
+        region = self.r.get("student", {}).get(region_key)
+        if not region:
+            self.log(f"  missing {region_key}")
+            return None
+        if not self._click_r(region, label):
+            return None
+        img = self._wait_for_capture_match(
+            predicate,
+            timeout=timeout,
+            initial_wait=initial_wait,
+            poll=poll,
+            stable_polls=stable_polls,
+            label=label,
+        )
+        if img is not None:
+            return img
+        if fallback_delay > 0 and not self._wait(fallback_delay):
+            return None
+        return self._capture()
 
     def _recover_first_student_entry(self) -> bool:
         _log.warning("첫 학생 진입 복구 루틴 시작")
@@ -1090,8 +1198,19 @@ class Scanner:
         """Return to the basic info tab."""
         sr = self.r["student"]
         if "basic_info_button" in sr:
-            self._click_r(sr["basic_info_button"], "basic_info_tab")
-            self._wait(BASIC_TAB_SETTLE_WAIT)
+            img = self._click_student_region_and_wait(
+                "basic_info_button",
+                "basic_info_tab",
+                self._is_basic_info_tab_on_capture,
+                timeout=TAB_ON_READY_WAIT,
+                initial_wait=DELAY_AFTER_CLICK,
+                poll=UI_FLAG_POLL,
+                stable_polls=1,
+                fallback_delay=BASIC_TAB_SETTLE_WAIT,
+            )
+            if img is not None:
+                self._student_basic_img = img
+                return
         else:
             self._esc()
         self._settle_student_detail("basic_info_tab", initial_wait=0.0)
@@ -1657,19 +1776,16 @@ class Scanner:
 
     def read_skills(self, entry: StudentEntry) -> None:
         """Read the skill panel from a single capture and fill skill fields."""
-
-
-
         ctx = ScanCtx(student_id=entry.student_id, step="read_skills")
-
-        if not self._tab("skill_menu_button"):
-            _log.warning(f"{ctx} 스킬 메뉴 진입 실패")
-
-
         self._active_student_panel = "skill"
-        img = self._capture()
+        img = self._click_student_region_and_wait(
+            "skill_menu_button",
+            "skill_menu_button",
+            self._is_student_additional_menu_capture,
+            timeout=ADDITIONAL_PANEL_READY_WAIT,
+        )
         if img is None:
-            _log.warning(f"{ctx} 캡처 실패")
+            _log.warning(f"{ctx} 스킬 메뉴 진입 실패")
             self._esc()
             return
 
@@ -1772,19 +1888,15 @@ class Scanner:
             return
 
 
-        menu_btn = sr.get("weapon_info_menu_button")
-        if not menu_btn:
-            self.log("  missing weapon_info_menu_button")
-            return
-
-        self._click_r(menu_btn, "weapon_info_menu")
         self._active_student_panel = "weapon"
-        if not self._wait(DELAY_TAB_SWITCH):
-            self._esc()
-            return
-
-        img = self._capture()
+        img = self._click_student_region_and_wait(
+            "weapon_info_menu_button",
+            "weapon_info_menu",
+            self._is_student_additional_menu_capture,
+            timeout=ADDITIONAL_PANEL_READY_WAIT,
+        )
         if img is None:
+            self.log("  missing weapon_info_menu_button")
             self._esc()
             return
 
@@ -1863,13 +1975,13 @@ class Scanner:
                                    FieldMeta.skipped("equipment_impossible"))
             return
 
-        self._click_r(equip_btn, "equipment_tab")
         self._active_student_panel = "equipment"
-        if not self._wait(DELAY_TAB_SWITCH):
-            self._esc()
-            return
-
-
+        img = self._click_student_region_and_wait(
+            "equipment_button",
+            "equipment_tab",
+            self._is_student_additional_menu_capture,
+            timeout=ADDITIONAL_PANEL_READY_WAIT,
+        )
         if img is None:
             self._esc()
             return
@@ -2003,15 +2115,16 @@ class Scanner:
 
 
 
-        if not self._tab("levelcheck_button", delay=0.5):
+        img = self._click_student_region_and_wait(
+            "levelcheck_button",
+            "levelcheck_button",
+            self._is_level_tab_on_capture,
+            timeout=TAB_ON_READY_WAIT,
+            fallback_delay=0.5,
+        )
+        if img is None:
             _log.warning(f"{ctx} 레벨 탭 진입 실패")
             entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "tab_fail"))
-            return
-
-        img = self._capture()
-        if img is None:
-            self._restore_basic_tab()
-            entry.set_meta("level", FieldMeta.failed(FieldSource.TEMPLATE, "capture_fail"))
             return
 
         sr = self.r["student"]
@@ -2123,11 +2236,14 @@ class Scanner:
             )
             return
 
-        if not self._tab("stat_menu_button", delay=0.4):
-            return
-
         self._active_student_panel = "stat"
-        img = self._capture()
+        img = self._click_student_region_and_wait(
+            "stat_menu_button",
+            "stat_menu_button",
+            self._is_student_additional_menu_capture,
+            timeout=ADDITIONAL_PANEL_READY_WAIT,
+            fallback_delay=0.4,
+        )
         if img is None:
             self._esc()
             return

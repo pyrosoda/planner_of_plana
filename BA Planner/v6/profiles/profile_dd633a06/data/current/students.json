@@ -145,17 +145,17 @@
     "stat_hp": 0,
     "stat_atk": 25,
     "stat_heal": 25,
-    "last_seen_at": "2026-04-12T09:34:05+09:00",
-    "last_scan_id": "2026-04-12_093405",
+    "last_seen_at": "2026-04-12T10:11:37+09:00",
+    "last_scan_id": "2026-04-12_101137",
     "student_id": "nagisa"
   },
   "shiroko_swimsuit": {
     "display_name": "시로코(수영복)",
     "level": 90,
     "student_star": 5,
-    "weapon_state": "weapon_unlocked_not_equipped",
-    "weapon_star": null,
-    "weapon_level": null,
+    "weapon_state": "weapon_equipped",
+    "weapon_star": 2,
+    "weapon_level": 40,
     "ex_skill": 5,
     "skill1": 10,
     "skill2": 10,
@@ -170,8 +170,8 @@
     "stat_hp": 0,
     "stat_atk": 0,
     "stat_heal": 0,
-    "last_seen_at": "2026-04-12T01:06:55+09:00",
-    "last_scan_id": "2026-04-12_010655",
+    "last_seen_at": "2026-04-12T10:09:56+09:00",
+    "last_scan_id": "2026-04-12_100956",
     "student_id": "shiroko_swimsuit"
   },
   "airi": {
