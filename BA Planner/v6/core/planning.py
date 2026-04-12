@@ -5,6 +5,9 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 MAX_TARGET_STAR = 5
+MAX_TARGET_WEAPON_STAR = 4
+MAX_TARGET_WEAPON_LEVEL = 60
+MAX_TARGET_EQUIP_TIER = 10
 MAX_TARGET_STAT = 25
 
 
@@ -58,6 +61,11 @@ def _clamp_optional_int(
 
 def sanitize_goal(goal: StudentGoal) -> StudentGoal:
     goal.target_star = _clamp_optional_int(goal.target_star, maximum=MAX_TARGET_STAR)
+    goal.target_weapon_level = _clamp_optional_int(goal.target_weapon_level, maximum=MAX_TARGET_WEAPON_LEVEL)
+    goal.target_weapon_star = _clamp_optional_int(goal.target_weapon_star, maximum=MAX_TARGET_WEAPON_STAR)
+    goal.target_equip1_tier = _clamp_optional_int(goal.target_equip1_tier, maximum=MAX_TARGET_EQUIP_TIER)
+    goal.target_equip2_tier = _clamp_optional_int(goal.target_equip2_tier, maximum=MAX_TARGET_EQUIP_TIER)
+    goal.target_equip3_tier = _clamp_optional_int(goal.target_equip3_tier, maximum=MAX_TARGET_EQUIP_TIER)
     goal.target_stat_hp = _clamp_optional_int(goal.target_stat_hp, maximum=MAX_TARGET_STAT)
     goal.target_stat_atk = _clamp_optional_int(goal.target_stat_atk, maximum=MAX_TARGET_STAT)
     goal.target_stat_heal = _clamp_optional_int(goal.target_stat_heal, maximum=MAX_TARGET_STAT)

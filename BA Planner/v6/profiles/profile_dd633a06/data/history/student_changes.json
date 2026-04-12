@@ -23654,5 +23654,2949 @@
     "new": "65",
     "changed_at": "2026-04-12T12:42:57+09:00",
     "scan_id": "2026-04-12_124257"
+  },
+  {
+    "student_id": "reijo",
+    "field": "display_name",
+    "old": null,
+    "new": "레이죠",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "level",
+    "old": null,
+    "new": "90",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "ex_skill",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "skill1",
+    "old": null,
+    "new": "7",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "skill2",
+    "old": null,
+    "new": "7",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "skill3",
+    "old": null,
+    "new": "10",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip1",
+    "old": null,
+    "new": "T9",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip2",
+    "old": null,
+    "new": "T9",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip3",
+    "old": null,
+    "new": "T9",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip1_level",
+    "old": null,
+    "new": "65",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip2_level",
+    "old": null,
+    "new": "65",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "reijo",
+    "field": "equip3_level",
+    "old": null,
+    "new": "65",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "display_name",
+    "old": null,
+    "new": "카스미",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "level",
+    "old": null,
+    "new": "90",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip1",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip2",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip3",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip1_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip2_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kasumi",
+    "field": "equip3_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "display_name",
+    "old": null,
+    "new": "노아(파자마)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "level",
+    "old": null,
+    "new": "90",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip1",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip2",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip3",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip1_level",
+    "old": null,
+    "new": "10",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip2_level",
+    "old": null,
+    "new": "10",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "noa_pajama",
+    "field": "equip3_level",
+    "old": null,
+    "new": "10",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "츠루기(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "90",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip1",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip2",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip3",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip1_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip2_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsurugi_swimsuit",
+    "field": "equip3_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "display_name",
+    "old": null,
+    "new": "마리나(치파오)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "level",
+    "old": null,
+    "new": "88",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "marina_qipao",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "display_name",
+    "old": null,
+    "new": "하루나(체육복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "level",
+    "old": null,
+    "new": "31",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "equip2",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "equip3",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "haruna_sportswear",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "display_name",
+    "old": null,
+    "new": "세리카(새해)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "level",
+    "old": null,
+    "new": "11",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "weapon_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "weapon_level",
+    "old": null,
+    "new": "50",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "serika_new_year",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "display_name",
+    "old": null,
+    "new": "체리노(온천)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "weapon_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "weapon_level",
+    "old": null,
+    "new": "50",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "cherino_hot_springs",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "display_name",
+    "old": null,
+    "new": "슌(어린이)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "weapon_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "weapon_level",
+    "old": null,
+    "new": "30",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shun_kid",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "display_name",
+    "old": null,
+    "new": "카에데",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "weapon_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "weapon_level",
+    "old": null,
+    "new": "30",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "equip1",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "equip4",
+    "old": null,
+    "new": "love_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "kaede",
+    "field": "equip1_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "이치카(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "weapon_equipped",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "weapon_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "weapon_level",
+    "old": null,
+    "new": "30",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "ichika_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "display_name",
+    "old": null,
+    "new": "미치루",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "michiru",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "마시로(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "mashiro_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "히나타(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "display_name",
+    "old": null,
+    "new": "모미지",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momiji",
+    "field": "equip4",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "display_name",
+    "old": null,
+    "new": "카린(바니걸)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "equip1",
+    "old": null,
+    "new": "T1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "karin_bunny_girl",
+    "field": "equip1_level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "히요리(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hiyori_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "display_name",
+    "old": null,
+    "new": "유카리",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "yukari",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "display_name",
+    "old": null,
+    "new": "미노리",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "minori",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "display_name",
+    "old": null,
+    "new": "시구레",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "shigure",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "display_name",
+    "old": null,
+    "new": "사쿠라코",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "display_name",
+    "old": null,
+    "new": "하나에(크리스마스)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hanae_christmas",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "display_name",
+    "old": null,
+    "new": "히나타",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "equip1",
+    "old": null,
+    "new": "empty",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "equip2",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "equip3",
+    "old": null,
+    "new": "level_locked",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "hinata",
+    "field": "equip4",
+    "old": null,
+    "new": "T2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "에이미(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "eimi_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "display_name",
+    "old": null,
+    "new": "사텐 루이코",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "saten_ruiko",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "모에(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "moe_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "display_name",
+    "old": null,
+    "new": "츠바키(가이드)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tsubaki_guide",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "display_name",
+    "old": null,
+    "new": "미도리(메이드)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "midori_maid",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "display_name",
+    "old": null,
+    "new": "사츠키",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "satsuki",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "display_name",
+    "old": null,
+    "new": "토모에(치파오)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "tomoe_qipao",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "display_name",
+    "old": null,
+    "new": "이즈미(새해)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_new_year",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "후부키(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "fubuki_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "display_name",
+    "old": null,
+    "new": "마키(캠핑)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "maki_camping",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "display_name",
+    "old": null,
+    "new": "모모이(메이드)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "momoi_maid",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "미사키(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "3",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "misaki_swimsuit",
+    "field": "skill3",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "렌게(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "renge_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "display_name",
+    "old": null,
+    "new": "노도카",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "student_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nodoka",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "display_name",
+    "old": null,
+    "new": "이즈미(수영복)",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "level",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "student_star",
+    "old": null,
+    "new": "2",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "weapon_state",
+    "old": null,
+    "new": "no_weapon_system",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "ex_skill",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "skill1",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "izumi_swimsuit",
+    "field": "skill2",
+    "old": null,
+    "new": "1",
+    "changed_at": "2026-04-12T14:52:31+09:00",
+    "scan_id": "2026-04-12_145231"
   }
 ]

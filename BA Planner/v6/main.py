@@ -381,11 +381,11 @@ class App(tk.Tk):
 
         current_students = self._repo.load_current_students()
         maxed_ids: set[str] = set()
-        maxed_cache: dict[str, dict] = {}
+        maxed_saved_data: dict[str, dict] = {}
         for sid, data in current_students.items():
             if is_student_maxed(data):
                 maxed_ids.add(sid)
-                maxed_cache[sid] = data
+                maxed_saved_data[sid] = data
 
         scan_id = meta.get("scan_id", "unknown")
         self._asv = AutoSaveManager(
@@ -405,7 +405,8 @@ class App(tk.Tk):
                 state.get("note", ""),
             ),
             maxed_ids=maxed_ids,
-            maxed_cache=maxed_cache,
+            maxed_saved_data=maxed_saved_data,
+            student_saved_data=current_students,
             student_total_hint=len(current_students) or None,
             autosave_manager=self._asv,
         )

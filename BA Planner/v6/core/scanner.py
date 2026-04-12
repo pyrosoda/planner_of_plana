@@ -571,7 +571,8 @@ class Scanner:
         on_progress: Optional[Callable[[str], None]] = None,
         on_progress_state: Optional[Callable[[dict], None]] = None,
         maxed_ids:   Optional[set[str]]  = None,
-        maxed_cache: Optional[dict[str, dict]] = None,
+        maxed_saved_data: Optional[dict[str, dict]] = None,
+        student_saved_data: Optional[dict[str, dict]] = None,
         student_total_hint: Optional[int] = None,
         autosave_manager = None,   # AutoSaveManager | None
     ):
@@ -580,7 +581,8 @@ class Scanner:
         self._on_progress_state = on_progress_state
         self._stop         = False
         self._maxed_ids    = frozenset(maxed_ids or [])
-        self._maxed_cache: dict[str, dict] = maxed_cache or {}
+        self._maxed_saved_data: dict[str, dict] = maxed_saved_data or {}
+        self._student_saved_data: dict[str, dict] = student_saved_data or {}
         self._student_total_hint = student_total_hint if student_total_hint and student_total_hint > 0 else None
         self._asv          = autosave_manager   # AutoSaveManager or None
         self._student_basic_img: Optional[Image.Image] = None
@@ -588,7 +590,7 @@ class Scanner:
         self._active_student_panel: str | None = None
 
         if self._maxed_ids:
-            self._info(f"maxed-skip cache loaded: {len(self._maxed_ids)} students")
+            self._info(f"만렙 스킵용 저장데이터 로드: {len(self._maxed_ids)}명")
 
     def stop(self) -> None:
         self._stop = True
@@ -755,6 +757,64 @@ class Scanner:
         )
         _log.debug(f"[TEMP] start: {entry.label()}")
         return entry
+
+    def _saved_student(self, student_id: str | None) -> dict:
+        if not student_id:
+            return {}
+        saved = self._student_saved_data.get(student_id)
+        return saved if isinstance(saved, dict) else {}
+
+    def _saved_int(self, saved: dict, field_name: str) -> int | None:
+        try:
+            value = saved.get(field_name)
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _apply_saved_fields(
+        self,
+        entry: StudentEntry,
+        saved: dict,
+        field_names: tuple[str, ...],
+        note: str,
+    ) -> None:
+        for field_name in field_names:
+            value = saved.get(field_name)
+            if field_name == "weapon_state" and value is not None:
+                try:
+                    value = WeaponState(value)
+                except ValueError:
+                    value = None
+            setattr(entry, field_name, value)
+            entry.set_meta(field_name, FieldMeta.skipped(note))
+
+    def _skills_maxed_from_saved_data(self, saved: dict) -> bool:
+        return (
+            self._saved_int(saved, "ex_skill") == 5
+            and self._saved_int(saved, "skill1") == 10
+            and self._saved_int(saved, "skill2") == 10
+            and self._saved_int(saved, "skill3") == 10
+        )
+
+    def _weapon_maxed_from_saved_data(self, saved: dict) -> bool:
+        return (
+            saved.get("weapon_state") == WeaponState.WEAPON_EQUIPPED.value
+            and self._saved_int(saved, "weapon_star") == 4
+            and self._saved_int(saved, "weapon_level") == 60
+        )
+
+    def _equipment_maxed_from_saved_data(self, saved: dict) -> bool:
+        return all(
+            saved.get(f"equip{slot}") == "T10"
+            and self._saved_int(saved, f"equip{slot}_level") == 70
+            for slot in (1, 2, 3)
+        )
+
+    def _favorite_item_maxed_from_saved_data(self, student_id: str | None, saved: dict) -> bool:
+        return bool(student_id) and student_meta.favorite_item_enabled(student_id) and saved.get("equip4") == "T2"
+
+    def _stats_maxed_from_saved_data(self, saved: dict) -> bool:
+        return all(self._saved_int(saved, field_name) == 25 for field_name in ("stat_hp", "stat_atk", "stat_heal"))
 
 
 
@@ -1473,7 +1533,7 @@ class Scanner:
                 entry = self._make_skipped_entry(sid)
                 results.append(entry)
                 self._emit_progress_state(current=1, total=1, note="현재 학생")
-                self._info(f"  스킵 {entry.label()} (만렙 캐시)")
+                self._info(f"  스킵 {entry.label()} (저장데이터 기준 만렙)")
                 return results
 
             ctx = ScanCtx(idx=1, student_id=sid)
@@ -1590,8 +1650,8 @@ class Scanner:
                         total=self._student_total_hint,
                         note="학생 스캔",
                     )
-                    _log.info(f"[{idx+1:>3}] {entry.label()} -> 만렙 캐시 스킵")
-                    self._info(f"  스킵 [{idx+1:>3}] {entry.label()} (만렙 캐시)")
+                    _log.info(f"[{idx+1:>3}] {entry.label()} -> 저장데이터 기준 만렙 스킵")
+                    self._info(f"  스킵 [{idx+1:>3}] {entry.label()} (저장데이터 기준 만렙)")
                     self._restore_basic_tab()
                     self.go_next_student()
                     continue
@@ -1675,8 +1735,8 @@ class Scanner:
 
 
     def _make_skipped_entry(self, student_id: str) -> StudentEntry:
-        if student_id in self._maxed_cache:
-            entry = _dict_to_student_entry(self._maxed_cache[student_id])
+        if student_id in self._maxed_saved_data:
+            entry = _dict_to_student_entry(self._maxed_saved_data[student_id])
         else:
             entry = StudentEntry(
                 student_id=student_id,
@@ -1795,6 +1855,17 @@ class Scanner:
     def read_skills(self, entry: StudentEntry) -> None:
         """Read the skill panel from a single capture and fill skill fields."""
         ctx = ScanCtx(student_id=entry.student_id, step="read_skills")
+        saved = self._saved_student(entry.student_id)
+        if self._skills_maxed_from_saved_data(saved):
+            self._apply_saved_fields(
+                entry,
+                saved,
+                ("ex_skill", "skill1", "skill2", "skill3"),
+                "saved_skill_max",
+            )
+            self.log("  저장데이터에서 스킬 5/10/10/10 확인 -> 스킬 스캔 생략")
+            return
+
         self._active_student_panel = "skill"
         img = self._click_student_region_and_wait(
             "skill_menu_button",
@@ -1867,6 +1938,17 @@ class Scanner:
 
 
         ctx      = ScanCtx(student_id=entry.student_id, step="read_weapon")
+        saved   = self._saved_student(entry.student_id)
+        if self._weapon_maxed_from_saved_data(saved):
+            self._apply_saved_fields(
+                entry,
+                saved,
+                ("weapon_state", "weapon_star", "weapon_level"),
+                "saved_weapon_max",
+            )
+            self.log("  저장데이터에서 전용무기 4성 Lv.60 확인 -> 무기 스캔 생략")
+            return
+
         sr       = self.r["student"]
         weapon_r = sr.get("weapon_detect_flag_region") or sr.get("weapon_unlocked_flag")
         if not weapon_r:
@@ -1970,6 +2052,30 @@ class Scanner:
 
 
 
+        saved     = self._saved_student(entry.student_id)
+        sid       = entry.student_id or ""
+        equip_max = self._equipment_maxed_from_saved_data(saved)
+        equip4_max = self._favorite_item_maxed_from_saved_data(sid, saved)
+
+        if equip_max:
+            self._apply_saved_fields(
+                entry,
+                saved,
+                (
+                    "equip1", "equip2", "equip3",
+                    "equip1_level", "equip2_level", "equip3_level",
+                ),
+                "saved_equipment_max",
+            )
+            self.log("  저장데이터에서 장비 1~3 T10/Lv.70 확인 -> 장비 1~3 스캔 생략")
+
+        if equip4_max:
+            self._apply_saved_fields(entry, saved, ("equip4",), "saved_favorite_item_max")
+            self.log("  저장데이터에서 애장품 T2 확인 -> 애장품 스캔 생략")
+
+        if equip_max and (equip4_max or not student_meta.favorite_item_enabled(sid)):
+            return
+
         sr        = self.r["student"]
         equip_btn = sr.get("equipment_button")
         if not equip_btn:
@@ -2021,38 +2127,38 @@ class Scanner:
                     if retry_img is not None:
                         img = retry_img
 
-        sid = entry.student_id or ""
-
         # Slots 1-3 share the same equipment-menu capture.
-        for slot in (1, 2, 3):
-            skip_flags = {EquipSlotFlag.EMPTY}
-            if slot in (2, 3):
-                skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
-            self._scan_equip_slot(entry, img, sr, slot,
-                                  skip_flags=skip_flags, scan_level=True)
+        if not equip_max:
+            for slot in (1, 2, 3):
+                skip_flags = {EquipSlotFlag.EMPTY}
+                if slot in (2, 3):
+                    skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
+                self._scan_equip_slot(entry, img, sr, slot,
+                                      skip_flags=skip_flags, scan_level=True)
 
-        if all(getattr(entry, f"equip{slot}") in (None, "unknown") for slot in (1, 2, 3)):
-            _log.warning(f"{entry.label()} equipment capture unstable -> retry once")
-            if self._wait(0.35):
-                retry_img = self._capture()
-                if retry_img is not None:
-                    img = retry_img
-                    for slot in (1, 2, 3):
-                        skip_flags = {EquipSlotFlag.EMPTY}
-                        if slot in (2, 3):
-                            skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
-                        self._scan_equip_slot(entry, img, sr, slot,
-                                              skip_flags=skip_flags, scan_level=True)
+            if all(getattr(entry, f"equip{slot}") in (None, "unknown") for slot in (1, 2, 3)):
+                _log.warning(f"{entry.label()} equipment capture unstable -> retry once")
+                if self._wait(0.35):
+                    retry_img = self._capture()
+                    if retry_img is not None:
+                        img = retry_img
+                        for slot in (1, 2, 3):
+                            skip_flags = {EquipSlotFlag.EMPTY}
+                            if slot in (2, 3):
+                                skip_flags.add(EquipSlotFlag.LEVEL_LOCKED)
+                            self._scan_equip_slot(entry, img, sr, slot,
+                                                  skip_flags=skip_flags, scan_level=True)
 
         # ?щ’ 4
         if student_meta.favorite_item_enabled(sid):
-            self._scan_equip_slot(
-                entry, img, sr, 4,
-                skip_flags={EquipSlotFlag.EMPTY,
-                            EquipSlotFlag.LOVE_LOCKED,
-                            EquipSlotFlag.NULL},
-                scan_level=False,
-            )
+            if not equip4_max:
+                self._scan_equip_slot(
+                    entry, img, sr, 4,
+                    skip_flags={EquipSlotFlag.EMPTY,
+                                EquipSlotFlag.LOVE_LOCKED,
+                                EquipSlotFlag.NULL},
+                    scan_level=False,
+                )
         else:
             self.log(f"  장비4: {sid}는 equip4 미지원 -> 스킵")
 
@@ -2125,6 +2231,10 @@ class Scanner:
     def read_level(self, entry: StudentEntry) -> None:
         """Read the student level tab and parse the level digits."""
         ctx = ScanCtx(student_id=entry.student_id, step="read_level")
+        saved = self._saved_student(entry.student_id)
+
+        if self._saved_int(saved, "level") == MAX_STUDENT_LEVEL:
+            entry.level = MAX_STUDENT_LEVEL
 
         if entry.level == MAX_STUDENT_LEVEL:
             self.log("  학생 레벨이 이미 90이라 레벨 스캔을 생략합니다")
@@ -2252,6 +2362,17 @@ class Scanner:
                 f"  스탯 스캔 생략 "
                 f"(Lv.{entry.level} / {entry.student_star}성)"
             )
+            return
+
+        saved = self._saved_student(entry.student_id)
+        if self._stats_maxed_from_saved_data(saved):
+            self._apply_saved_fields(
+                entry,
+                saved,
+                ("stat_hp", "stat_atk", "stat_heal"),
+                "saved_stat_max",
+            )
+            self.log("  저장데이터에서 능력 개방 25/25/25 확인 -> 스탯 스캔 생략")
             return
 
         self._active_student_panel = "stat"

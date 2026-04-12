@@ -4,6 +4,8 @@ Scaled Tk student viewer used as a fallback when the Qt viewer is unavailable.
 
 from __future__ import annotations
 
+import ctypes
+import os
 import json
 import math
 import sqlite3
@@ -36,6 +38,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "templates" / "students_portraits"
 POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
 POLI_BG_TEXTURES = sorted(POLI_BG_DIR.glob("UITex_BGPoliLight_*.png"))
+MAIN_UI_PALETTE_PATH = BASE_DIR / "gui" / "main_ui_color_palete.txt"
 
 C = {
     "bg": "#080c14",
@@ -71,6 +74,73 @@ FILTER_DEBOUNCE_MS = 180
 VISIBLE_ROW_BUFFER = 2
 
 _img_cache: dict[str, Optional[ImageTk.PhotoImage]] = {}
+
+
+def _normalize_hex(color: str, fallback: str) -> str:
+    value = (color or "").strip()
+    if len(value) == 7 and value.startswith("#"):
+        return value.lower()
+    return fallback.lower()
+
+
+def _load_main_palette() -> tuple[str, str, str, str, str]:
+    fallback = ("#f266b3", "#efe4f2", "#313b59", "#2c3140", "#f2f2f2")
+    if not MAIN_UI_PALETTE_PATH.exists():
+        return fallback
+    try:
+        values = [entry.strip() for entry in MAIN_UI_PALETTE_PATH.read_text(encoding="utf-8").split(",")]
+    except Exception:
+        return fallback
+    if len(values) < 5:
+        return fallback
+    return tuple(_normalize_hex(values[index], fallback[index]) for index in range(5))  # type: ignore[return-value]
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    value = color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _hex_to_colorref(color: str) -> int:
+    red, green, blue = _hex_to_rgb(color)
+    return red | (green << 8) | (blue << 16)
+
+
+def _preferred_text_hex(background: str) -> str:
+    red, green, blue = _hex_to_rgb(background)
+    luminance = (0.299 * red) + (0.587 * green) + (0.114 * blue)
+    return "#101722" if luminance >= 170 else "#f2f2f2"
+
+
+if os.name == "nt":
+    _dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
+else:
+    _dwmapi = None
+
+
+def _set_windows_caption_theme(hwnd: int, caption_hex: str, text_hex: str) -> None:
+    if _dwmapi is None or not hwnd:
+        return
+
+    attributes = (
+        (35, _hex_to_colorref(caption_hex)),
+        (36, _hex_to_colorref(text_hex)),
+        (34, _hex_to_colorref(caption_hex)),
+    )
+    for attribute, value in attributes:
+        color = ctypes.c_int(value)
+        try:
+            _dwmapi.DwmSetWindowAttribute(
+                ctypes.c_void_p(hwnd),
+                attribute,
+                ctypes.byref(color),
+                ctypes.sizeof(color),
+            )
+        except Exception:
+            return
+
+
+_PALETTE_ACCENT, PALETTE_SOFT, _PALETTE_PANEL, _PALETTE_PANEL_ALT, PALETTE_TEXT = _load_main_palette()
 
 
 def load_students() -> list[dict]:
@@ -148,10 +218,6 @@ def defense_color(defense_type: Optional[str]) -> str:
 def student_divider_colors(student: dict) -> tuple[str, str]:
     primary = attack_color(student.get("attack_type"))
     secondary = defense_color(student.get("defense_type"))
-    if secondary.lower() == primary.lower():
-        secondary = school_color(student.get("school"))
-    if secondary.lower() == primary.lower():
-        secondary = C["text"]
     return primary, secondary
 
 
@@ -511,7 +577,16 @@ class StudentViewer(tk.Toplevel):
         self._build_ui()
         self._search_var.trace_add("write", self._on_filter_change)
         self.bind("<Configure>", self._on_resize)
+        self.after(0, self._apply_startup_window_state)
         self.after(100, self._load_data_async)
+
+    def _apply_startup_window_state(self) -> None:
+        try:
+            self.state("zoomed")
+        except tk.TclError:
+            self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
+        if os.name == "nt":
+            _set_windows_caption_theme(self.winfo_id(), PALETTE_SOFT, _preferred_text_hex(PALETTE_SOFT))
 
     def _build_ui(self) -> None:
         header = tk.Frame(self, bg=C["surface"], highlightbackground=C["border"], highlightthickness=1)

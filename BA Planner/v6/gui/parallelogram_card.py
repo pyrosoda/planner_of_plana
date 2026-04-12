@@ -475,6 +475,110 @@ class StudentCardWidget(QWidget):
         painter.drawText(badge_rect, Qt.AlignCenter, "UNOWNED")
 
 
+class StudentPortraitWidget(QWidget):
+    def __init__(self, card_asset: ParallelogramCardAsset, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._card_asset = card_asset
+        self._pixmap = QPixmap()
+        self._owned = True
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def clear(self) -> None:
+        self._pixmap = QPixmap()
+        self.update()
+
+    def setPixmap(self, pixmap: QPixmap, *, owned: bool = True) -> None:
+        self._pixmap = pixmap
+        self._owned = owned
+        self.update()
+
+    def _card_size(self) -> QSize:
+        if self.width() <= 0 or self.height() <= 0:
+            return QSize()
+        height = self.height()
+        width = max(1, int(round(height * self._card_asset.aspect_ratio)))
+        if width > self.width():
+            width = self.width()
+            height = max(1, int(round(width / max(0.01, self._card_asset.aspect_ratio))))
+        return QSize(max(1, width), max(1, height))
+
+    def card_size(self) -> QSize:
+        return self._card_size()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+        card_size = self._card_size()
+        if card_size.isEmpty():
+            painter.end()
+            return
+
+        card_x = (self.width() - card_size.width()) // 2
+        card_y = (self.height() - card_size.height()) // 2
+
+        card_image = QImage(card_size, QImage.Format_ARGB32_Premultiplied)
+        card_image.fill(Qt.transparent)
+        card_painter = QPainter(card_image)
+        card_painter.setRenderHint(QPainter.Antialiasing, True)
+        card_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        card_painter.drawImage(0, 0, self._card_asset.background(card_size, hovered=False, selected=False))
+        self._paint_portrait(card_painter)
+        card_painter.drawImage(0, 0, self._card_asset.outline(card_size))
+        if not self._owned:
+            card_painter.fillRect(card_image.rect(), self._card_asset.style.unowned_overlay)
+        card_painter.end()
+
+        painter.drawImage(card_x, card_y, self._card_asset.apply_alpha_mask(card_image))
+        if not self._owned:
+            painter.save()
+            painter.translate(card_x, card_y)
+            self._paint_unowned_badge(painter)
+            painter.restore()
+        painter.end()
+
+    def _paint_portrait(self, painter: QPainter) -> None:
+        if self._pixmap.isNull():
+            return
+        size = painter.viewport().size()
+        scaled = self._pixmap.scaledToWidth(size.width(), Qt.SmoothTransformation)
+        if scaled.height() < size.height():
+            scaled = self._pixmap.scaled(size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        x = (size.width() - scaled.width()) // 2
+        y = (size.height() - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+
+    def _paint_unowned_badge(self, painter: QPainter) -> None:
+        style = self._card_asset.style
+        size = self._card_size()
+        sample_y = min(size.height() - 1, style.unowned_badge_top + style.unowned_badge_height // 2)
+        left_bound, right_bound = self._card_asset.row_bounds(size, sample_y)
+        badge_x = max(style.unowned_badge_inset_left, left_bound + style.unowned_badge_inset_left)
+        available_width = max(32, right_bound - badge_x - style.unowned_badge_inset_right)
+        badge_rect = QRect(
+            badge_x,
+            style.unowned_badge_top,
+            min(style.unowned_badge_width, available_width),
+            style.unowned_badge_height,
+        )
+        shadow_rect = QRect(badge_rect)
+        shadow_rect.translate(0, 1)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 70))
+        painter.drawRoundedRect(shadow_rect, 10, 10)
+        painter.setBrush(QColor(6, 8, 14, 222))
+        painter.setPen(QPen(QColor(255, 255, 255, 42), 1))
+        painter.drawRoundedRect(badge_rect, 10, 10)
+        font = QFont()
+        font.setBold(True)
+        font.setPointSizeF(max(7.2, min(size.width(), size.height()) * 0.034))
+        painter.setFont(font)
+        painter.setPen(self._card_asset.style.name_text_color)
+        painter.drawText(badge_rect, Qt.AlignCenter, "UNOWNED")
+
+
 class ParallelogramCardGrid(QScrollArea):
     current_changed = Signal(object, object)
     card_double_clicked = Signal(str)
