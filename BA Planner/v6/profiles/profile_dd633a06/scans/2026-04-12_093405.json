@@ -1,0 +1,207 @@
+{
+  "meta": {
+    "scan_id": "2026-04-12_093405",
+    "scanned_at": "2026-04-12T09:34:05+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다"
+  },
+  "scan_summary": {
+    "student_count": 1,
+    "item_count": 0,
+    "equipment_count": 0,
+    "state_counts": {
+      "partial": 1
+    },
+    "uncertain_ids": [],
+    "partial_ids": [
+      "nagisa"
+    ]
+  },
+  "resources": {},
+  "students": [
+    {
+      "student_id": "nagisa",
+      "display_name": "나기사",
+      "level": 90,
+      "student_star": null,
+      "weapon_state": "weapon_equipped",
+      "weapon_star": 3,
+      "weapon_level": 50,
+      "ex_skill": 5,
+      "skill1": 10,
+      "skill2": 10,
+      "skill3": 10,
+      "equip1": "T10",
+      "equip2": "T10",
+      "equip3": "T10",
+      "equip4": null,
+      "equip1_level": 70,
+      "equip2_level": 70,
+      "equip3_level": 70,
+      "stat_hp": null,
+      "stat_atk": null,
+      "stat_heal": null,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.923,
+      "level_status": "ok",
+      "level_source": "template",
+      "student_star_status": "inferred",
+      "student_star_source": "inferred",
+      "student_star_note": "weapon_state ??5???뺤젙",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "ok",
+      "weapon_star_source": "template",
+      "weapon_star_score": 1.0,
+      "weapon_level_status": "ok",
+      "weapon_level_source": "template",
+      "ex_skill_status": "ok",
+      "ex_skill_source": "template",
+      "skill1_status": "ok",
+      "skill1_source": "template",
+      "skill2_status": "ok",
+      "skill2_source": "template",
+      "skill3_status": "ok",
+      "skill3_source": "template",
+      "equip1_status": "ok",
+      "equip1_source": "template",
+      "equip2_status": "ok",
+      "equip2_source": "template",
+      "equip3_status": "ok",
+      "equip3_source": "template",
+      "equip4_status": "failed",
+      "equip1_level_status": "ok",
+      "equip1_level_source": "template",
+      "equip2_level_status": "ok",
+      "equip2_level_source": "template",
+      "equip3_level_status": "ok",
+      "equip3_level_source": "template",
+      "stat_hp_status": "failed",
+      "stat_atk_status": "failed",
+      "stat_heal_status": "failed",
+      "_field_meta": {
+        "ex_skill": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill1": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill2": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill3": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_star": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip1": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip1_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip2": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip2_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip3": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip3_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "student_star": {
+          "status": "inferred",
+          "source": "inferred",
+          "score": null,
+          "note": "weapon_state ??5???뺤젙"
+        }
+      }
+    }
+  ],
+  "items": [],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-12_093405",
+    "session_started_at": "2026-04-12T09:34:05.723097",
+    "session_finished_at": "2026-04-12T09:34:32.914892",
+    "duration_sec": 27.2,
+    "students_total": 1,
+    "students_committed": 0,
+    "students_partial": 1,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.923,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-12T09:34:32.914892"
+}

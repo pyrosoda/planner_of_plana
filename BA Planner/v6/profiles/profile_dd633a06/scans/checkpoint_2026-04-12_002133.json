@@ -1,0 +1,173 @@
+{
+  "scan_id": "2026-04-12_002133",
+  "saved_at": "2026-04-12T00:21:56.088083",
+  "count": 1,
+  "students": [
+    {
+      "student_id": "fuuka_new_year",
+      "display_name": "후우카(새해)",
+      "level": null,
+      "student_star": 5,
+      "weapon_state": "weapon_equipped",
+      "weapon_star": 2,
+      "weapon_level": null,
+      "ex_skill": null,
+      "skill1": null,
+      "skill2": null,
+      "skill3": null,
+      "equip1": "unknown",
+      "equip2": "unknown",
+      "equip3": "unknown",
+      "equip4": null,
+      "equip1_level": 0,
+      "equip2_level": null,
+      "equip3_level": null,
+      "stat_hp": null,
+      "stat_atk": null,
+      "stat_heal": null,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.462,
+      "level_status": "failed",
+      "level_source": "template",
+      "level_note": "digit_read_fail",
+      "student_star_status": "inferred",
+      "student_star_source": "inferred",
+      "student_star_note": "weapon_state → 5★ 확정",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "uncertain",
+      "weapon_star_source": "template",
+      "weapon_star_score": 0.612,
+      "weapon_level_status": "failed",
+      "weapon_level_source": "template",
+      "weapon_level_note": "digit_read_fail",
+      "ex_skill_status": "failed",
+      "ex_skill_source": "template",
+      "ex_skill_note": "raw='unknown'",
+      "skill1_status": "failed",
+      "skill1_source": "template",
+      "skill1_note": "raw='unknown'",
+      "skill2_status": "failed",
+      "skill2_source": "template",
+      "skill2_note": "raw='unknown'",
+      "skill3_status": "failed",
+      "skill3_source": "template",
+      "skill3_note": "raw='unknown'",
+      "equip1_status": "uncertain",
+      "equip1_source": "template",
+      "equip1_note": "tier=unknown",
+      "equip2_status": "uncertain",
+      "equip2_source": "template",
+      "equip2_note": "tier=unknown",
+      "equip3_status": "uncertain",
+      "equip3_source": "template",
+      "equip3_note": "tier=unknown",
+      "equip4_status": "failed",
+      "equip1_level_status": "ok",
+      "equip1_level_source": "template",
+      "equip2_level_status": "failed",
+      "equip2_level_source": "template",
+      "equip2_level_note": "digit_read_fail",
+      "equip3_level_status": "failed",
+      "equip3_level_source": "template",
+      "equip3_level_note": "digit_read_fail",
+      "stat_hp_status": "failed",
+      "stat_atk_status": "failed",
+      "stat_heal_status": "failed",
+      "_field_meta": {
+        "ex_skill": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill1": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill2": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "skill3": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "raw='unknown'"
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_star": {
+          "status": "uncertain",
+          "source": "template",
+          "score": 0.612,
+          "note": ""
+        },
+        "weapon_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip1": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip1_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip2": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip2_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip3": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip3_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "student_star": {
+          "status": "inferred",
+          "source": "inferred",
+          "score": null,
+          "note": "weapon_state → 5★ 확정"
+        }
+      }
+    }
+  ]
+}

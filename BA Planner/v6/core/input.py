@@ -50,6 +50,7 @@ WM_KEYDOWN     = 0x0100
 WM_KEYUP       = 0x0101
 MK_LBUTTON     = 0x0001
 VK_ESCAPE      = 0x1B
+MAPVK_VK_TO_VSC = 0
 WHEEL_DELTA    = 120        # Windows 표준 휠 단위
 SW_RESTORE     = 9
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -131,6 +132,20 @@ def client_to_screen(
     return None
 
 
+def _move_cursor_to_client(hwnd: int, cx: int, cy: int) -> bool:
+    converted = client_to_screen(hwnd, cx, cy)
+    if not converted:
+        return False
+    sx, sy = converted
+    try:
+        ok = bool(_u32.SetCursorPos(int(sx), int(sy)))
+        _log.debug(f"cursor move screen=({sx},{sy}) ok={ok}")
+        return ok
+    except Exception as e:
+        _log.debug(f"cursor move failed: {e}")
+        return False
+
+
 def ratio_to_client(
     rect: tuple[int, int, int, int],
     rx: float,
@@ -178,8 +193,11 @@ def _post_click(hwnd: int, cx: int, cy: int) -> bool:
 
 def _post_escape(hwnd: int) -> bool:
     """WM_KEYDOWN / UP (VK_ESCAPE) 전송."""
-    ok1 = bool(_u32.PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0))
-    ok2 = bool(_u32.PostMessageW(hwnd, WM_KEYUP,   VK_ESCAPE, 0))
+    scan = int(_u32.MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC)) & 0xFF
+    down_lparam = 1 | (scan << 16)
+    up_lparam = down_lparam | (1 << 30) | (1 << 31)
+    ok1 = bool(_u32.PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, down_lparam))
+    ok2 = bool(_u32.PostMessageW(hwnd, WM_KEYUP,   VK_ESCAPE, up_lparam))
     return ok1 and ok2
 
 
@@ -295,6 +313,13 @@ def _activate_window(hwnd: int) -> bool:
         return False
 
 
+def _is_foreground_window(hwnd: int) -> bool:
+    try:
+        return int(_u32.GetForegroundWindow()) == int(hwnd)
+    except Exception:
+        return False
+
+
 def get_cursor_pos() -> Optional[tuple[int, int]]:
     pt = _POINT()
     if _u32.GetCursorPos(ctypes.byref(pt)):
@@ -401,6 +426,7 @@ def click_point(
     Use PostMessage only. The scanner now relies on HWND-directed input so
     overlay layers and cursor focus do not affect click delivery.
     """
+    _move_cursor_to_client(hwnd, cx, cy)
     ok = _post_click(hwnd, cx, cy)
     _log.debug(f"postmessage click ({label}) client=({cx},{cy}) ok={ok}")
 
@@ -450,7 +476,8 @@ def send_escape(
 ) -> bool:
     """
     ESC 키 전송.
-    PostMessage(WM_KEYDOWN/UP) 먼저 시도, 실패 시 pyautogui.
+    v5와 동일하게 실제 ESC 입력을 우선 시도하고,
+    불가능한 경우에만 PostMessage 로 폴백.
 
     Parameters
     ----------
@@ -459,6 +486,12 @@ def send_escape(
     """
     ok = _post_escape(hwnd)
     _log.debug(f"postmessage escape ok={ok}")
+
+    # 백그라운드 스캔 중에는 창을 앞으로 가져오지 않는다.
+    # 대상 창이 이미 foreground 인 경우에만 물리 ESC fallback 허용.
+    if (not ok) and _can_use_physical_fallback(hwnd) and _is_foreground_window(hwnd):
+        ok = _pag_escape()
+        _log.debug(f"physical escape ok={ok}")
 
     if delay > 0:
         time.sleep(delay)
@@ -487,6 +520,7 @@ def scroll(
     delay  : 스크롤 후 대기 시간 (초)
     """
     cx, cy = ratio_to_client(rect, rx, ry)
+    _move_cursor_to_client(hwnd, cx, cy)
     ok = _post_scroll(hwnd, cx, cy, amount)
     _log.debug(
         f"postmessage scroll client=({cx},{cy}) amount={amount} ok={ok}"

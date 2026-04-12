@@ -1,4 +1,4 @@
-"""
+﻿"""
 Floating overlay tied to the selected Blue Archive window.
 """
 
@@ -373,7 +373,7 @@ class FloatingOverlay(tk.Toplevel):
             AppState.IDLE: "대상 창 선택 필요",
             AppState.WATCHING: "로비 감시 중",
             AppState.SCANNING: "스캔 실행 중",
-            AppState.PAUSED: "일시정지",
+            AppState.PAUSED: "일시 정지",
             AppState.ERROR: "오류 상태",
             AppState.STOPPING: "정리 중",
         }
@@ -585,16 +585,15 @@ class FloatingOverlay(tk.Toplevel):
         self.geometry(f"+{event.x_root - self._drag_x}+{event.y_root - self._drag_y}")
 
     def show(self):
-        if not self._visible:
-            self._visible = True
-            if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-                self._show_scan_backdrop()
-                self._position_scan_windows()
-            self.deiconify()
-            self.update_idletasks()
-            if self._app_state in (AppState.SCANNING, AppState.STOPPING):
-                self.lift()
-            self._reposition()
+        self._visible = True
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self._show_scan_backdrop()
+            self._position_scan_windows()
+        self.deiconify()
+        self.update_idletasks()
+        if self._app_state in (AppState.SCANNING, AppState.STOPPING):
+            self.lift()
+        self._reposition()
 
     def hide(self):
         if self._visible:
@@ -621,6 +620,7 @@ class FloatingOverlay(tk.Toplevel):
             self.after(0, self._reposition)
         if self._visible and state in (AppState.SCANNING, AppState.STOPPING):
             self.after(0, self._show_scan_backdrop)
+            self.after(0, self.show)
         else:
             self.after(0, self._hide_scan_backdrop)
 

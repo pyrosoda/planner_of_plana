@@ -1,0 +1,40 @@
+{
+  "scan_id": "2026-04-12_015537",
+  "scanned_at": "2026-04-12T01:55:37+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": [
+      {
+        "student_id": "himari",
+        "display_name": "히마리",
+        "level": 90,
+        "student_star": 5,
+        "weapon_state": "weapon_equipped",
+        "weapon_star": 2,
+        "weapon_level": 40,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 10,
+        "skill3": 10,
+        "equip1": "T10",
+        "equip2": "T10",
+        "equip3": "T9",
+        "equip4": null,
+        "equip1_level": 70,
+        "equip2_level": 70,
+        "equip3_level": 65,
+        "stat_hp": 0,
+        "stat_atk": 0,
+        "stat_heal": 0
+      }
+    ]
+  }
+}

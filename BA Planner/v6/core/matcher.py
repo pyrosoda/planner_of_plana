@@ -912,6 +912,8 @@ def _read_digit_from_folder(
     folder: Path,
     prefix: int,
     crop: Image.Image,
+    *,
+    threshold: float = 0.55,
 ) -> Optional[str]:
     if not folder.exists():
         return None
@@ -921,7 +923,7 @@ def _read_digit_from_folder(
     }
     if not cands:
         return None
-    lbl, score = best_match(crop, cands, threshold=0.55,
+    lbl, score = best_match(crop, cands, threshold=threshold,
                              resized=True, focus_center=True)
     _log.debug(f"{folder.name}: {lbl} ({score:.3f})")
     return lbl
@@ -959,7 +961,12 @@ def read_weapon_level(
     from core.capture import crop_region
     folder1 = TEMPLATE_DIR / "weaponlevel_digit1"
     folder2 = TEMPLATE_DIR / "weaponlevel_digit2"
-    d1 = _read_digit_from_folder(folder1, 1, crop_region(img, d1_region))
+    d1 = _read_digit_from_folder(
+        folder1,
+        1,
+        crop_region(img, d1_region),
+        threshold=0.48,
+    )
     d2 = _read_digit_from_folder(folder2, 2, crop_region(img, d2_region))
 
     if not d2 or d2 == "null":

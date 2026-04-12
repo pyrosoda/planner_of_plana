@@ -1,0 +1,40 @@
+{
+  "scan_id": "2026-04-12_093316",
+  "scanned_at": "2026-04-12T09:33:16+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": [
+      {
+        "student_id": "nagisa",
+        "display_name": "나기사",
+        "level": 90,
+        "student_star": null,
+        "weapon_state": "weapon_equipped",
+        "weapon_star": 3,
+        "weapon_level": 50,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 10,
+        "skill3": 10,
+        "equip1": "T10",
+        "equip2": "T10",
+        "equip3": "T10",
+        "equip4": null,
+        "equip1_level": 70,
+        "equip2_level": 70,
+        "equip3_level": 70,
+        "stat_hp": null,
+        "stat_atk": null,
+        "stat_heal": null
+      }
+    ]
+  }
+}
