@@ -8,3 +8,7 @@ scan_results/
 
 .cache_*
 cache/
+log.txt
+*.log
+*.out
+*.err

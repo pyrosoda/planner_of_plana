@@ -70,6 +70,7 @@ class LobbyWatcher:
         on_enter:        Optional[Callable[[], None]]               = None,
         on_leave:        Optional[Callable[[], None]]               = None,
         on_window_move:  Optional[Callable[[int,int,int,int], None]] = None,
+        on_target_closed: Optional[Callable[[], None]]              = None,
     ):
         """
         Parameters
@@ -83,6 +84,7 @@ class LobbyWatcher:
         self._on_enter     = on_enter      or (lambda: None)
         self._on_leave     = on_leave      or (lambda: None)
         self._on_move      = on_window_move or (lambda *a: None)
+        self._on_target_closed = on_target_closed or (lambda: None)
 
         self._state        = WatcherState.IDLE
         self._state_lock   = threading.Lock()
@@ -221,10 +223,14 @@ class LobbyWatcher:
         # ── 창 존재 확인 ──────────────────────────────────
         hwnd = find_target_hwnd()
         if hwnd is None:
+            had_rect = self._last_rect is not None
             if self._in_lobby:
                 _log.info("창 없음 → 로비 이탈 처리")
                 self._in_lobby = False
                 self._on_leave()
+            if had_rect:
+                _log.info("target window closed")
+                self._on_target_closed()
             self._last_rect = None
             return
 

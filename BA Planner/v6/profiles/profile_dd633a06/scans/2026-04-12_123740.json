@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "scan_id": "2026-04-12_123740",
+    "scanned_at": "2026-04-12T12:37:40+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다"
+  },
+  "scan_summary": {
+    "student_count": 1,
+    "item_count": 0,
+    "equipment_count": 0,
+    "state_counts": {
+      "partial": 1
+    },
+    "uncertain_ids": [
+      "himari"
+    ],
+    "partial_ids": [
+      "himari"
+    ]
+  },
+  "resources": {},
+  "students": [
+    {
+      "student_id": "himari",
+      "display_name": "히마리",
+      "level": 90,
+      "student_star": 5,
+      "weapon_state": "weapon_equipped",
+      "weapon_star": 2,
+      "weapon_level": 40,
+      "ex_skill": 5,
+      "skill1": 10,
+      "skill2": 10,
+      "skill3": 10,
+      "equip1": "unknown",
+      "equip2": "unknown",
+      "equip3": "unknown",
+      "equip4": null,
+      "equip1_level": null,
+      "equip2_level": null,
+      "equip3_level": null,
+      "stat_hp": 0,
+      "stat_atk": 0,
+      "stat_heal": 0,
+      "skipped": false,
+      "scan_state": "partial",
+      "confidence": 0.769,
+      "level_status": "ok",
+      "level_source": "template",
+      "student_star_status": "inferred",
+      "student_star_source": "inferred",
+      "student_star_note": "weapon_state 기반 5성 확정",
+      "weapon_state_status": "ok",
+      "weapon_state_source": "template",
+      "weapon_state_score": 1.0,
+      "weapon_star_status": "ok",
+      "weapon_star_source": "template",
+      "weapon_star_score": 1.0,
+      "weapon_level_status": "ok",
+      "weapon_level_source": "template",
+      "ex_skill_status": "ok",
+      "ex_skill_source": "template",
+      "skill1_status": "ok",
+      "skill1_source": "template",
+      "skill2_status": "ok",
+      "skill2_source": "template",
+      "skill3_status": "ok",
+      "skill3_source": "template",
+      "equip1_status": "uncertain",
+      "equip1_source": "template",
+      "equip1_note": "tier=unknown",
+      "equip2_status": "uncertain",
+      "equip2_source": "template",
+      "equip2_note": "tier=unknown",
+      "equip3_status": "uncertain",
+      "equip3_source": "template",
+      "equip3_note": "tier=unknown",
+      "equip4_status": "failed",
+      "equip1_level_status": "failed",
+      "equip1_level_source": "template",
+      "equip1_level_note": "digit_read_fail",
+      "equip2_level_status": "failed",
+      "equip2_level_source": "template",
+      "equip2_level_note": "digit_read_fail",
+      "equip3_level_status": "failed",
+      "equip3_level_source": "template",
+      "equip3_level_note": "digit_read_fail",
+      "stat_hp_status": "ok",
+      "stat_hp_source": "template",
+      "stat_hp_score": 1.0,
+      "stat_atk_status": "ok",
+      "stat_atk_source": "template",
+      "stat_atk_score": 1.0,
+      "stat_heal_status": "ok",
+      "stat_heal_source": "template",
+      "stat_heal_score": 1.0,
+      "_field_meta": {
+        "ex_skill": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill1": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill2": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "skill3": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "weapon_state": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_star": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "weapon_level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "equip1": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip1_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip2": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip2_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "equip3": {
+          "status": "uncertain",
+          "source": "template",
+          "score": null,
+          "note": "tier=unknown"
+        },
+        "equip3_level": {
+          "status": "failed",
+          "source": "template",
+          "score": null,
+          "note": "digit_read_fail"
+        },
+        "level": {
+          "status": "ok",
+          "source": "template",
+          "score": null,
+          "note": ""
+        },
+        "student_star": {
+          "status": "inferred",
+          "source": "inferred",
+          "score": null,
+          "note": "weapon_state 기반 5성 확정"
+        },
+        "stat_hp": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "stat_atk": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        },
+        "stat_heal": {
+          "status": "ok",
+          "source": "template",
+          "score": 1.0,
+          "note": ""
+        }
+      }
+    }
+  ],
+  "items": [],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-12_123740",
+    "session_started_at": "2026-04-12T12:37:40.756693",
+    "session_finished_at": "2026-04-12T12:38:02.297990",
+    "duration_sec": 21.5,
+    "students_total": 1,
+    "students_committed": 0,
+    "students_partial": 1,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {
+      "equip1": 1,
+      "equip2": 1,
+      "equip3": 1
+    },
+    "avg_confidence": 0.769,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-12T12:38:02.297990"
+}

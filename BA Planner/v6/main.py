@@ -98,7 +98,7 @@ if missing:
 
 try:
     from core.analyzer import analyze_scan_summary, is_student_maxed
-    from core.capture import clear_target, set_target_window
+    from core.capture import clear_target, find_target_hwnd, get_target_info, set_target_window
     from core.config import (
         activate_profile,
         get_active_profile_name,
@@ -182,6 +182,7 @@ class App(tk.Tk):
         self._closing = False
         self._shutdown_requested = False
         self._destroyed = False
+        self._target_close_handled = False
         self._ui_queue: queue.Queue[tuple] = queue.Queue()
 
         self._overlay = FloatingOverlay(
@@ -201,6 +202,7 @@ class App(tk.Tk):
         clear_target()
         self._transition_to(AppState.IDLE, reason="startup_ready")
         self.after(50, self._drain_ui_queue)
+        self.after(500, self._poll_target_window)
         self.after(300, self._open_window_picker)
 
     @property
@@ -284,6 +286,7 @@ class App(tk.Tk):
             on_enter=lambda: self._dispatch_ui(self._on_lobby_enter),
             on_leave=lambda: self._dispatch_ui(self._on_lobby_leave),
             on_window_move=lambda *_a: self._dispatch_ui(self._overlay._reposition),
+            on_target_closed=lambda: self._dispatch_ui(self._on_target_window_closed, "watcher"),
         )
 
     def _dispatch_ui(self, callback, *args, **kwargs) -> bool:
@@ -308,6 +311,15 @@ class App(tk.Tk):
             except Exception:
                 _log.exception("ui callback failed")
         self.after(50, self._drain_ui_queue)
+
+    def _poll_target_window(self) -> None:
+        if self._destroyed:
+            return
+        try:
+            self._check_target_window_closed(source="poll")
+        finally:
+            if not self._destroyed:
+                self.after(500, self._poll_target_window)
 
     def _ensure_watcher_running(self) -> None:
         if self._is_stopping():
@@ -344,6 +356,25 @@ class App(tk.Tk):
             self._overlay.show()
         elif self.state != AppState.SCANNING:
             self._overlay.hide()
+
+    def _check_target_window_closed(self, *, source: str) -> None:
+        if self._destroyed or self._shutdown_requested:
+            return
+        target_hwnd, target_title = get_target_info()
+        if not target_hwnd:
+            return
+        if find_target_hwnd() is not None:
+            return
+        self._on_target_window_closed(source, target_title)
+
+    def _on_target_window_closed(self, source: str, title: str = "") -> None:
+        if self._destroyed or self._shutdown_requested or self._target_close_handled:
+            return
+        self._target_close_handled = True
+        target_name = title or self._config.get("target_title", "") or "selected target window"
+        _log.info("target window closed; shutting down app (source=%s, title=%s)", source, target_name)
+        self._overlay.add_log(f"타겟 창이 닫혀서 BA Analyzer도 함께 종료합니다: {target_name}")
+        self._on_close_requested()
 
     def _build_scanner(self, meta: dict) -> Scanner:
         from core.autosave import AutoSaveManager
@@ -548,6 +579,7 @@ class App(tk.Tk):
         def on_select(hwnd: int, title: str) -> None:
             self._config["target_hwnd"] = hwnd
             self._config["target_title"] = title
+            self._target_close_handled = False
             save_config(self._config)
             set_target_window(hwnd, title)
             self._overlay.add_log(f"창 설정: {title}")
@@ -555,6 +587,7 @@ class App(tk.Tk):
 
         def on_cancel() -> None:
             if previous_hwnd:
+                self._target_close_handled = False
                 set_target_window(previous_hwnd, previous_title)
                 self._transition_to(AppState.WATCHING, reason="window_picker_cancelled")
             else:
