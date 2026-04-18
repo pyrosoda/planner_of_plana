@@ -34,7 +34,7 @@ from core.planning import (
 )
 from core.planning_calc import PlanCostSummary, calculate_goal_cost, calculate_plan_totals
 from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -638,7 +638,7 @@ class PlanEditorCell(ParallelogramPanel):
         self._compact = compact
         self._ui_scale = ui_scale
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(scale_px(28 if compact else 34, self._ui_scale))
+        self.setMinimumHeight(scale_px(15 if compact else 20, self._ui_scale))
 
     def setCellState(
         self,
@@ -671,17 +671,17 @@ class PlanEditorCell(ParallelogramPanel):
         painter.setRenderHint(QPainter.Antialiasing, True)
         font = QFont(self.font())
         font.setBold(True)
-        font.setPixelSize(scale_px(11 if self._compact else 12, self._ui_scale))
+        font.setPixelSize(scale_px(8 if self._compact else 10, self._ui_scale))
         painter.setFont(font)
         painter.setPen(self._text_color)
-        rect = self.rect().adjusted(scale_px(6, self._ui_scale), 0, -scale_px(6, self._ui_scale), 0)
+        rect = self.rect().adjusted(scale_px(4, self._ui_scale), 0, -scale_px(4, self._ui_scale), 0)
         painter.drawText(rect, Qt.AlignCenter, self._label)
         if self._current_marker:
-            marker_h = max(3, scale_px(3, self._ui_scale))
+            marker_h = max(2, scale_px(2, self._ui_scale))
             marker_rect = QRect(
-                scale_px(8, self._ui_scale),
-                self.height() - marker_h - scale_px(5, self._ui_scale),
-                max(scale_px(16, self._ui_scale), self.width() - scale_px(16, self._ui_scale)),
+                scale_px(6, self._ui_scale),
+                self.height() - marker_h - scale_px(3, self._ui_scale),
+                max(scale_px(12, self._ui_scale), self.width() - scale_px(12, self._ui_scale)),
                 marker_h,
             )
             painter.setPen(Qt.NoPen)
@@ -693,12 +693,25 @@ class PlanEditorCell(ParallelogramPanel):
 class PlanSegmentSelector(QWidget):
     valueChanged = Signal(int)
 
-    def __init__(self, count: int, *, color_break: int = 0, active_fill: str = ACCENT_STRONG, active_border: str = ACCENT, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        count: int,
+        *,
+        color_break: int = 0,
+        active_fill: str = ACCENT_STRONG,
+        active_border: str = ACCENT,
+        inactive_fill: str | None = None,
+        inactive_border: str | None = None,
+        ui_scale: float = 1.0,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._count = count
         self._color_break = color_break
         self._fallback_fill = active_fill
         self._fallback_border = active_border
+        self._inactive_fill = inactive_fill if inactive_fill is not None else _mix_hex(SURFACE_ALT, BG, 0.08)
+        self._inactive_border = inactive_border if inactive_border is not None else _mix_hex(BORDER, SURFACE_ALT, 0.18)
         self._ui_scale = ui_scale
         self._minimum_value = 0
         self._value = 0
@@ -706,7 +719,7 @@ class PlanSegmentSelector(QWidget):
         self._cells: list[PlanEditorCell] = []
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(scale_px(4, self._ui_scale))
+        layout.setSpacing(scale_px(2, self._ui_scale))
         for index in range(1, count + 1):
             cell = PlanEditorCell(compact=True, ui_scale=self._ui_scale)
             cell.clicked.connect(lambda idx=index: self._on_cell_clicked(idx))
@@ -740,15 +753,15 @@ class PlanSegmentSelector(QWidget):
                 text_color = MUTED
             elif index <= self._value:
                 if index <= self._minimum_value:
-                    fill = _mix_hex(accent_fill, SURFACE_ALT, 0.36)
-                    border = _mix_hex(accent_border, "#ffffff", 0.18)
+                    fill = _mix_hex(accent_fill, SURFACE_ALT, 0.2)
+                    border = _mix_hex(accent_border, "#ffffff", 0.12)
                 else:
                     fill = accent_fill
                     border = accent_border
                 text_color = "#112031"
             else:
-                fill = _mix_hex(SURFACE_ALT, BG, 0.08)
-                border = _mix_hex(BORDER, SURFACE_ALT, 0.18)
+                fill = self._inactive_fill
+                border = self._inactive_border
                 text_color = MUTED
             cell.setCellState(fill=fill, border=border, text_color=text_color, clickable=clickable)
 
@@ -822,6 +835,106 @@ class PlanOptionStrip(QWidget):
             )
 
 
+class PlanStepper(QWidget):
+    valueChanged = Signal(int)
+
+    def __init__(self, max_value: int, *, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._max_value = max_value
+        self._ui_scale = ui_scale
+        self._minimum_value = 0
+        self._value = 0
+        self._updating = False
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(8, self._ui_scale))
+
+        self._input = QLineEdit("0")
+        self._input.setObjectName("planValueInput")
+        self._input.setAlignment(Qt.AlignCenter)
+        self._input.setValidator(QIntValidator(0, self._max_value, self))
+        self._input.setMinimumHeight(scale_px(34, self._ui_scale))
+        self._input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._input.textEdited.connect(self._on_text_edited)
+        self._input.editingFinished.connect(self._on_editing_finished)
+        layout.addWidget(self._input, 1)
+
+        self._min_label = QLabel("MIN 0")
+        self._min_label.setObjectName("detailMiniSub")
+        self._min_label.setAlignment(Qt.AlignCenter)
+        self._min_label.setMinimumWidth(scale_px(52, self._ui_scale))
+        layout.addWidget(self._min_label)
+
+        self._max_button = QPushButton("MAX")
+        self._max_button.setObjectName("planQuickButton")
+        self._max_button.setMinimumHeight(scale_px(34, self._ui_scale))
+        self._max_button.setMinimumWidth(scale_px(54, self._ui_scale))
+        self._max_button.clicked.connect(self._set_to_max)
+        layout.addWidget(self._max_button)
+
+        self._refresh()
+
+    def setState(self, *, minimum_value: int, value: int) -> None:
+        self._minimum_value = max(0, min(self._max_value, minimum_value))
+        self._value = max(self._minimum_value, min(self._max_value, value))
+        self._refresh()
+
+    def value(self) -> int:
+        return self._value
+
+    def setMaximumValue(self, maximum_value: int) -> None:
+        self._max_value = max(0, int(maximum_value))
+        self._input.setValidator(QIntValidator(0, self._max_value, self))
+        self._minimum_value = min(self._minimum_value, self._max_value)
+        self._value = min(self._value, self._max_value)
+        self._refresh()
+
+    def setEnabled(self, enabled: bool) -> None:
+        super().setEnabled(enabled)
+        self._refresh()
+
+    def _commit_value(self, candidate: int, *, emit_signal: bool) -> None:
+        candidate = max(self._minimum_value, min(self._max_value, int(candidate)))
+        changed = candidate != self._value
+        self._value = candidate
+        self._refresh()
+        if emit_signal and changed:
+            self.valueChanged.emit(candidate)
+
+    def _on_text_edited(self, text: str) -> None:
+        if self._updating:
+            return
+        stripped = text.strip()
+        if not stripped:
+            return
+        self._commit_value(int(stripped), emit_signal=True)
+
+    def _on_editing_finished(self) -> None:
+        text = self._input.text().strip()
+        if not text:
+            self._refresh()
+            return
+        self._commit_value(int(text), emit_signal=True)
+
+    def _set_to_max(self) -> None:
+        if not self.isEnabled():
+            return
+        self._commit_value(self._max_value, emit_signal=True)
+
+    def _refresh(self) -> None:
+        self._updating = True
+        try:
+            self._input.setText(str(self._value))
+        finally:
+            self._updating = False
+        self._input.setPlaceholderText(str(self._minimum_value))
+        self._min_label.setText(f"MIN {self._minimum_value}")
+        enabled = self.isEnabled()
+        self._input.setEnabled(enabled)
+        self._max_button.setEnabled(enabled and self._value < self._max_value)
+
+
 class PlanDualDigitSelector(QWidget):
     valueChanged = Signal(int)
 
@@ -857,6 +970,13 @@ class PlanDualDigitSelector(QWidget):
 
     def value(self) -> int:
         return self._value
+
+    def setMaximumValue(self, maximum_value: int) -> None:
+        self._max_value = max(0, int(maximum_value))
+        self._tens_options = list(range((self._max_value // 10) + 1))
+        self._minimum_value = min(self._minimum_value, self._max_value)
+        self._value = min(self._value, self._max_value)
+        self._refresh_strips()
 
     def _refresh_strips(self) -> None:
         current_tens, current_ones = divmod(self._minimum_value, 10)
@@ -1000,6 +1120,18 @@ def load_students() -> list[StudentRecord]:
             records_by_id[student_id] = _row_to_record({"student_id": student_id}, owned=False)
 
     return list(records_by_id.values())
+
+
+def load_inventory_snapshot() -> dict[str, dict]:
+    paths = get_storage_paths()
+    inventory_json = paths.current_inventory_json
+    if not inventory_json.exists():
+        return {}
+    try:
+        payload = json.loads(inventory_json.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _row_to_record(row: dict, owned: bool) -> StudentRecord:
@@ -1240,6 +1372,63 @@ class FilterDialog(QDialog):
                 checkbox.setChecked(False)
 
 
+class ResourceStudentListItem(QWidget):
+    toggled = Signal(str, bool)
+
+    def __init__(self, student_id: str, *, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.student_id = student_id
+        self._ui_scale = ui_scale
+        self.setObjectName("planBand")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._check = QCheckBox()
+        self._check.stateChanged.connect(lambda state: self.toggled.emit(self.student_id, state == Qt.Checked))
+        layout.addWidget(self._check, 0, Qt.AlignTop)
+
+        text_wrap = QVBoxLayout()
+        text_wrap.setContentsMargins(0, 0, 0, 0)
+        text_wrap.setSpacing(scale_px(3, self._ui_scale))
+
+        self._title = QLabel(student_id)
+        self._title.setObjectName("sectionTitle")
+        text_wrap.addWidget(self._title)
+
+        self._status = QLabel("")
+        self._status.setObjectName("detailSub")
+        self._status.setWordWrap(True)
+        text_wrap.addWidget(self._status)
+
+        self._cost = QLabel("")
+        self._cost.setObjectName("detailMiniSub")
+        self._cost.setWordWrap(True)
+        text_wrap.addWidget(self._cost)
+
+        layout.addLayout(text_wrap, 1)
+
+    def setChecked(self, checked: bool) -> None:
+        previous = self._check.blockSignals(True)
+        try:
+            self._check.setChecked(checked)
+        finally:
+            self._check.blockSignals(previous)
+
+    def setTexts(self, *, title: str, status: str, cost: str) -> None:
+        self._title.setText(title)
+        self._status.setText(status)
+        self._cost.setText(cost)
+
+
+
+
 class StudentViewerWindow(QMainWindow):
     def __init__(self, ui_scale: float):
         super().__init__()
@@ -1280,7 +1469,15 @@ class StudentViewerWindow(QMainWindow):
         self._plan_editor_guard = False
         self._selected_plan_student_id: str | None = None
         self._plan_segment_inputs: dict[str, PlanSegmentSelector] = {}
-        self._plan_level_inputs: dict[str, PlanDualDigitSelector] = {}
+        self._plan_level_inputs: dict[str, PlanStepper] = {}
+        self._plan_level_rows: dict[str, QWidget] = {}
+        self._plan_level_row_labels: dict[str, QLabel] = {}
+        self._plan_equipment_labels: dict[str, QLabel] = {}
+        self._plan_stat_rows: dict[str, QWidget] = {}
+        self._resource_selected_ids: set[str] = set()
+        self._resource_current_student_id: str | None = None
+        self._resource_syncing_controls = False
+        self._inventory_snapshot = load_inventory_snapshot()
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
         self._card_layout_guard = False
@@ -1294,6 +1491,8 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_plan_lists()
         self._refresh_plan_totals()
         self._refresh_stats_tab()
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -1354,6 +1553,10 @@ class StudentViewerWindow(QMainWindow):
         tabs.addTab(plan_tab, "Plans")
         self._build_plan_tab(plan_tab)
 
+        resource_tab = QWidget()
+        tabs.addTab(resource_tab, "Resources")
+        self._build_resource_tab(resource_tab)
+
         stats_tab = QWidget()
         tabs.addTab(stats_tab, "Statistics")
         self._build_stats_tab(stats_tab)
@@ -1396,7 +1599,7 @@ class StudentViewerWindow(QMainWindow):
             }}
             QLabel#title {{ font-size: {scale_px(24, self._ui_scale)}px; font-weight: 800; color: {INK}; }}
             QLabel#count, QLabel#detailSub, QLabel#filterSummary, QLabel#sectionSub, QLabel#kpiValueSub {{ color: {MUTED}; }}
-            QLabel#sectionTitle {{ font-size: {scale_px(16, self._ui_scale)}px; font-weight: 700; color: {INK}; }}
+            QLabel#sectionTitle {{ font-size: {scale_px(15, self._ui_scale)}px; font-weight: 800; color: {INK}; }}
             QLabel#badge {{
                 background: {ACCENT_PALE};
                 color: {ACCENT_STRONG};
@@ -1487,6 +1690,48 @@ class StudentViewerWindow(QMainWindow):
             QLabel#detailMiniSub {{
                 color: {MUTED};
                 font-size: {scale_px(12, self._ui_scale)}px;
+            }}
+            QFrame#planSectionPanel {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {_mix_hex(SURFACE, '#ffffff', 0.06)}, stop:1 {_mix_hex(SURFACE, SURFACE_ALT, 0.18)});
+                border: 1px solid {_mix_hex(BORDER, '#ffffff', 0.08)};
+                border-radius: {scale_px(16, self._ui_scale)}px;
+            }}
+            QFrame#planBand {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {_mix_hex(SURFACE_ALT, '#ffffff', 0.03)}, stop:1 {_mix_hex(SURFACE_ALT, BG, 0.14)});
+                border: 1px solid {_mix_hex(BORDER, SURFACE_ALT, 0.24)};
+                border-radius: {scale_px(12, self._ui_scale)}px;
+            }}
+            QWidget#planTransparent {{
+                background: transparent;
+                border: none;
+            }}
+            QLineEdit#planValueInput {{
+                background: {_mix_hex(SURFACE_ALT, BG, 0.04)};
+                border: 1px solid {_mix_hex(BORDER, '#ffffff', 0.08)};
+                border-radius: {scale_px(11, self._ui_scale)}px;
+                padding: {scale_px(6, self._ui_scale)}px {scale_px(10, self._ui_scale)}px;
+                font-size: {scale_px(17, self._ui_scale)}px;
+                font-weight: 800;
+                color: {INK};
+            }}
+            QLineEdit#planValueInput:disabled {{
+                color: {MUTED};
+                background: {_mix_hex(SURFACE_ALT, BG, 0.22)};
+            }}
+            QPushButton#planQuickButton {{
+                background: {ACCENT};
+                color: white;
+                border: 1px solid {ACCENT_STRONG};
+                border-radius: {scale_px(11, self._ui_scale)}px;
+                padding: {scale_px(6, self._ui_scale)}px {scale_px(12, self._ui_scale)}px;
+                font-size: {scale_px(12, self._ui_scale)}px;
+                font-weight: 800;
+                min-width: {scale_px(58, self._ui_scale)}px;
+            }}
+            QPushButton#planQuickButton:disabled {{
+                background: {_mix_hex(ACCENT, SURFACE_ALT, 0.45)};
+                color: {MUTED};
+                border-color: {_mix_hex(ACCENT_STRONG, SURFACE_ALT, 0.4)};
             }}
             QLabel#detailSkillValue {{
                 color: {INK};
@@ -1598,6 +1843,10 @@ class StudentViewerWindow(QMainWindow):
         self._show_unowned.setChecked(True)
         self._show_unowned.stateChanged.connect(self._apply_filters)
         toolbar_layout.addWidget(self._show_unowned)
+
+        self._hide_jp_only = QCheckBox("Hide JP-only students")
+        self._hide_jp_only.stateChanged.connect(self._apply_filters)
+        toolbar_layout.addWidget(self._hide_jp_only)
 
         toolbar_buttons = ParallelogramButtonRow()
         self._filter_button = ParallelogramButton("Filters", style=self._card_button_style)
@@ -1929,6 +2178,520 @@ class StudentViewerWindow(QMainWindow):
         finally:
             self._card_layout_guard = False
 
+    def _build_resource_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
+
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+        )
+        header_layout.setSpacing(scale_px(12, self._ui_scale))
+
+        title_wrap = QVBoxLayout()
+        title_wrap.setSpacing(scale_px(4, self._ui_scale))
+        title = QLabel("Resource Manager")
+        title.setObjectName("title")
+        title_wrap.addWidget(title)
+        subtitle = QLabel("Inspect single-student costs or aggregate growth requirements for the students currently in view.")
+        subtitle.setObjectName("count")
+        subtitle.setWordWrap(True)
+        title_wrap.addWidget(subtitle)
+        header_layout.addLayout(title_wrap, 1)
+        layout.addWidget(header)
+
+        toolbar = QFrame()
+        toolbar.setObjectName("panel")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._resource_search = QLineEdit()
+        self._resource_search.setPlaceholderText("Search the same filtered student set")
+        self._resource_search.textChanged.connect(self._on_resource_search_changed)
+        toolbar_layout.addWidget(self._resource_search, 3)
+
+        self._resource_sort_mode = QComboBox()
+        self._resource_sort_mode.addItem("Star desc", "star_desc")
+        self._resource_sort_mode.addItem("Star asc", "star_asc")
+        self._resource_sort_mode.addItem("Level desc", "level_desc")
+        self._resource_sort_mode.addItem("Name asc", "name_asc")
+        self._resource_sort_mode.currentIndexChanged.connect(self._on_resource_sort_changed)
+        toolbar_layout.addWidget(self._resource_sort_mode, 1)
+
+        self._resource_show_unowned = QCheckBox("Show unowned students")
+        self._resource_show_unowned.stateChanged.connect(self._on_resource_show_unowned_changed)
+        toolbar_layout.addWidget(self._resource_show_unowned)
+
+        self._resource_hide_jp_only = QCheckBox("Hide JP-only students")
+        self._resource_hide_jp_only.stateChanged.connect(self._on_resource_hide_jp_only_changed)
+        toolbar_layout.addWidget(self._resource_hide_jp_only)
+
+        resource_toolbar_buttons = ParallelogramButtonRow()
+        self._resource_filter_button = ParallelogramButton("Filters", style=self._card_button_style)
+        self._resource_filter_button.clicked.connect(self._open_filter_dialog)
+        resource_toolbar_buttons.addButton(self._resource_filter_button)
+        resource_refresh_button = ParallelogramButton("Refresh", style=self._card_button_style)
+        resource_refresh_button.clicked.connect(self._reload_data)
+        resource_toolbar_buttons.addButton(resource_refresh_button)
+        toolbar_layout.addWidget(resource_toolbar_buttons, 0, Qt.AlignVCenter)
+        layout.addWidget(toolbar)
+
+        self._resource_filter_summary = QLabel("No filters applied")
+        self._resource_filter_summary.setWordWrap(True)
+        self._resource_filter_summary.setObjectName("filterSummary")
+        layout.addWidget(self._resource_filter_summary)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+
+        left_panel = QFrame()
+        left_panel.setObjectName("panel")
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        left_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        left_title = QLabel("Students in scope")
+        left_title.setObjectName("sectionTitle")
+        left_layout.addWidget(left_title)
+        self._resource_list_summary = QLabel("")
+        self._resource_list_summary.setObjectName("detailSub")
+        self._resource_list_summary.setWordWrap(True)
+        left_layout.addWidget(self._resource_list_summary)
+
+        self._resource_list = QListWidget()
+        self._resource_list.currentItemChanged.connect(self._on_resource_item_changed)
+        left_layout.addWidget(self._resource_list, 1)
+
+        right_panel = QFrame()
+        right_panel.setObjectName("panel")
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        right_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._resource_mode_tabs = QTabWidget()
+
+        single_tab = QWidget()
+        single_layout = QVBoxLayout(single_tab)
+        single_layout.setContentsMargins(0, 0, 0, 0)
+        single_layout.setSpacing(scale_px(10, self._ui_scale))
+        single_options = QFrame()
+        single_options.setObjectName("planSectionPanel")
+        single_options_layout = QVBoxLayout(single_options)
+        single_options_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        single_options_layout.setSpacing(scale_px(8, self._ui_scale))
+        single_title = QLabel("Single student mode")
+        single_title.setObjectName("sectionTitle")
+        single_options_layout.addWidget(single_title)
+        self._resource_single_summary = QLabel("Select a student from the left list.")
+        self._resource_single_summary.setObjectName("detailSub")
+        self._resource_single_summary.setWordWrap(True)
+        single_options_layout.addWidget(self._resource_single_summary)
+        single_layout.addWidget(single_options, 0)
+        self._resource_single_output = QListWidget()
+        single_layout.addWidget(self._resource_single_output, 1)
+        self._resource_mode_tabs.addTab(single_tab, "Single")
+
+        aggregate_tab = QWidget()
+        aggregate_layout = QVBoxLayout(aggregate_tab)
+        aggregate_layout.setContentsMargins(0, 0, 0, 0)
+        aggregate_layout.setSpacing(scale_px(10, self._ui_scale))
+        aggregate_options = QFrame()
+        aggregate_options.setObjectName("planSectionPanel")
+        aggregate_options_layout = QVBoxLayout(aggregate_options)
+        aggregate_options_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        aggregate_options_layout.setSpacing(scale_px(8, self._ui_scale))
+        aggregate_title = QLabel("Aggregate mode")
+        aggregate_title.setObjectName("sectionTitle")
+        aggregate_options_layout.addWidget(aggregate_title)
+        aggregate_row = QHBoxLayout()
+        aggregate_row.setSpacing(scale_px(8, self._ui_scale))
+        aggregate_label = QLabel("Combine:")
+        aggregate_label.setObjectName("detailSub")
+        aggregate_row.addWidget(aggregate_label)
+        self._resource_aggregate_scope = QComboBox()
+        self._resource_aggregate_scope.addItem("Checked students", "checked")
+        self._resource_aggregate_scope.addItem("Planned students", "planned")
+        self._resource_aggregate_scope.addItem("Visible planned students", "visible_planned")
+        self._resource_aggregate_scope.currentIndexChanged.connect(self._refresh_resource_view)
+        aggregate_row.addWidget(self._resource_aggregate_scope, 1)
+        aggregate_options_layout.addLayout(aggregate_row)
+
+        aggregate_buttons = QHBoxLayout()
+        aggregate_buttons.setSpacing(scale_px(8, self._ui_scale))
+        for label, handler in (("Check visible", self._resource_check_visible), ("Check planned", self._resource_check_visible_planned), ("Clear", self._resource_clear_checked)):
+            button = QPushButton(label)
+            button.setObjectName("planQuickButton")
+            button.clicked.connect(handler)
+            aggregate_buttons.addWidget(button)
+        aggregate_buttons.addStretch(1)
+        aggregate_options_layout.addLayout(aggregate_buttons)
+
+        self._resource_aggregate_summary = QLabel("Choose a scope to combine growth costs.")
+        self._resource_aggregate_summary.setObjectName("detailSub")
+        self._resource_aggregate_summary.setWordWrap(True)
+        aggregate_options_layout.addWidget(self._resource_aggregate_summary)
+        aggregate_layout.addWidget(aggregate_options, 0)
+        self._resource_aggregate_output = QListWidget()
+        aggregate_layout.addWidget(self._resource_aggregate_output, 1)
+        self._resource_mode_tabs.addTab(aggregate_tab, "Aggregate")
+
+        inventory_tab = QWidget()
+        inventory_layout = QVBoxLayout(inventory_tab)
+        inventory_layout.setContentsMargins(0, 0, 0, 0)
+        inventory_layout.setSpacing(scale_px(10, self._ui_scale))
+        inventory_options = QFrame()
+        inventory_options.setObjectName("planSectionPanel")
+        inventory_options_layout = QVBoxLayout(inventory_options)
+        inventory_options_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        inventory_options_layout.setSpacing(scale_px(8, self._ui_scale))
+        inventory_title = QLabel("Inventory debug")
+        inventory_title.setObjectName("sectionTitle")
+        inventory_options_layout.addWidget(inventory_title)
+        self._resource_inventory_summary = QLabel("Current scanned inventory snapshot.")
+        self._resource_inventory_summary.setObjectName("detailSub")
+        self._resource_inventory_summary.setWordWrap(True)
+        inventory_options_layout.addWidget(self._resource_inventory_summary)
+        inventory_layout.addWidget(inventory_options, 0)
+        self._resource_inventory_output = QListWidget()
+        inventory_layout.addWidget(self._resource_inventory_output, 1)
+        self._resource_mode_tabs.addTab(inventory_tab, "Inventory")
+
+        self._resource_mode_tabs.currentChanged.connect(self._refresh_resource_view)
+        right_layout.addWidget(self._resource_mode_tabs, 1)
+
+        splitter.addWidget(left_panel)
+        splitter.addWidget(right_panel)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        layout.addWidget(splitter, 1)
+
+        self._sync_resource_controls_from_students()
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
+
+    def _sync_resource_controls_from_students(self) -> None:
+        if not hasattr(self, "_resource_search"):
+            return
+        self._resource_syncing_controls = True
+        try:
+            self._resource_search.setText(self._search.text())
+            target_sort = self._sort_mode.currentData()
+            for index in range(self._resource_sort_mode.count()):
+                if self._resource_sort_mode.itemData(index) == target_sort:
+                    self._resource_sort_mode.setCurrentIndex(index)
+                    break
+            self._resource_show_unowned.setChecked(self._show_unowned.isChecked())
+            self._resource_hide_jp_only.setChecked(self._hide_jp_only.isChecked())
+            self._resource_filter_summary.setText(self._filter_summary.text())
+            self._resource_filter_button.setText(self._filter_button.text())
+        finally:
+            self._resource_syncing_controls = False
+
+    def _on_resource_search_changed(self, text: str) -> None:
+        if self._resource_syncing_controls:
+            return
+        if self._search.text() != text:
+            self._search.setText(text)
+
+    def _on_resource_sort_changed(self, _index: int) -> None:
+        if self._resource_syncing_controls:
+            return
+        target_sort = self._resource_sort_mode.currentData()
+        if self._sort_mode.currentData() == target_sort:
+            return
+        for index in range(self._sort_mode.count()):
+            if self._sort_mode.itemData(index) == target_sort:
+                self._sort_mode.setCurrentIndex(index)
+                return
+
+    def _on_resource_show_unowned_changed(self, _state: int) -> None:
+        if self._resource_syncing_controls:
+            return
+        checked = self._resource_show_unowned.isChecked()
+        if self._show_unowned.isChecked() != checked:
+            self._show_unowned.setChecked(checked)
+
+    def _on_resource_hide_jp_only_changed(self, _state: int) -> None:
+        if self._resource_syncing_controls:
+            return
+        checked = self._resource_hide_jp_only.isChecked()
+        if self._hide_jp_only.isChecked() != checked:
+            self._hide_jp_only.setChecked(checked)
+
+    def _resource_compact_cost_text(self, summary: PlanCostSummary | None) -> str:
+        if summary is None:
+            return "No planned target yet"
+        total_materials = sum(summary.star_materials.values()) + sum(summary.equipment_materials.values()) + sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values()) + sum(summary.stat_materials.values())
+        return f"Credits {summary.credits:,} · EXP {summary.level_exp:,} · Items {total_materials:,}"
+
+    def _resource_focus_label(self, record: StudentRecord, summary: PlanCostSummary | None) -> str:
+        goal_map = self._plan_goal_map()
+        status = []
+        status.append("Planned" if record.student_id in goal_map else "Not planned")
+        status.append("Owned" if record.owned else "Unowned")
+        if summary is None:
+            return " · ".join(status)
+        buckets = [
+            ("skill", sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values())),
+            ("equipment", sum(summary.equipment_materials.values())),
+            ("star", sum(summary.star_materials.values())),
+            ("stat", sum(summary.stat_materials.values())),
+        ]
+        label, amount = max(buckets, key=lambda item: item[1])
+        if amount > 0:
+            status.append(f"{label.title()}-heavy")
+        return " · ".join(status)
+
+    def _resource_goal_for_student(self, student_id: str) -> StudentGoal | None:
+        return self._plan_goal_map().get(student_id)
+
+    def _resource_summary_for_student(self, student_id: str) -> PlanCostSummary | None:
+        record = self._records_by_id.get(student_id)
+        goal = self._resource_goal_for_student(student_id)
+        if record is None or goal is None:
+            return None
+        return calculate_goal_cost(record, goal)
+
+    def _resource_current_student(self) -> str | None:
+        item = self._resource_list.currentItem() if hasattr(self, "_resource_list") else None
+        return str(item.data(Qt.UserRole)) if item is not None else None
+
+    def _refresh_resource_students_list(self) -> None:
+        if not hasattr(self, "_resource_list"):
+            return
+        current_id = self._resource_current_student_id or self._resource_current_student()
+        self._resource_list.clear()
+        goal_map = self._plan_goal_map()
+        visible_planned = 0
+        for record in self._filtered_students:
+            summary = self._resource_summary_for_student(record.student_id)
+            if record.student_id in goal_map:
+                visible_planned += 1
+            item = QListWidgetItem()
+            item.setData(Qt.UserRole, record.student_id)
+            widget = ResourceStudentListItem(record.student_id, ui_scale=self._ui_scale)
+            widget.setChecked(record.student_id in self._resource_selected_ids)
+            widget.setTexts(
+                title=record.title,
+                status=self._resource_focus_label(record, summary),
+                cost=self._resource_compact_cost_text(summary),
+            )
+            widget.toggled.connect(self._on_resource_item_toggled)
+            item.setSizeHint(QSize(scale_px(240, self._ui_scale), scale_px(84, self._ui_scale)))
+            self._resource_list.addItem(item)
+            self._resource_list.setItemWidget(item, widget)
+            if current_id == record.student_id:
+                self._resource_list.setCurrentItem(item)
+
+        if self._resource_list.currentItem() is None and self._resource_list.count() > 0:
+            self._resource_list.setCurrentRow(0)
+        self._resource_list_summary.setText(
+            f"{len(self._filtered_students)} visible students · {visible_planned} with planner targets · {len(self._resource_selected_ids & {record.student_id for record in self._filtered_students})} checked"
+        )
+
+    def _on_resource_item_toggled(self, student_id: str, checked: bool) -> None:
+        if checked:
+            self._resource_selected_ids.add(student_id)
+        else:
+            self._resource_selected_ids.discard(student_id)
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
+
+    def _on_resource_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+        self._resource_current_student_id = str(current.data(Qt.UserRole)) if current is not None else None
+        self._refresh_resource_view()
+
+    def _resource_check_visible(self) -> None:
+        self._resource_selected_ids.update(record.student_id for record in self._filtered_students)
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
+
+    def _resource_check_visible_planned(self) -> None:
+        goal_map = self._plan_goal_map()
+        self._resource_selected_ids.update(record.student_id for record in self._filtered_students if record.student_id in goal_map)
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
+
+    def _resource_clear_checked(self) -> None:
+        self._resource_selected_ids.clear()
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
+
+    def _resource_total_for_ids(self, student_ids: list[str] | tuple[str, ...] | set[str]) -> tuple[PlanCostSummary, int, int]:
+        goal_map = self._plan_goal_map()
+        ordered_ids = [student_id for student_id in student_ids if student_id in self._records_by_id]
+        goals = [goal_map[student_id] for student_id in ordered_ids if student_id in goal_map]
+        plan = self._plan.__class__(version=getattr(self._plan, "version", 1), goals=goals)
+        records = {student_id: self._records_by_id[student_id] for student_id in ordered_ids if student_id in goal_map}
+        return calculate_plan_totals(records, plan), len(ordered_ids), len(goals)
+
+    def _set_output_from_summary(self, target: QListWidget, summary: PlanCostSummary | None) -> None:
+        target.clear()
+        if summary is None:
+            target.addItem("No planner target is available for this selection yet.")
+            return
+
+        sections: list[tuple[str, list[tuple[str, int]]]] = []
+        if summary.credits:
+            sections.append(("Credits", [("Credits", summary.credits)]))
+        if summary.level_exp:
+            sections.append(("Level EXP", [("Level EXP", summary.level_exp)] + sorted(summary.level_exp_items.items(), key=lambda item: (-item[1], item[0]))))
+        if summary.equipment_exp or summary.equipment_exp_items:
+            rows = []
+            if summary.equipment_exp:
+                rows.append(("Equipment EXP", summary.equipment_exp))
+            rows.extend(sorted(summary.equipment_exp_items.items(), key=lambda item: (-item[1], item[0])))
+            sections.append(("Equipment EXP", rows))
+        if summary.weapon_exp or summary.weapon_exp_items:
+            rows = []
+            if summary.weapon_exp:
+                rows.append(("Weapon EXP", summary.weapon_exp))
+            rows.extend(sorted(summary.weapon_exp_items.items(), key=lambda item: (-item[1], item[0])))
+            sections.append(("Weapon EXP", rows))
+        for heading, mapping in (("Star materials", summary.star_materials), ("Equipment materials", summary.equipment_materials), ("Skill books", summary.skill_books), ("EX ooparts", summary.ex_ooparts), ("Skill ooparts", summary.skill_ooparts), ("Stat materials", summary.stat_materials)):
+            if mapping:
+                sections.append((heading, sorted(mapping.items(), key=lambda item: (-item[1], item[0]))))
+        if summary.stat_levels:
+            sections.append(("Stat targets", sorted(summary.stat_levels.items(), key=lambda item: item[0])))
+
+        if not sections and summary.warnings:
+            for warning in dict.fromkeys(summary.warnings):
+                target.addItem(warning)
+            return
+
+        for heading, rows in sections:
+            heading_item = QListWidgetItem(heading)
+            heading_item.setFlags(Qt.ItemIsEnabled)
+            target.addItem(heading_item)
+            for key, value in rows:
+                target.addItem(f"  {key}: {value:,}" if isinstance(value, int) else f"  {key}: {value}")
+        if summary.warnings:
+            target.addItem("Notes")
+            for warning in dict.fromkeys(summary.warnings):
+                target.addItem(f"  {warning}")
+
+    def _refresh_resource_view(self) -> None:
+        if not hasattr(self, "_resource_mode_tabs"):
+            return
+        self._refresh_resource_single_view()
+        self._refresh_resource_aggregate_view()
+        self._refresh_resource_inventory_view()
+
+    def _refresh_resource_single_view(self) -> None:
+        student_id = self._resource_current_student_id or self._resource_current_student()
+        if not student_id:
+            self._resource_single_summary.setText("Select a student from the left list.")
+            self._set_output_from_summary(self._resource_single_output, None)
+            return
+        record = self._records_by_id.get(student_id)
+        summary = self._resource_summary_for_student(student_id)
+        if record is None:
+            self._resource_single_summary.setText("Student data is unavailable.")
+            self._set_output_from_summary(self._resource_single_output, None)
+            return
+        if summary is None:
+            self._resource_single_summary.setText(f"{record.title} is currently not in the planner. Add a target in the Plans tab to see required resources.")
+            self._set_output_from_summary(self._resource_single_output, None)
+            return
+        self._resource_single_summary.setText(
+            f"{record.title} · {self._resource_focus_label(record, summary)} · {self._resource_compact_cost_text(summary)}"
+        )
+        self._set_output_from_summary(self._resource_single_output, summary)
+
+    def _refresh_resource_aggregate_view(self) -> None:
+        scope = self._resource_aggregate_scope.currentData() if hasattr(self, "_resource_aggregate_scope") else "checked"
+        goal_map = self._plan_goal_map()
+        if scope == "planned":
+            student_ids = [goal.student_id for goal in self._plan.goals]
+            label = "all planned students"
+        elif scope == "visible_planned":
+            student_ids = [record.student_id for record in self._filtered_students if record.student_id in goal_map]
+            label = "visible planned students"
+        else:
+            student_ids = [record.student_id for record in self._filtered_students if record.student_id in self._resource_selected_ids]
+            label = "checked students"
+        summary, selected_count, contributing_count = self._resource_total_for_ids(student_ids)
+        self._resource_aggregate_summary.setText(
+            f"Combining {selected_count} {label}. {contributing_count} of them currently have planner targets and contribute to the total."
+        )
+        if contributing_count == 0:
+            self._set_output_from_summary(self._resource_aggregate_output, None)
+            return
+        self._set_output_from_summary(self._resource_aggregate_output, summary)
+
+    def _refresh_resource_inventory_view(self) -> None:
+        if not hasattr(self, "_resource_inventory_output"):
+            return
+        self._resource_inventory_output.clear()
+        inventory = self._inventory_snapshot or {}
+        if not inventory:
+            self._resource_inventory_summary.setText("No scanned inventory is available yet.")
+            self._resource_inventory_output.addItem("Run an item or equipment scan to populate current inventory.")
+            return
+
+        def sort_key(item: tuple[str, dict]) -> tuple[int, str]:
+            _, payload = item
+            raw_quantity = payload.get("quantity")
+            try:
+                quantity = int(str(raw_quantity).replace(",", ""))
+            except Exception:
+                quantity = -1
+            name = str(payload.get("name") or item[0])
+            return (-quantity, name)
+
+        ordered = sorted(inventory.items(), key=sort_key)
+        total_quantity = 0
+        for _, payload in ordered:
+            try:
+                total_quantity += int(str(payload.get("quantity") or "0").replace(",", ""))
+            except Exception:
+                continue
+
+        self._resource_inventory_summary.setText(
+            f"{len(ordered)} items in current inventory snapshot · total quantity {total_quantity:,}"
+        )
+        for key, payload in ordered:
+            name = str(payload.get("name") or key)
+            quantity = payload.get("quantity") or "?"
+            self._resource_inventory_output.addItem(f"{name}: {quantity}")
+
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -2010,11 +2773,11 @@ class StudentViewerWindow(QMainWindow):
         quick_add_layout = QVBoxLayout(quick_add_panel)
         quick_add_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
             scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
         )
-        quick_add_layout.setSpacing(scale_px(10, self._ui_scale))
+        quick_add_layout.setSpacing(scale_px(8, self._ui_scale))
 
         quick_add_header = QHBoxLayout()
         quick_add_header.setContentsMargins(0, 0, 0, 0)
@@ -2022,33 +2785,33 @@ class StudentViewerWindow(QMainWindow):
         title_add = QLabel("Quick Add")
         title_add.setObjectName("sectionTitle")
         quick_add_header.addWidget(title_add)
-        quick_add_note = QLabel("Search by student name or id only when you want to add someone.")
+        quick_add_note = QLabel("Search by student name or id only when needed.")
         quick_add_note.setObjectName("count")
+        quick_add_note.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         quick_add_header.addWidget(quick_add_note, 1)
         quick_add_layout.addLayout(quick_add_header)
 
         quick_add_row = QHBoxLayout()
         quick_add_row.setContentsMargins(0, 0, 0, 0)
-        quick_add_row.setSpacing(scale_px(10, self._ui_scale))
+        quick_add_row.setSpacing(scale_px(8, self._ui_scale))
         self._plan_search = QLineEdit()
         self._plan_search.setPlaceholderText("Type student name or id")
         self._plan_search.textChanged.connect(self._refresh_plan_lists)
         quick_add_row.addWidget(self._plan_search, 1)
-        self._plan_add_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
+        self._plan_add_button = ParallelogramButton("Add", style=self._card_button_style)
         self._plan_add_button.clicked.connect(self._add_selected_student_to_plan)
         quick_add_row.addWidget(self._plan_add_button, 0, Qt.AlignVCenter)
         quick_add_layout.addLayout(quick_add_row)
 
         self._plan_all_list = QListWidget()
         self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
-        self._plan_all_list.setMaximumHeight(scale_px(170, self._ui_scale))
+        self._plan_all_list.setMaximumHeight(scale_px(132, self._ui_scale))
         self._plan_all_list.setVisible(False)
         quick_add_layout.addWidget(self._plan_all_list)
 
         self._plan_search_state = QLabel("Type a student name or id to search.")
         self._plan_search_state.setObjectName("filterSummary")
         quick_add_layout.addWidget(self._plan_search_state)
-        layout.addWidget(quick_add_panel)
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
@@ -2091,6 +2854,7 @@ class StudentViewerWindow(QMainWindow):
         plan_buttons.addWidget(self._plan_open_button)
         plan_buttons.addStretch(1)
         plan_layout.addLayout(plan_buttons)
+
         splitter.addWidget(plan_panel)
 
         editor_panel = QFrame()
@@ -2109,44 +2873,47 @@ class StudentViewerWindow(QMainWindow):
 
         controls_wrap = QWidget()
         controls_layout = QHBoxLayout(controls_wrap)
-        controls_layout.setContentsMargins(0, 0, 0, 0)
-        controls_layout.setSpacing(scale_px(14, self._ui_scale))
+        controls_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(6, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
+        controls_layout.setSpacing(scale_px(18, self._ui_scale))
 
         left_column = QVBoxLayout()
-        left_column.setContentsMargins(0, 0, 0, 0)
-        left_column.setSpacing(scale_px(12, self._ui_scale))
+        left_column.setContentsMargins(scale_px(2, self._ui_scale), 0, scale_px(2, self._ui_scale), 0)
+        left_column.setSpacing(scale_px(16, self._ui_scale))
         right_column = QVBoxLayout()
-        right_column.setContentsMargins(0, 0, 0, 0)
-        right_column.setSpacing(scale_px(12, self._ui_scale))
-        controls_layout.addLayout(left_column, 3)
-        controls_layout.addLayout(right_column, 2)
+        right_column.setContentsMargins(scale_px(2, self._ui_scale), 0, scale_px(2, self._ui_scale), 0)
+        right_column.setSpacing(scale_px(16, self._ui_scale))
+        controls_layout.addLayout(left_column, 8)
+        controls_layout.addLayout(right_column, 5)
 
         progression_panel = QFrame()
-        progression_panel.setObjectName("panel")
+        progression_panel.setObjectName("planSectionPanel")
         progression_layout = QVBoxLayout(progression_panel)
-        progression_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
-        progression_layout.setSpacing(scale_px(8, self._ui_scale))
+        progression_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(16, self._ui_scale), scale_px(18, self._ui_scale), scale_px(16, self._ui_scale))
+        progression_layout.setSpacing(scale_px(12, self._ui_scale))
         progression_title = QLabel("Growth Target")
         progression_title.setObjectName("sectionTitle")
         progression_layout.addWidget(progression_title)
-        progression_sub = QLabel("Yellow fills star growth, blue fills weapon star growth.")
-        progression_sub.setObjectName("filterSummary")
-        progression_sub.setWordWrap(True)
-        progression_layout.addWidget(progression_sub)
+        progression_row = QFrame()
+        progression_row.setObjectName("planBand")
+        progression_row_layout = QHBoxLayout(progression_row)
+        progression_row_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(10, self._ui_scale), scale_px(14, self._ui_scale), scale_px(10, self._ui_scale))
+        progression_row_layout.setSpacing(scale_px(12, self._ui_scale))
         progression_label = QLabel("Star / Weapon Star")
         progression_label.setObjectName("detailSectionTitle")
-        progression_layout.addWidget(progression_label)
+        progression_label.setMinimumWidth(scale_px(118, self._ui_scale))
+        progression_row_layout.addWidget(progression_label, 0, Qt.AlignTop)
         star_selector = PlanSegmentSelector(9, color_break=5, ui_scale=self._ui_scale)
         star_selector.valueChanged.connect(lambda value: self._on_plan_segment_changed("star_weapon", value))
         self._plan_segment_inputs["star_weapon"] = star_selector
-        progression_layout.addWidget(star_selector)
+        progression_row_layout.addWidget(star_selector, 1)
+        progression_layout.addWidget(progression_row)
         left_column.addWidget(progression_panel)
 
         skill_panel = QFrame()
-        skill_panel.setObjectName("panel")
+        skill_panel.setObjectName("planSectionPanel")
         skill_layout = QVBoxLayout(skill_panel)
-        skill_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
-        skill_layout.setSpacing(scale_px(8, self._ui_scale))
+        skill_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(18, self._ui_scale), scale_px(18, self._ui_scale), scale_px(18, self._ui_scale))
+        skill_layout.setSpacing(scale_px(12, self._ui_scale))
         skill_title = QLabel("Skills")
         skill_title.setObjectName("sectionTitle")
         skill_layout.addWidget(skill_title)
@@ -2156,75 +2923,146 @@ class StudentViewerWindow(QMainWindow):
             ("target_skill2", "Passive", MAX_TARGET_SKILL),
             ("target_skill3", "Sub", MAX_TARGET_SKILL),
         ):
+            row = QFrame()
+            row.setObjectName("planBand")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(10, self._ui_scale), scale_px(14, self._ui_scale), scale_px(10, self._ui_scale))
+            row_layout.setSpacing(scale_px(12, self._ui_scale))
             row_title = QLabel(label)
             row_title.setObjectName("detailSectionTitle")
-            skill_layout.addWidget(row_title)
+            row_title.setMinimumWidth(scale_px(64, self._ui_scale))
+            row_layout.addWidget(row_title)
             selector = PlanSegmentSelector(count, active_fill=ACCENT_STRONG, active_border=ACCENT, ui_scale=self._ui_scale)
             selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_segment_changed(name, value))
             self._plan_segment_inputs[field_name] = selector
-            skill_layout.addWidget(selector)
-        left_column.addWidget(skill_panel, 1)
+            row_layout.addWidget(selector, 1)
+            skill_layout.addWidget(row)
+        left_column.addWidget(skill_panel, 0)
 
         equipment_panel = QFrame()
-        equipment_panel.setObjectName("panel")
+        equipment_panel.setObjectName("planSectionPanel")
         equipment_layout = QVBoxLayout(equipment_panel)
-        equipment_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
-        equipment_layout.setSpacing(scale_px(8, self._ui_scale))
+        equipment_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(16, self._ui_scale), scale_px(18, self._ui_scale), scale_px(16, self._ui_scale))
+        equipment_layout.setSpacing(scale_px(12, self._ui_scale))
         equipment_title = QLabel("Equipment Tier")
         equipment_title.setObjectName("sectionTitle")
         equipment_layout.addWidget(equipment_title)
-        for field_name, label in (
-            ("target_equip1_tier", "Equip 1"),
-            ("target_equip2_tier", "Equip 2"),
-            ("target_equip3_tier", "Equip 3"),
+
+        equipment_body = QWidget()
+        equipment_body.setObjectName("planTransparent")
+        equipment_body_layout = QHBoxLayout(equipment_body)
+        equipment_body_layout.setContentsMargins(0, 0, 0, 0)
+        equipment_body_layout.setSpacing(scale_px(10, self._ui_scale))
+        equipment_main = QVBoxLayout()
+        equipment_main.setContentsMargins(0, 0, 0, 0)
+        equipment_main.setSpacing(scale_px(10, self._ui_scale))
+        equipment_body_layout.addLayout(equipment_main, 9)
+
+        self._plan_unique_item_panel = QFrame()
+        self._plan_unique_item_panel.setObjectName("planBand")
+        unique_layout = QVBoxLayout(self._plan_unique_item_panel)
+        unique_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
+        unique_layout.setSpacing(scale_px(8, self._ui_scale))
+        unique_title = QLabel("Unique Item")
+        unique_title.setObjectName("detailSectionTitle")
+        unique_layout.addWidget(unique_title)
+        self._plan_unique_item_selector = PlanSegmentSelector(2, active_fill=PALETTE_SOFT, active_border="#ffffff", inactive_fill=_mix_hex(SURFACE_ALT, BG, 0.14), ui_scale=self._ui_scale)
+        self._plan_unique_item_selector.valueChanged.connect(lambda value: self._on_plan_segment_changed("target_equip4_tier", value))
+        self._plan_segment_inputs["target_equip4_tier"] = self._plan_unique_item_selector
+        unique_layout.addWidget(self._plan_unique_item_selector)
+        equipment_body_layout.addWidget(self._plan_unique_item_panel, 3)
+        equipment_layout.addWidget(equipment_body)
+
+        for field_name, slot_index in (
+            ("target_equip1_tier", 1),
+            ("target_equip2_tier", 2),
+            ("target_equip3_tier", 3),
         ):
-            row_title = QLabel(label)
+            row = QFrame()
+            row.setObjectName("planBand")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
+            row_layout.setSpacing(scale_px(10, self._ui_scale))
+            row_title = QLabel(f"Equip {slot_index}")
             row_title.setObjectName("detailSectionTitle")
-            equipment_layout.addWidget(row_title)
-            selector = PlanSegmentSelector(MAX_TARGET_EQUIP_TIER, active_fill=ACCENT_STRONG, active_border=ACCENT, ui_scale=self._ui_scale)
+            row_title.setMinimumWidth(scale_px(70, self._ui_scale))
+            self._plan_equipment_labels[field_name] = row_title
+            row_layout.addWidget(row_title)
+            selector = PlanSegmentSelector(MAX_TARGET_EQUIP_TIER, active_fill=PALETTE_SOFT, active_border="#ffffff", inactive_fill=_mix_hex(SURFACE_ALT, BG, 0.14), ui_scale=self._ui_scale)
             selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_segment_changed(name, value))
             self._plan_segment_inputs[field_name] = selector
-            equipment_layout.addWidget(selector)
-        left_column.addWidget(equipment_panel, 1)
+            row_layout.addWidget(selector, 1)
+            equipment_main.addWidget(row)
+        left_column.addWidget(equipment_panel, 0)
 
         level_panel = QFrame()
-        level_panel.setObjectName("panel")
+        level_panel.setObjectName("planSectionPanel")
         level_layout = QVBoxLayout(level_panel)
-        level_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale), scale_px(12, self._ui_scale))
+        level_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(16, self._ui_scale), scale_px(18, self._ui_scale), scale_px(16, self._ui_scale))
         level_layout.setSpacing(scale_px(10, self._ui_scale))
         level_title = QLabel("Level Targets")
         level_title.setObjectName("sectionTitle")
         level_layout.addWidget(level_title)
-        level_hint = QLabel("Select tens and ones separately. Equipment tier rises automatically when a level needs it.")
-        level_hint.setObjectName("filterSummary")
-        level_hint.setWordWrap(True)
-        level_layout.addWidget(level_hint)
         for field_name, label, maximum in (
-            ("target_level", "Student Level", MAX_TARGET_LEVEL),
-            ("target_weapon_level", "Weapon Level", MAX_TARGET_WEAPON_LEVEL),
-            ("target_equip1_level", "Equip 1 Level", MAX_TARGET_EQUIP_LEVEL),
-            ("target_equip2_level", "Equip 2 Level", MAX_TARGET_EQUIP_LEVEL),
-            ("target_equip3_level", "Equip 3 Level", MAX_TARGET_EQUIP_LEVEL),
+            ("target_level", "Student", 90),
+            ("target_weapon_level", "Weapon", MAX_TARGET_WEAPON_LEVEL),
+            ("target_equip1_level", "Equip 1", MAX_TARGET_EQUIP_LEVEL),
+            ("target_equip2_level", "Equip 2", MAX_TARGET_EQUIP_LEVEL),
+            ("target_equip3_level", "Equip 3", MAX_TARGET_EQUIP_LEVEL),
         ):
-            block = QWidget()
-            block_layout = QVBoxLayout(block)
-            block_layout.setContentsMargins(0, 0, 0, 0)
-            block_layout.setSpacing(scale_px(6, self._ui_scale))
+            row = QFrame()
+            row.setObjectName("planBand")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
+            row_layout.setSpacing(scale_px(8, self._ui_scale))
             row_title = QLabel(label)
             row_title.setObjectName("detailSectionTitle")
-            block_layout.addWidget(row_title)
-            selector = PlanDualDigitSelector(maximum, ui_scale=self._ui_scale)
+            row_title.setMinimumWidth(scale_px(62, self._ui_scale))
+            self._plan_level_row_labels[field_name] = row_title
+            row_layout.addWidget(row_title)
+            selector = PlanStepper(maximum, ui_scale=self._ui_scale)
             selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_digit_changed(name, value))
             self._plan_level_inputs[field_name] = selector
-            block_layout.addWidget(selector)
-            level_layout.addWidget(block)
-        right_column.addWidget(level_panel, 1)
+            self._plan_level_rows[field_name] = row
+            row_layout.addWidget(selector, 1)
+            level_layout.addWidget(row)
+
+        stat_label_row = QLabel("Bond Stats")
+        stat_label_row.setObjectName("detailSectionTitle")
+        stat_label_row.setStyleSheet(f"color: {PALETTE_SOFT};")
+        level_layout.addWidget(stat_label_row)
+        self._plan_stat_caption = stat_label_row
+
+        for field_name, label in (
+            ("target_stat_hp", "HP"),
+            ("target_stat_atk", "ATK"),
+            ("target_stat_heal", "HEAL"),
+        ):
+            row = QFrame()
+            row.setObjectName("planBand")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
+            row_layout.setSpacing(scale_px(8, self._ui_scale))
+            row_title = QLabel(label)
+            row_title.setObjectName("detailSectionTitle")
+            row_title.setMinimumWidth(scale_px(62, self._ui_scale))
+            row_layout.addWidget(row_title)
+            selector = PlanStepper(25, ui_scale=self._ui_scale)
+            selector.valueChanged.connect(lambda value, name=field_name: self._on_plan_digit_changed(name, value))
+            self._plan_level_inputs[field_name] = selector
+            self._plan_stat_rows[field_name] = row
+            row_layout.addWidget(selector, 1)
+            level_layout.addWidget(row)
+        level_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        right_column.addWidget(level_panel, 0)
 
         self._plan_student_summary = QLabel("Need materials preview will come later.")
         self._plan_total_summary = QLabel("")
         self._plan_student_summary.setVisible(False)
         self._plan_total_summary.setVisible(False)
-        editor_layout.addWidget(controls_wrap, 1)
+        editor_layout.addWidget(controls_wrap, 0)
+        editor_layout.addWidget(quick_add_panel, 0)
+        editor_layout.addStretch(1)
         splitter.addWidget(editor_panel)
 
         splitter.setStretchFactor(0, 5)
@@ -2307,6 +3145,37 @@ class StudentViewerWindow(QMainWindow):
         return (record.weapon_state or "") != "no_weapon_system"
 
     @staticmethod
+    def _plan_allows_weapon_targets(record: StudentRecord) -> bool:
+        # In the planner, allow future weapon goals even before the weapon
+        # system is unlocked on the current record.
+        return True
+
+    @staticmethod
+    def _weapon_level_cap_for_star(weapon_star: int) -> int:
+        return {
+            1: 30,
+            2: 40,
+            3: 50,
+            4: 60,
+        }.get(max(0, int(weapon_star)), 0)
+
+    @staticmethod
+    def _record_base_star(record: StudentRecord) -> int:
+        try:
+            rarity = int(record.rarity or 1)
+        except (TypeError, ValueError):
+            rarity = 1
+        return max(1, min(5, rarity))
+
+    @staticmethod
+    def _record_current_star(record: StudentRecord) -> int:
+        return max(StudentViewerWindow._record_base_star(record), int(record.star or 0))
+
+    @staticmethod
+    def _record_current_skill(raw_value: int | None) -> int:
+        return max(1, int(raw_value or 0))
+
+    @staticmethod
     def _record_weapon_level(record: StudentRecord) -> int:
         if (record.weapon_state or "") in ("weapon_equipped", "weapon_unlocked_not_equipped"):
             return max(1, int(record.weapon_level or 0) or 1)
@@ -2319,7 +3188,19 @@ class StudentViewerWindow(QMainWindow):
             weapon_star = 0
         if weapon_star > 0:
             return 5 + weapon_star
-        return max(0, int(record.star or 0))
+        return StudentViewerWindow._record_current_star(record)
+
+    def _current_or_target_weapon_star(self, record: StudentRecord, goal: StudentGoal | None = None) -> int:
+        current_weapon_star = max(0, int(record.weapon_star or 0))
+        if goal is None:
+            return current_weapon_star
+        return max(current_weapon_star, int(getattr(goal, "target_weapon_star", 0) or 0))
+
+    def _current_or_target_star(self, record: StudentRecord, goal: StudentGoal | None = None) -> int:
+        current_star = self._record_current_star(record)
+        if goal is None:
+            return current_star
+        return max(current_star, int(getattr(goal, "target_star", 0) or 0))
 
     @staticmethod
     def _current_equipment_level(current_tier: int, raw_level: int | None) -> int:
@@ -2338,6 +3219,10 @@ class StudentViewerWindow(QMainWindow):
         return MAX_TARGET_EQUIP_TIER
 
     @staticmethod
+    def _equipment_level_cap_for_tier(tier: int) -> int:
+        return EQUIPMENT_TIER_MAX_LEVEL.get(max(0, int(tier)), MAX_TARGET_EQUIP_LEVEL)
+
+    @staticmethod
     def _goal_value(goal: StudentGoal | None, field_name: str, current_value: int) -> int:
         if goal is None:
             return current_value
@@ -2347,41 +3232,112 @@ class StudentViewerWindow(QMainWindow):
         return max(current_value, int(raw_value))
 
     def _sync_plan_goal(self, goal: StudentGoal, record: StudentRecord) -> None:
-        current_star = max(0, int(record.star or 0))
+        current_star = self._record_current_star(record)
         current_weapon_star = max(0, int(record.weapon_star or 0))
         current_weapon_level = self._record_weapon_level(record)
-        has_weapon_system = self._record_has_weapon_system(record)
+        allows_weapon_targets = self._plan_allows_weapon_targets(record)
 
         target_star = max(current_star, int(goal.target_star or 0))
         target_weapon_star = max(current_weapon_star, int(goal.target_weapon_star or 0))
         target_weapon_level = max(current_weapon_level, int(goal.target_weapon_level or 0))
 
-        if not has_weapon_system:
+        if not allows_weapon_targets:
             target_weapon_star = current_weapon_star
             target_weapon_level = current_weapon_level
         if target_weapon_star > 0 or target_weapon_level > 0:
             target_star = max(target_star, 5)
+        if int(getattr(goal, "target_equip4_tier", 0) or 0) > 0:
+            target_star = max(target_star, 3)
+        target_weapon_level = min(target_weapon_level, self._weapon_level_cap_for_star(target_weapon_star))
 
         goal.target_star = target_star if target_star > current_star else None
-        goal.target_weapon_star = target_weapon_star if has_weapon_system and target_weapon_star > current_weapon_star else None
-        goal.target_weapon_level = target_weapon_level if has_weapon_system and target_weapon_level > current_weapon_level else None
+        goal.target_weapon_star = target_weapon_star if allows_weapon_targets and target_weapon_star > current_weapon_star else None
+        goal.target_weapon_level = target_weapon_level if allows_weapon_targets and target_weapon_level > current_weapon_level else None
 
         for slot_index in range(1, 4):
             tier_field = f"target_equip{slot_index}_tier"
             level_field = f"target_equip{slot_index}_level"
             current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
             current_level = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
+            raw_target_tier = getattr(goal, tier_field)
             target_level = max(current_level, int(getattr(goal, level_field) or 0))
-            target_tier = max(current_tier, int(getattr(goal, tier_field) or 0))
+            target_tier = max(current_tier, int(raw_target_tier or 0))
             if target_level > 0:
-                target_tier = max(target_tier, self._minimum_equipment_tier_for_level(target_level))
+                if raw_target_tier is not None and target_tier > 0:
+                    target_level = min(target_level, self._equipment_level_cap_for_tier(target_tier))
+                else:
+                    target_tier = max(target_tier, self._minimum_equipment_tier_for_level(target_level))
                 target_level = min(target_level, EQUIPMENT_TIER_MAX_LEVEL.get(target_tier, MAX_TARGET_EQUIP_LEVEL))
             setattr(goal, level_field, target_level if target_level > current_level else None)
             setattr(goal, tier_field, target_tier if target_tier > current_tier else None)
 
+        if self._record_supports_unique_item(record) and hasattr(goal, "target_equip4_tier"):
+            current_unique_tier = _parse_tier_number(record.equip4) or 0
+            target_unique_tier = max(current_unique_tier, int(getattr(goal, "target_equip4_tier") or 0))
+            if target_star < 3:
+                target_unique_tier = current_unique_tier
+            goal.target_equip4_tier = target_unique_tier if target_unique_tier > current_unique_tier else None
+
+    @staticmethod
+    def _record_has_unique_item(record: StudentRecord) -> bool:
+        return bool((record.equip4 or "").strip())
+
+    @staticmethod
+    def _record_supports_unique_item(record: StudentRecord) -> bool:
+        if StudentViewerWindow._record_has_unique_item(record):
+            return True
+        return bool(student_meta.favorite_item_enabled(record.student_id))
+
+    @staticmethod
+    def _equipment_slot_labels(record: StudentRecord) -> list[str]:
+        labels = list(student_meta.equipment_slots(record.student_id) or [])
+        fallback = ["Equip 1", "Equip 2", "Equip 3"]
+        normalized: list[str] = []
+        for index in range(3):
+            try:
+                label = str(labels[index] or fallback[index]).strip()
+            except Exception:
+                label = fallback[index]
+            normalized.append(label.title())
+        return normalized
+
+    def _plan_supports_field(self, goal: StudentGoal | None, field_name: str) -> bool:
+        if goal is None:
+            return False
+        return hasattr(goal, field_name)
+
+    def _refresh_plan_editor_visibility(self, record: StudentRecord, goal: StudentGoal | None) -> None:
+        labels = self._equipment_slot_labels(record)
+        for idx, field_name in enumerate(("target_equip1_tier", "target_equip2_tier", "target_equip3_tier")):
+            label_widget = self._plan_equipment_labels.get(field_name)
+            if label_widget is not None:
+                label_widget.setText(labels[idx])
+        for idx, field_name in enumerate(("target_equip1_level", "target_equip2_level", "target_equip3_level"), start=1):
+            label_widget = self._plan_level_row_labels.get(field_name)
+            if label_widget is not None:
+                label_widget.setText(labels[idx - 1])
+
+        target_weapon_star = self._goal_value(goal, "target_weapon_star", max(0, int(record.weapon_star or 0)))
+        target_weapon_level = self._goal_value(goal, "target_weapon_level", self._record_weapon_level(record))
+        show_weapon_level = self._plan_allows_weapon_targets(record) and (target_weapon_star > 0 or target_weapon_level > 0)
+        weapon_row = self._plan_level_rows.get("target_weapon_level")
+        if weapon_row is not None:
+            weapon_row.setVisible(show_weapon_level)
+
+        show_stats = self._goal_value(goal, "target_level", max(0, int(record.level or 0))) >= 90
+        self._plan_stat_caption.setVisible(show_stats)
+        for row in self._plan_stat_rows.values():
+            row.setVisible(show_stats)
+
+        has_unique_item = self._record_supports_unique_item(record)
+        self._plan_unique_item_panel.setVisible(has_unique_item)
+        if has_unique_item:
+            selector = self._plan_unique_item_selector
+            selector.setEnabled(self._plan_supports_field(goal, "target_equip4_tier") and self._current_or_target_star(record, goal) >= 3)
+
     def _refresh_plan_editor_controls(self, record: StudentRecord, goal: StudentGoal | None) -> None:
         current_total = self._record_star_weapon_total(record)
-        current_star = max(0, int(record.star or 0))
+        current_star = self._record_current_star(record)
         current_weapon_star = max(0, int(record.weapon_star or 0))
         target_star = self._goal_value(goal, "target_star", current_star)
         target_weapon_star = self._goal_value(goal, "target_weapon_star", current_weapon_star)
@@ -2389,14 +3345,14 @@ class StudentViewerWindow(QMainWindow):
         self._plan_segment_inputs["star_weapon"].setState(
             minimum_value=current_total,
             value=target_total,
-            enabled_count=9 if self._record_has_weapon_system(record) else 5,
+            enabled_count=9 if self._plan_allows_weapon_targets(record) else 5,
         )
 
         for field_name, current_value in (
-            ("target_ex_skill", max(0, int(record.ex_skill or 0))),
-            ("target_skill1", max(0, int(record.skill1 or 0))),
-            ("target_skill2", max(0, int(record.skill2 or 0))),
-            ("target_skill3", max(0, int(record.skill3 or 0))),
+            ("target_ex_skill", self._record_current_skill(record.ex_skill)),
+            ("target_skill1", self._record_current_skill(record.skill1)),
+            ("target_skill2", self._record_current_skill(record.skill2)),
+            ("target_skill3", self._record_current_skill(record.skill3)),
         ):
             self._plan_segment_inputs[field_name].setState(
                 minimum_value=current_value,
@@ -2408,10 +3364,12 @@ class StudentViewerWindow(QMainWindow):
             level_field = f"target_equip{slot_index}_level"
             current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
             current_level = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
+            target_tier = self._goal_value(goal, tier_field, current_tier)
             self._plan_segment_inputs[tier_field].setState(
                 minimum_value=current_tier,
-                value=self._goal_value(goal, tier_field, current_tier),
+                value=target_tier,
             )
+            self._plan_level_inputs[level_field].setMaximumValue(self._equipment_level_cap_for_tier(target_tier))
             self._plan_level_inputs[level_field].setState(
                 minimum_value=current_level,
                 value=self._goal_value(goal, level_field, current_level),
@@ -2424,11 +3382,37 @@ class StudentViewerWindow(QMainWindow):
             value=self._goal_value(goal, "target_level", current_level),
         )
         weapon_level_selector = self._plan_level_inputs["target_weapon_level"]
-        weapon_level_selector.setEnabled(self._record_has_weapon_system(record))
+        target_weapon_star = self._current_or_target_weapon_star(record, goal)
+        weapon_level_selector.setMaximumValue(self._weapon_level_cap_for_star(target_weapon_star))
+        weapon_level_selector.setEnabled(self._plan_allows_weapon_targets(record))
         weapon_level_selector.setState(
             minimum_value=current_weapon_level,
             value=self._goal_value(goal, "target_weapon_level", current_weapon_level),
         )
+
+        for field_name, current_value in (
+            ("target_stat_hp", max(0, int(record.stat_hp or 0))),
+            ("target_stat_atk", max(0, int(record.stat_atk or 0))),
+            ("target_stat_heal", max(0, int(record.stat_heal or 0))),
+        ):
+            selector = self._plan_level_inputs.get(field_name)
+            if selector is None:
+                continue
+            selector.setEnabled(self._plan_supports_field(goal, field_name))
+            selector.setState(
+                minimum_value=current_value,
+                value=self._goal_value(goal, field_name, current_value),
+            )
+
+        if self._record_supports_unique_item(record):
+            current_unique_tier = _parse_tier_number(record.equip4) or 0
+            self._plan_unique_item_selector.setState(
+                minimum_value=current_unique_tier,
+                value=self._goal_value(goal, "target_equip4_tier", current_unique_tier),
+                enabled_count=2 if self._current_or_target_star(record, goal) >= 3 else 0,
+            )
+
+        self._refresh_plan_editor_visibility(record, goal)
 
     def _on_plan_segment_changed(self, field_name: str, value: int) -> None:
         if self._plan_editor_guard:
@@ -2444,22 +3428,23 @@ class StudentViewerWindow(QMainWindow):
         if field_name == "star_weapon":
             target_star = min(5, value)
             target_weapon_star = max(0, value - 5)
-            goal.target_star = target_star if target_star > max(0, int(record.star or 0)) else None
+            goal.target_star = target_star if target_star > self._record_current_star(record) else None
             goal.target_weapon_star = target_weapon_star if target_weapon_star > max(0, int(record.weapon_star or 0)) else None
         else:
             current_value = 0
             if field_name == "target_ex_skill":
-                current_value = max(0, int(record.ex_skill or 0))
+                current_value = self._record_current_skill(record.ex_skill)
             elif field_name == "target_skill1":
-                current_value = max(0, int(record.skill1 or 0))
+                current_value = self._record_current_skill(record.skill1)
             elif field_name == "target_skill2":
-                current_value = max(0, int(record.skill2 or 0))
+                current_value = self._record_current_skill(record.skill2)
             elif field_name == "target_skill3":
-                current_value = max(0, int(record.skill3 or 0))
+                current_value = self._record_current_skill(record.skill3)
             elif field_name.startswith("target_equip"):
                 slot_index = int(field_name[len("target_equip")])
                 current_value = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
-            setattr(goal, field_name, value if value > current_value else None)
+            if self._plan_supports_field(goal, field_name):
+                setattr(goal, field_name, value if value > current_value else None)
 
         self._sync_plan_goal(goal, record)
         self._save_plan()
@@ -2484,11 +3469,18 @@ class StudentViewerWindow(QMainWindow):
             current_value = max(0, int(record.level or 0))
         elif field_name == "target_weapon_level":
             current_value = self._record_weapon_level(record)
+        elif field_name == "target_stat_hp":
+            current_value = max(0, int(record.stat_hp or 0))
+        elif field_name == "target_stat_atk":
+            current_value = max(0, int(record.stat_atk or 0))
+        elif field_name == "target_stat_heal":
+            current_value = max(0, int(record.stat_heal or 0))
         else:
             slot_index = int(field_name[len("target_equip")])
             current_tier = _parse_tier_number(getattr(record, f"equip{slot_index}", None)) or 0
             current_value = self._current_equipment_level(current_tier, getattr(record, f"equip{slot_index}_level", None))
-        setattr(goal, field_name, value if value > current_value else None)
+        if self._plan_supports_field(goal, field_name):
+            setattr(goal, field_name, value if value > current_value else None)
 
         self._sync_plan_goal(goal, record)
         self._save_plan()
@@ -2622,9 +3614,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_editor_guard = True
         try:
             self._plan_name.setText(record.title)
-            status = "Owned" if record.owned else "Unowned"
-            weapon_state = "Weapon System Ready" if self._record_has_weapon_system(record) else "No Weapon System"
-            self._plan_current.setText(f"{record.student_id}  |  {status}  |  {weapon_state}")
+            self._plan_current.setText("Owned" if record.owned else "Unowned")
             for selector in self._plan_segment_inputs.values():
                 selector.setEnabled(True)
             for selector in self._plan_level_inputs.values():
@@ -2647,6 +3637,12 @@ class StudentViewerWindow(QMainWindow):
                 selector.setState(minimum_value=0, value=0)
         finally:
             self._plan_editor_guard = False
+        if hasattr(self, "_plan_unique_item_panel"):
+            self._plan_unique_item_panel.setVisible(False)
+        if hasattr(self, "_plan_stat_caption"):
+            self._plan_stat_caption.setVisible(False)
+        for row in getattr(self, "_plan_stat_rows", {}).values():
+            row.setVisible(False)
         self._plan_student_summary.setText("No student selected")
         self._update_plan_actions()
 
@@ -2678,6 +3674,8 @@ class StudentViewerWindow(QMainWindow):
         self._plan_total_summary.setText(
             f"{len(self._plan.goals)} students in plan\n{self._format_cost_summary(total)}"
         )
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
 
     def _refresh_stats_tab(self) -> None:
         if self._stats_cards_layout is None or self._stats_summary_host is None:
@@ -2825,6 +3823,7 @@ class StudentViewerWindow(QMainWindow):
 
     def _reload_data(self) -> None:
         self._all_students = load_students()
+        self._inventory_snapshot = load_inventory_snapshot()
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filter_options = build_filter_options(self._all_students)
         self._unowned_icon_cache.clear()
@@ -2840,7 +3839,12 @@ class StudentViewerWindow(QMainWindow):
         items = [
             record
             for record in self._all_students
-            if matches_student_filters(record, self._selected_filters, query)
+            if matches_student_filters(
+                record,
+                self._selected_filters,
+                query,
+                hide_jp_only=self._hide_jp_only.isChecked(),
+            )
             and (self._show_unowned.isChecked() or record.owned)
         ]
 
@@ -2854,11 +3858,20 @@ class StudentViewerWindow(QMainWindow):
             items.sort(key=lambda record: record.title.lower())
 
         self._filtered_students = items
-        self._filter_summary.setText(summarize_filters(self._selected_filters, self._filter_options))
-        active_count = active_filter_count(self._selected_filters)
+        self._filter_summary.setText(
+            summarize_filters(
+                self._selected_filters,
+                self._filter_options,
+                hide_jp_only=self._hide_jp_only.isChecked(),
+            )
+        )
+        active_count = active_filter_count(self._selected_filters) + int(self._hide_jp_only.isChecked())
         self._filter_button.setText(f"Filters ({active_count})" if active_count else "Filters")
         self._rebuild_list()
         self._refresh_stats_tab()
+        self._sync_resource_controls_from_students()
+        self._refresh_resource_students_list()
+        self._refresh_resource_view()
 
     def _open_filter_dialog(self) -> None:
         dialog = FilterDialog(self, self._filter_options, self._selected_filters, self._ui_scale)

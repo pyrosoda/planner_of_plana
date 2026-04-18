@@ -119,6 +119,7 @@ def deserialize_student(d: dict):
 
 def serialize_item(entry) -> dict:
     return {
+        "item_id":  entry.item_id,
         "name":     entry.name,
         "quantity": entry.quantity,
         "source":   entry.source,
@@ -131,6 +132,7 @@ def deserialize_item(d: dict):
     return ItemEntry(
         name=d.get("name"),
         quantity=d.get("quantity"),
+        item_id=d.get("item_id"),
         source=d.get("source", "item"),
         index=d.get("index", 0),
     )

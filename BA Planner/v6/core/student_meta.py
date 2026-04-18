@@ -183,6 +183,20 @@ FAVORITE_ITEM_STUDENT_IDS: frozenset[str] = frozenset({
 
 FAVORITE_ITEM_MAX_TIER = "T2"
 
+JP_ONLY_STUDENT_IDS: frozenset[str] = frozenset(('akane_school_uniform',
+ 'aris_battle',
+ 'eimi_battle',
+ 'himari_battle',
+ 'kei',
+ 'konoka',
+ 'koyuki_pajama',
+ 'michiru_dress',
+ 'rena',
+ 'rio_battle',
+ 'toki_battle',
+ 'tsukuyo_dress',
+ 'yuzu_battle'))
+
 
 # ── 학생 메타데이터 DB ────────────────────────────────────
 STUDENTS: dict[str, StudentMeta] = {'ayane': {'display_name': '아야네',
@@ -11424,6 +11438,10 @@ def has_favorite_item(student_id: str) -> str | None:
 
 def favorite_item_enabled(student_id: str) -> bool:
     return has_favorite_item(student_id) == "yes"
+
+
+def is_jp_only(student_id: str) -> bool:
+    return student_id in JP_ONLY_STUDENT_IDS
 
 
 def passive_stat(student_id: str) -> list[str]:

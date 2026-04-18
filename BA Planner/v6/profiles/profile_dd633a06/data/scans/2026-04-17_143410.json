@@ -1,0 +1,140 @@
+{
+  "scan_id": "2026-04-17_143410",
+  "scanned_at": "2026-04-17T14:34:10+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {
+      "credit": "87859853",
+      "pyroxene": "49090"
+    },
+    "items": [
+      {
+        "index": 0,
+        "item_id": null,
+        "name": "기초 기술 노트 (백귀야행)",
+        "quantity": "2202"
+      },
+      {
+        "index": 1,
+        "item_id": null,
+        "name": "일반 기술 노트 (백귀야행)",
+        "quantity": "789"
+      },
+      {
+        "index": 2,
+        "item_id": null,
+        "name": "상급 기술 노트 (백귀야행)",
+        "quantity": "403"
+      },
+      {
+        "index": 3,
+        "item_id": null,
+        "name": "최상급 기술노트 (백귀야행)",
+        "quantity": "17"
+      },
+      {
+        "index": 4,
+        "item_id": null,
+        "name": "기초 기술 노트 (붉은겨올)",
+        "quantity": "3684"
+      },
+      {
+        "index": 5,
+        "item_id": null,
+        "name": "일반 기술 노트 (북은겨올)",
+        "quantity": "1694"
+      },
+      {
+        "index": 6,
+        "item_id": null,
+        "name": "상급 기술 노트 (붉으겨올)",
+        "quantity": "1188"
+      },
+      {
+        "index": 7,
+        "item_id": null,
+        "name": "최상급 기술노트 (붉으겨올)",
+        "quantity": "359"
+      },
+      {
+        "index": 8,
+        "item_id": null,
+        "name": "기초 기술 노트 (트리니티)",
+        "quantity": "1485"
+      },
+      {
+        "index": 9,
+        "item_id": null,
+        "name": "일반 기술 노트 (트리니티)",
+        "quantity": "26"
+      },
+      {
+        "index": 10,
+        "item_id": null,
+        "name": "상급 기술 노트 (트리니티)",
+        "quantity": "257"
+      },
+      {
+        "index": 11,
+        "item_id": null,
+        "name": "최상급 기술노트 (트리니티)",
+        "quantity": "4"
+      },
+      {
+        "index": 12,
+        "item_id": null,
+        "name": "기초 기술노트 (게회나)",
+        "quantity": "2122"
+      },
+      {
+        "index": 13,
+        "item_id": null,
+        "name": "일반 기술 노트 (게회나)",
+        "quantity": "858"
+      },
+      {
+        "index": 14,
+        "item_id": null,
+        "name": "상급 기술 노트 (게회나)",
+        "quantity": "636"
+      },
+      {
+        "index": 15,
+        "item_id": null,
+        "name": "최상급 기술노트 (게회나)",
+        "quantity": "219"
+      },
+      {
+        "index": 16,
+        "item_id": null,
+        "name": "기초 기술 노트 (아비도스)",
+        "quantity": "3331"
+      },
+      {
+        "index": 17,
+        "item_id": null,
+        "name": "일반 기술 노트 (아비도스)",
+        "quantity": "1516"
+      },
+      {
+        "index": 18,
+        "item_id": null,
+        "name": "상급 기술 노트 (아비도스)",
+        "quantity": "866"
+      },
+      {
+        "index": 19,
+        "item_id": null,
+        "name": "최상급 기술 노트 (아비도스)",
+        "quantity": "257"
+      }
+    ],
+    "equipment": [],
+    "students": []
+  }
+}

@@ -1,0 +1,368 @@
+{
+  "meta": {
+    "scan_id": "2026-04-18_014234",
+    "scanned_at": "2026-04-18T01:42:34+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다",
+    "item_scan_filter_profile": "tech_notes",
+    "item_scan_filter_label": "기술 노트"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 45,
+    "equipment_count": 0,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {
+    "credit": "731394",
+    "pyroxene": "49130"
+  },
+  "students": [],
+  "items": [
+    {
+      "item_id": "Item_Icon_SkillBook_Hyakkiyako_0",
+      "name": "기초 기술 노트 (백귀야행)",
+      "quantity": "2202",
+      "source": "item",
+      "index": 0
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Hyakkiyako_1",
+      "name": "일반 기술 노트 (백귀야행)",
+      "quantity": "789",
+      "source": "item",
+      "index": 1
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Hyakkiyako_2",
+      "name": "상급 기술 노트 (백귀야행)",
+      "quantity": "403",
+      "source": "item",
+      "index": 2
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Hyakkiyako_3",
+      "name": "최상급 기술 노트 (백귀야행)",
+      "quantity": "17",
+      "source": "item",
+      "index": 3
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_RedWinter_0",
+      "name": "기초 기술 노트 (붉은겨울)",
+      "quantity": "3684",
+      "source": "item",
+      "index": 4
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_RedWinter_1",
+      "name": "일반 기술 노트 (붉은겨울)",
+      "quantity": "1694",
+      "source": "item",
+      "index": 5
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_RedWinter_2",
+      "name": "상급 기술 노트 (붉은겨울)",
+      "quantity": "1188",
+      "source": "item",
+      "index": 6
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_RedWinter_3",
+      "name": "최상급 기술 노트 (붉은겨울)",
+      "quantity": "359",
+      "source": "item",
+      "index": 7
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Trinity_0",
+      "name": "기초 기술 노트 (트리니티)",
+      "quantity": "1485",
+      "source": "item",
+      "index": 8
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Trinity_1",
+      "name": "일반 기술 노트 (트리니티)",
+      "quantity": "260",
+      "source": "item",
+      "index": 9
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Trinity_2",
+      "name": "상급 기술 노트 (트리니티)",
+      "quantity": "257",
+      "source": "item",
+      "index": 10
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Trinity_3",
+      "name": "최상급 기술 노트 (트리니티)",
+      "quantity": "4",
+      "source": "item",
+      "index": 11
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Gehenna_0",
+      "name": "기초 기술 노트 (게헨나)",
+      "quantity": "2122",
+      "source": "item",
+      "index": 12
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Gehenna_1",
+      "name": "일반 기술 노트 (게헨나)",
+      "quantity": "858",
+      "source": "item",
+      "index": 13
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Gehenna_2",
+      "name": "상급 기술 노트 (게헨나)",
+      "quantity": "636",
+      "source": "item",
+      "index": 14
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Gehenna_3",
+      "name": "최상급 기술 노트 (게헨나)",
+      "quantity": "219",
+      "source": "item",
+      "index": 15
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Abydos_0",
+      "name": "기초 기술 노트 (아비도스)",
+      "quantity": "3331",
+      "source": "item",
+      "index": 16
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Abydos_1",
+      "name": "일반 기술 노트 (아비도스)",
+      "quantity": "1516",
+      "source": "item",
+      "index": 17
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Abydos_2",
+      "name": "상급 기술 노트 (아비도스)",
+      "quantity": "866",
+      "source": "item",
+      "index": 18
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Abydos_3",
+      "name": "최상급 기술 노트 (아비도스)",
+      "quantity": "257",
+      "source": "item",
+      "index": 19
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Millennium_0",
+      "name": "기초 기술 노트 (밀레니엄)",
+      "quantity": "2783",
+      "source": "item",
+      "index": 20
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Millennium_1",
+      "name": "일반 기술 노트 (밀레니엄)",
+      "quantity": "978",
+      "source": "item",
+      "index": 21
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Millennium_2",
+      "name": "상급 기술 노트 (밀레니엄)",
+      "quantity": "733",
+      "source": "item",
+      "index": 22
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Millennium_3",
+      "name": "최상급 기술 노트 (밀레니엄)",
+      "quantity": "219",
+      "source": "item",
+      "index": 23
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Arius_0",
+      "name": "기초 기술 노트 (아리우스)",
+      "quantity": "2425",
+      "source": "item",
+      "index": 24
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Arius_1",
+      "name": "일반 기술 노트 (아리우스)",
+      "quantity": "1013",
+      "source": "item",
+      "index": 25
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Arius_2",
+      "name": "상급 기술 노트 (아리우스)",
+      "quantity": "667",
+      "source": "item",
+      "index": 26
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Arius_3",
+      "name": "최상급 기술 노트 (아리우스)",
+      "quantity": "119",
+      "source": "item",
+      "index": 27
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Shanhaijing_0",
+      "name": "기초 기술 노트 (산해경)",
+      "quantity": "2661",
+      "source": "item",
+      "index": 28
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Shanhaijing_1",
+      "name": "일반 기술 노트 (산해경)",
+      "quantity": "1006",
+      "source": "item",
+      "index": 29
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Shanhaijing_2",
+      "name": "상급 기술 노트 (산해경)",
+      "quantity": "692",
+      "source": "item",
+      "index": 30
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Shanhaijing_3",
+      "name": "최상급 기술 노트 (산해경)",
+      "quantity": "177",
+      "source": "item",
+      "index": 31
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Valkyrie_0",
+      "name": "기초 기술 노트 (발키리)",
+      "quantity": "2523",
+      "source": "item",
+      "index": 32
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Valkyrie_1",
+      "name": "일반 기술 노트 (발키리)",
+      "quantity": "897",
+      "source": "item",
+      "index": 33
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Valkyrie_2",
+      "name": "상급 기술 노트 (발키리)",
+      "quantity": "417",
+      "source": "item",
+      "index": 34
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Valkyrie_3",
+      "name": "최상급 기술 노트 (발키리)",
+      "quantity": "5",
+      "source": "item",
+      "index": 35
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Highlander_0",
+      "name": "기초 기술 노트 (하이랜더)",
+      "quantity": "664",
+      "source": "item",
+      "index": 36
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Highlander_1",
+      "name": "일반 기술 노트 (하이랜더)",
+      "quantity": "267",
+      "source": "item",
+      "index": 37
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Highlander_2",
+      "name": "상급 기술 노트 (하이랜더)",
+      "quantity": "173",
+      "source": "item",
+      "index": 38
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Highlander_3",
+      "name": "최상급 기술 노트 (하이랜더)",
+      "quantity": "55",
+      "source": "item",
+      "index": 39
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Wildhunt_0",
+      "name": "기초 기술 노트 (와일드헌트)",
+      "quantity": "1013",
+      "source": "item",
+      "index": 40
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Wildhunt_1",
+      "name": "일반 기술 노트 (와일드헌트)",
+      "quantity": "667",
+      "source": "item",
+      "index": 41
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Wildhunt_2",
+      "name": "상급 기술 노트 (와일드헌트)",
+      "quantity": "119",
+      "source": "item",
+      "index": 42
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Wildhunt_3",
+      "name": "최상급 기술 노트 (와일드헌트)",
+      "quantity": "2661",
+      "source": "item",
+      "index": 43
+    },
+    {
+      "item_id": "Item_Icon_SkillBook_Ultimate_Piece",
+      "name": "비의서",
+      "quantity": "1006",
+      "source": "item",
+      "index": 44
+    }
+  ],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-18_014234",
+    "session_started_at": "2026-04-18T01:42:34.123667",
+    "session_finished_at": "2026-04-18T01:43:19.791921",
+    "duration_sec": 45.7,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 45,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-18T01:43:19.791921"
+}

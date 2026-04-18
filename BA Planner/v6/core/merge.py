@@ -235,6 +235,8 @@ def merge_inventory_snapshot(old: dict, new: dict) -> dict:
         if not new_qty:          # None or ""
             continue             # 기존 유지
         merged[name] = {
+            "item_id":  new_entry.get("item_id", merged.get(name, {}).get("item_id")),
+            "name":     new_entry.get("name", merged.get(name, {}).get("name")),
             "quantity": new_qty,
             "index":    new_entry.get("index", merged.get(name, {}).get("index")),
         }

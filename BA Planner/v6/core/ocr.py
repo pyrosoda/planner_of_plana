@@ -144,18 +144,25 @@ def read_item_count(img: Image.Image) -> str:
     """
     text = read_text(img, mode="digit")
 
-    m = re.search(r"[xX×]\s*(\d[\d,]*\.?\d*\s*[KkMm]?)", text)
+    m = re.search(r"[xX×]\s*(.+)$", text)
     if m:
-        raw = m.group(1).replace(",","").replace(" ","")
+        tail = m.group(1)
+        parts = re.findall(r"\d+", tail)
+        raw = "".join(parts) if parts else tail
+        raw = raw.replace(",", "").replace(" ", "")
         if raw.upper().endswith("K"):
             return str(int(float(raw[:-1]) * 1_000))
         if raw.upper().endswith("M"):
             return str(int(float(raw[:-1]) * 1_000_000))
-        return raw
+        if raw.isdigit():
+            return raw
 
     nums = re.findall(r"\d[\d,]*", text)
     if nums:
-        return nums[0].replace(",","")
+        joined = "".join(n.replace(",", "") for n in nums)
+        if len(nums) > 1 and joined.isdigit() and len(joined) <= 8:
+            return joined
+        return nums[0].replace(",", "")
     return "0"
 
 

@@ -85,8 +85,22 @@ def get_student_value(student: Any, key: str) -> str:
     return str(value)
 
 
-def matches_student_filters(student: Any, selected_filters: Mapping[str, set[str]], query: str = "") -> bool:
+def _student_id(student: Any) -> str:
+    if isinstance(student, Mapping):
+        return str(student.get("student_id") or "")
+    return str(getattr(student, "student_id", "") or "")
+
+
+def matches_student_filters(
+    student: Any,
+    selected_filters: Mapping[str, set[str]],
+    query: str = "",
+    *,
+    hide_jp_only: bool = False,
+) -> bool:
     cleaned_query = query.strip().lower()
+    if hide_jp_only and student_meta.is_jp_only(_student_id(student)):
+        return False
     if cleaned_query:
         display_name = get_student_value(student, "display_name").lower()
         student_id = get_student_value(student, "student_id").lower()
@@ -116,7 +130,12 @@ def active_filter_count(selected_filters: Mapping[str, set[str]]) -> int:
     return sum(len(values) for values in selected_filters.values())
 
 
-def summarize_filters(selected_filters: Mapping[str, set[str]], options: Mapping[str, list[FilterOption]]) -> str:
+def summarize_filters(
+    selected_filters: Mapping[str, set[str]],
+    options: Mapping[str, list[FilterOption]],
+    *,
+    hide_jp_only: bool = False,
+) -> str:
     parts: list[str] = []
     option_map = {
         key: {option.value: option.label for option in field_options}
@@ -131,6 +150,8 @@ def summarize_filters(selected_filters: Mapping[str, set[str]], options: Mapping
             parts.append(f"{FILTER_FIELD_LABELS[key]}: {', '.join(labels)}")
         else:
             parts.append(f"{FILTER_FIELD_LABELS[key]}: {len(labels)} selected")
+    if hide_jp_only:
+        parts.append("JP only hidden")
     return " | ".join(parts) if parts else "No filters applied"
 
 

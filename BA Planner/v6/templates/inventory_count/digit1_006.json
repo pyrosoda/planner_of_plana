@@ -1,0 +1,69 @@
+{
+  "name": "digit1",
+  "window_rect": {
+    "left": 0,
+    "top": 0,
+    "width": 2560,
+    "height": 1440
+  },
+  "points_screen": [
+    {
+      "x": 1066,
+      "y": 1033
+    },
+    {
+      "x": 1090,
+      "y": 1033
+    },
+    {
+      "x": 1080,
+      "y": 1070
+    },
+    {
+      "x": 1056,
+      "y": 1070
+    }
+  ],
+  "points_client": [
+    {
+      "x": 1066,
+      "y": 1033
+    },
+    {
+      "x": 1090,
+      "y": 1033
+    },
+    {
+      "x": 1080,
+      "y": 1070
+    },
+    {
+      "x": 1056,
+      "y": 1070
+    }
+  ],
+  "points_ratio": [
+    {
+      "x": 0.416406,
+      "y": 0.717361
+    },
+    {
+      "x": 0.425781,
+      "y": 0.717361
+    },
+    {
+      "x": 0.421875,
+      "y": 0.743056
+    },
+    {
+      "x": 0.4125,
+      "y": 0.743056
+    }
+  ],
+  "captured_at": "2026-04-18T00:18:58",
+  "output_size": {
+    "width": 24,
+    "height": 38
+  },
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\debug\\region_captures\\digit1_006.png"
+}

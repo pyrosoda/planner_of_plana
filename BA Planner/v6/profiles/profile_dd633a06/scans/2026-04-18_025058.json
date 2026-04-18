@@ -1,0 +1,1026 @@
+{
+  "meta": {
+    "scan_id": "2026-04-18_025058",
+    "scanned_at": "2026-04-18T02:50:58+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다",
+    "item_scan_filter_profile": "ooparts",
+    "item_scan_filter_label": "오파츠"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 139,
+    "equipment_count": 0,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {
+    "credit": "731394",
+    "pyroxene": "49130"
+  },
+  "students": [],
+  "items": [
+    {
+      "item_id": null,
+      "name": "네브라 디스크 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 0
+    },
+    {
+      "item_id": null,
+      "name": "파손된 네브라 디스크",
+      "quantity": "838",
+      "source": "item",
+      "index": 1
+    },
+    {
+      "item_id": null,
+      "name": "마모된 네브라 디스크",
+      "quantity": "782",
+      "source": "item",
+      "index": 2
+    },
+    {
+      "item_id": null,
+      "name": "온전한 네브라 디스크",
+      "quantity": "0",
+      "source": "item",
+      "index": 3
+    },
+    {
+      "item_id": null,
+      "name": "파에스트스 원반 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 4
+    },
+    {
+      "item_id": null,
+      "name": "파손된 파에스트스 원반",
+      "quantity": "0",
+      "source": "item",
+      "index": 5
+    },
+    {
+      "item_id": null,
+      "name": "마모된 파에스트스 원반",
+      "quantity": "0",
+      "source": "item",
+      "index": 6
+    },
+    {
+      "item_id": null,
+      "name": "온전한 파에스트스 원반",
+      "quantity": "0",
+      "source": "item",
+      "index": 7
+    },
+    {
+      "item_id": null,
+      "name": "볼프세크 강철 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 8
+    },
+    {
+      "item_id": null,
+      "name": "파손된 볼프세크 강철",
+      "quantity": "0",
+      "source": "item",
+      "index": 9
+    },
+    {
+      "item_id": null,
+      "name": "마모된 볼프세크 강철",
+      "quantity": "0",
+      "source": "item",
+      "index": 10
+    },
+    {
+      "item_id": null,
+      "name": "온전한 볼프세크 강철",
+      "quantity": "0",
+      "source": "item",
+      "index": 11
+    },
+    {
+      "item_id": null,
+      "name": "님루드 렌즈 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 12
+    },
+    {
+      "item_id": null,
+      "name": "파손된 님루드 렌즈",
+      "quantity": "0",
+      "source": "item",
+      "index": 13
+    },
+    {
+      "item_id": null,
+      "name": "마모된 님루드 렌즈",
+      "quantity": "0",
+      "source": "item",
+      "index": 14
+    },
+    {
+      "item_id": null,
+      "name": "온전한 님루드 렌즈",
+      "quantity": "0",
+      "source": "item",
+      "index": 15
+    },
+    {
+      "item_id": null,
+      "name": "만드라고라 농축액 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 16
+    },
+    {
+      "item_id": null,
+      "name": "파손된 만드라고라 농축액",
+      "quantity": "0",
+      "source": "item",
+      "index": 17
+    },
+    {
+      "item_id": null,
+      "name": "마모된 만드라고라 농축액",
+      "quantity": "0",
+      "source": "item",
+      "index": 18
+    },
+    {
+      "item_id": null,
+      "name": "온전한 만드라고라 농축액",
+      "quantity": "0",
+      "source": "item",
+      "index": 19
+    },
+    {
+      "item_id": null,
+      "name": "로혼치 사본 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 20
+    },
+    {
+      "item_id": null,
+      "name": "파손된 로혼치 사본",
+      "quantity": "0",
+      "source": "item",
+      "index": 21
+    },
+    {
+      "item_id": null,
+      "name": "마모된 로혼치 사본",
+      "quantity": "0",
+      "source": "item",
+      "index": 22
+    },
+    {
+      "item_id": null,
+      "name": "온전한 로혼치 사본",
+      "quantity": "0",
+      "source": "item",
+      "index": 23
+    },
+    {
+      "item_id": null,
+      "name": "에테르 가루",
+      "quantity": "0",
+      "source": "item",
+      "index": 24
+    },
+    {
+      "item_id": null,
+      "name": "에테르 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 25
+    },
+    {
+      "item_id": null,
+      "name": "에테르 결정",
+      "quantity": "0",
+      "source": "item",
+      "index": 26
+    },
+    {
+      "item_id": null,
+      "name": "에테르 정수",
+      "quantity": "0",
+      "source": "item",
+      "index": 27
+    },
+    {
+      "item_id": null,
+      "name": "안티키테라 장치 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 28
+    },
+    {
+      "item_id": null,
+      "name": "파손된 안티키테라 장치",
+      "quantity": "1069",
+      "source": "item",
+      "index": 29
+    },
+    {
+      "item_id": null,
+      "name": "마모된 안티키테라 장치",
+      "quantity": "269",
+      "source": "item",
+      "index": 30
+    },
+    {
+      "item_id": null,
+      "name": "온전한 안티키테라 장치",
+      "quantity": "166",
+      "source": "item",
+      "index": 31
+    },
+    {
+      "item_id": null,
+      "name": "보이니치 사본 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 32
+    },
+    {
+      "item_id": null,
+      "name": "파손된 보이니치 사본",
+      "quantity": "0",
+      "source": "item",
+      "index": 33
+    },
+    {
+      "item_id": null,
+      "name": "마모된 보이니치 사본",
+      "quantity": "1112",
+      "source": "item",
+      "index": 34
+    },
+    {
+      "item_id": null,
+      "name": "온전한 보이니치 사본",
+      "quantity": "167",
+      "source": "item",
+      "index": 35
+    },
+    {
+      "item_id": null,
+      "name": "수정 하니와 파편",
+      "quantity": "3316",
+      "source": "item",
+      "index": 36
+    },
+    {
+      "item_id": null,
+      "name": "파손된 수정 하니와",
+      "quantity": "2199",
+      "source": "item",
+      "index": 37
+    },
+    {
+      "item_id": null,
+      "name": "마모된 수정 하니와",
+      "quantity": "840",
+      "source": "item",
+      "index": 38
+    },
+    {
+      "item_id": null,
+      "name": "온전한 수정 하니와",
+      "quantity": "0",
+      "source": "item",
+      "index": 39
+    },
+    {
+      "item_id": null,
+      "name": "토템폴 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 40
+    },
+    {
+      "item_id": null,
+      "name": "파손된 토템폴",
+      "quantity": "0",
+      "source": "item",
+      "index": 41
+    },
+    {
+      "item_id": null,
+      "name": "마모된 토템폴",
+      "quantity": "0",
+      "source": "item",
+      "index": 42
+    },
+    {
+      "item_id": null,
+      "name": "온전한 토템폴",
+      "quantity": "0",
+      "source": "item",
+      "index": 43
+    },
+    {
+      "item_id": null,
+      "name": "고대 전지 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 44
+    },
+    {
+      "item_id": null,
+      "name": "파손된 고대 전지",
+      "quantity": "0",
+      "source": "item",
+      "index": 45
+    },
+    {
+      "item_id": null,
+      "name": "마모된 고대 전지",
+      "quantity": "0",
+      "source": "item",
+      "index": 46
+    },
+    {
+      "item_id": null,
+      "name": "온전한 고대 전지",
+      "quantity": "0",
+      "source": "item",
+      "index": 47
+    },
+    {
+      "item_id": null,
+      "name": "황금 양모 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 48
+    },
+    {
+      "item_id": null,
+      "name": "파손된 황금 양모",
+      "quantity": "0",
+      "source": "item",
+      "index": 49
+    },
+    {
+      "item_id": null,
+      "name": "마모된 황금 양모",
+      "quantity": "276",
+      "source": "item",
+      "index": 50
+    },
+    {
+      "item_id": null,
+      "name": "온전한 황금 양모",
+      "quantity": "0",
+      "source": "item",
+      "index": 51
+    },
+    {
+      "item_id": null,
+      "name": "머리가 자라는 인형 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 52
+    },
+    {
+      "item_id": null,
+      "name": "파손된 머리가 자라는 인형",
+      "quantity": "0",
+      "source": "item",
+      "index": 53
+    },
+    {
+      "item_id": null,
+      "name": "마모된 머리가 자라는 인형",
+      "quantity": "0",
+      "source": "item",
+      "index": 54
+    },
+    {
+      "item_id": null,
+      "name": "온전한 머리가 자라는 인형",
+      "quantity": "0",
+      "source": "item",
+      "index": 55
+    },
+    {
+      "item_id": null,
+      "name": "디스코 콜간테 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 56
+    },
+    {
+      "item_id": null,
+      "name": "파손된 디스코 콜간테",
+      "quantity": "701",
+      "source": "item",
+      "index": 57
+    },
+    {
+      "item_id": null,
+      "name": "마모된 디스코 콜간테",
+      "quantity": "303",
+      "source": "item",
+      "index": 58
+    },
+    {
+      "item_id": null,
+      "name": "온전한 디스코 콜간테",
+      "quantity": "73",
+      "source": "item",
+      "index": 59
+    },
+    {
+      "item_id": null,
+      "name": "아틀란티스 메달 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 60
+    },
+    {
+      "item_id": null,
+      "name": "파손된 아틀란티스 메달",
+      "quantity": "0",
+      "source": "item",
+      "index": 61
+    },
+    {
+      "item_id": null,
+      "name": "마모된 아틀란티스 메달",
+      "quantity": "0",
+      "source": "item",
+      "index": 62
+    },
+    {
+      "item_id": null,
+      "name": "온전한 아틀란티스 메달",
+      "quantity": "89",
+      "source": "item",
+      "index": 63
+    },
+    {
+      "item_id": null,
+      "name": "로마 12면체 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 64
+    },
+    {
+      "item_id": null,
+      "name": "파손된 로마 12면체",
+      "quantity": "0",
+      "source": "item",
+      "index": 65
+    },
+    {
+      "item_id": null,
+      "name": "마모된 로마 12면체",
+      "quantity": "341",
+      "source": "item",
+      "index": 66
+    },
+    {
+      "item_id": null,
+      "name": "온전한 로마 12면체",
+      "quantity": "47",
+      "source": "item",
+      "index": 67
+    },
+    {
+      "item_id": null,
+      "name": "킴바야 유물 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 68
+    },
+    {
+      "item_id": null,
+      "name": "파손된 킴바야 유물",
+      "quantity": "0",
+      "source": "item",
+      "index": 69
+    },
+    {
+      "item_id": null,
+      "name": "마모된 킴바야 유물",
+      "quantity": "243",
+      "source": "item",
+      "index": 70
+    },
+    {
+      "item_id": null,
+      "name": "온전한 킴바야 유물",
+      "quantity": "33",
+      "source": "item",
+      "index": 71
+    },
+    {
+      "item_id": null,
+      "name": "이스탄불 로켓 조각",
+      "quantity": "649",
+      "source": "item",
+      "index": 72
+    },
+    {
+      "item_id": null,
+      "name": "파손된 이스탄불 로켓",
+      "quantity": "0",
+      "source": "item",
+      "index": 73
+    },
+    {
+      "item_id": null,
+      "name": "마모된 이스탄불 로켓",
+      "quantity": "0",
+      "source": "item",
+      "index": 74
+    },
+    {
+      "item_id": null,
+      "name": "온전한 이스탄불 로켓",
+      "quantity": "0",
+      "source": "item",
+      "index": 75
+    },
+    {
+      "item_id": null,
+      "name": "위니페소키 스톤 조각",
+      "quantity": "0",
+      "source": "item",
+      "index": 76
+    },
+    {
+      "item_id": null,
+      "name": "파손된 위니페소키 스톤",
+      "quantity": "0",
+      "source": "item",
+      "index": 77
+    },
+    {
+      "item_id": null,
+      "name": "마모된 위니페소키 스톤",
+      "quantity": "0",
+      "source": "item",
+      "index": 78
+    },
+    {
+      "item_id": null,
+      "name": "온전한 위니페소키 스톤",
+      "quantity": "0",
+      "source": "item",
+      "index": 79
+    },
+    {
+      "item_id": null,
+      "name": "교양 체육 WB",
+      "quantity": "196",
+      "source": "item",
+      "index": 80
+    },
+    {
+      "item_id": null,
+      "name": "교양 사격 WB",
+      "quantity": "309",
+      "source": "item",
+      "index": 81
+    },
+    {
+      "item_id": null,
+      "name": "교양 위생 WB",
+      "quantity": "325",
+      "source": "item",
+      "index": 82
+    },
+    {
+      "item_id": "네브라 디스크 조각",
+      "name": "네브라 디스크 조각",
+      "quantity": "2155",
+      "source": "item",
+      "index": 83
+    },
+    {
+      "item_id": "온전한 네브라 디스크",
+      "name": "온전한 네브라 디스크",
+      "quantity": "85",
+      "source": "item",
+      "index": 84
+    },
+    {
+      "item_id": "파에스트스 원반 조각",
+      "name": "파에스트스 원반 조각",
+      "quantity": "2800",
+      "source": "item",
+      "index": 85
+    },
+    {
+      "item_id": "파손된 파에스트스 원반",
+      "name": "파손된 파에스트스 원반",
+      "quantity": "1250",
+      "source": "item",
+      "index": 86
+    },
+    {
+      "item_id": "마모된 파에스트스 원반",
+      "name": "마모된 파에스트스 원반",
+      "quantity": "714",
+      "source": "item",
+      "index": 87
+    },
+    {
+      "item_id": "온전한 파에스트스 원반",
+      "name": "온전한 파에스트스 원반",
+      "quantity": "109",
+      "source": "item",
+      "index": 88
+    },
+    {
+      "item_id": "볼프세크 강철 조각",
+      "name": "볼프세크 강철 조각",
+      "quantity": "4257",
+      "source": "item",
+      "index": 89
+    },
+    {
+      "item_id": "파손된 볼프세크 강철",
+      "name": "파손된 볼프세크 강철",
+      "quantity": "1383",
+      "source": "item",
+      "index": 90
+    },
+    {
+      "item_id": "마모된 볼프세크 강철",
+      "name": "마모된 볼프세크 강철",
+      "quantity": "1244",
+      "source": "item",
+      "index": 91
+    },
+    {
+      "item_id": "온전한 볼프세크 강철",
+      "name": "온전한 볼프세크 강철",
+      "quantity": "154",
+      "source": "item",
+      "index": 92
+    },
+    {
+      "item_id": "님루드 렌즈 조각",
+      "name": "님루드 렌즈 조각",
+      "quantity": "3749",
+      "source": "item",
+      "index": 93
+    },
+    {
+      "item_id": "파손된 님루드 렌즈",
+      "name": "파손된 님루드 렌즈",
+      "quantity": "1530",
+      "source": "item",
+      "index": 94
+    },
+    {
+      "item_id": "마모된 님루드 렌즈",
+      "name": "마모된 님루드 렌즈",
+      "quantity": "718",
+      "source": "item",
+      "index": 95
+    },
+    {
+      "item_id": "온전한 님루드 렌즈",
+      "name": "온전한 님루드 렌즈",
+      "quantity": "186",
+      "source": "item",
+      "index": 96
+    },
+    {
+      "item_id": "만드라고라 농축액 조각",
+      "name": "만드라고라 농축액 조각",
+      "quantity": "3996",
+      "source": "item",
+      "index": 97
+    },
+    {
+      "item_id": "파손된 만드라고라 농축액",
+      "name": "파손된 만드라고라 농축액",
+      "quantity": "1947",
+      "source": "item",
+      "index": 98
+    },
+    {
+      "item_id": "마모된 만드라고라 농축액",
+      "name": "마모된 만드라고라 농축액",
+      "quantity": "609",
+      "source": "item",
+      "index": 99
+    },
+    {
+      "item_id": "온전한 만드라고라 농축액",
+      "name": "온전한 만드라고라 농축액",
+      "quantity": "87",
+      "source": "item",
+      "index": 100
+    },
+    {
+      "item_id": "에테르 가루",
+      "name": "에테르 가루",
+      "quantity": "2914",
+      "source": "item",
+      "index": 101
+    },
+    {
+      "item_id": "에테르 조각",
+      "name": "에테르 조각",
+      "quantity": "2018",
+      "source": "item",
+      "index": 102
+    },
+    {
+      "item_id": "에테르 결정",
+      "name": "에테르 결정",
+      "quantity": "1150",
+      "source": "item",
+      "index": 103
+    },
+    {
+      "item_id": "에테르 정수",
+      "name": "에테르 정수",
+      "quantity": "173",
+      "source": "item",
+      "index": 104
+    },
+    {
+      "item_id": "안티키테라 장치 조각",
+      "name": "안티키테라 장치 조각",
+      "quantity": "2858",
+      "source": "item",
+      "index": 105
+    },
+    {
+      "item_id": "보이니치 사본 조각",
+      "name": "보이니치 사본 조각",
+      "quantity": "4975",
+      "source": "item",
+      "index": 106
+    },
+    {
+      "item_id": "파손된 보이니치 사본",
+      "name": "파손된 보이니치 사본",
+      "quantity": "1857",
+      "source": "item",
+      "index": 107
+    },
+    {
+      "item_id": "온전한 수정 하니와",
+      "name": "온전한 수정 하니와",
+      "quantity": "236",
+      "source": "item",
+      "index": 108
+    },
+    {
+      "item_id": "토템폴 조각",
+      "name": "토템폴 조각",
+      "quantity": "2107",
+      "source": "item",
+      "index": 109
+    },
+    {
+      "item_id": "파손된 토템폴",
+      "name": "파손된 토템폴",
+      "quantity": "995",
+      "source": "item",
+      "index": 110
+    },
+    {
+      "item_id": "마모된 토템폴",
+      "name": "마모된 토템폴",
+      "quantity": "570",
+      "source": "item",
+      "index": 111
+    },
+    {
+      "item_id": "온전한 토템폴",
+      "name": "온전한 토템폴",
+      "quantity": "175",
+      "source": "item",
+      "index": 112
+    },
+    {
+      "item_id": "고대 전지 조각",
+      "name": "고대 전지 조각",
+      "quantity": "934",
+      "source": "item",
+      "index": 113
+    },
+    {
+      "item_id": "파손된 고대 전지",
+      "name": "파손된 고대 전지",
+      "quantity": "1908",
+      "source": "item",
+      "index": 114
+    },
+    {
+      "item_id": "마모된 고대 전지",
+      "name": "마모된 고대 전지",
+      "quantity": "974",
+      "source": "item",
+      "index": 115
+    },
+    {
+      "item_id": "온전한 고대 전지",
+      "name": "온전한 고대 전지",
+      "quantity": "199",
+      "source": "item",
+      "index": 116
+    },
+    {
+      "item_id": "황금 양모 조각",
+      "name": "황금 양모 조각",
+      "quantity": "1699",
+      "source": "item",
+      "index": 117
+    },
+    {
+      "item_id": "파손된 황금 양모",
+      "name": "파손된 황금 양모",
+      "quantity": "584",
+      "source": "item",
+      "index": 118
+    },
+    {
+      "item_id": "온전한 황금 양모",
+      "name": "온전한 황금 양모",
+      "quantity": "96",
+      "source": "item",
+      "index": 119
+    },
+    {
+      "item_id": "머리가 자라는 인형 조각",
+      "name": "머리가 자라는 인형 조각",
+      "quantity": "1990",
+      "source": "item",
+      "index": 120
+    },
+    {
+      "item_id": "파손된 머리가 자라는 인형",
+      "name": "파손된 머리가 자라는 인형",
+      "quantity": "745",
+      "source": "item",
+      "index": 121
+    },
+    {
+      "item_id": "마모된 머리가 자라는 인형",
+      "name": "마모된 머리가 자라는 인형",
+      "quantity": "352",
+      "source": "item",
+      "index": 122
+    },
+    {
+      "item_id": "온전한 머리가 자라는 인형",
+      "name": "온전한 머리가 자라는 인형",
+      "quantity": "128",
+      "source": "item",
+      "index": 123
+    },
+    {
+      "item_id": "디스코 콜간테 조각",
+      "name": "디스코 콜간테 조각",
+      "quantity": "1381",
+      "source": "item",
+      "index": 124
+    },
+    {
+      "item_id": "아틀란티스 메달 조각",
+      "name": "아틀란티스 메달 조각",
+      "quantity": "879",
+      "source": "item",
+      "index": 125
+    },
+    {
+      "item_id": "파손된 아틀란티스 메달",
+      "name": "파손된 아틀란티스 메달",
+      "quantity": "240",
+      "source": "item",
+      "index": 126
+    },
+    {
+      "item_id": "마모된 아틀란티스 메달",
+      "name": "마모된 아틀란티스 메달",
+      "quantity": "161",
+      "source": "item",
+      "index": 127
+    },
+    {
+      "item_id": "로마 12면체 조각",
+      "name": "로마 12면체 조각",
+      "quantity": "1061",
+      "source": "item",
+      "index": 128
+    },
+    {
+      "item_id": "파손된 로마 12면체",
+      "name": "파손된 로마 12면체",
+      "quantity": "184",
+      "source": "item",
+      "index": 129
+    },
+    {
+      "item_id": "킴바야 유물 조각",
+      "name": "킴바야 유물 조각",
+      "quantity": "984",
+      "source": "item",
+      "index": 130
+    },
+    {
+      "item_id": "파손된 킴바야 유물",
+      "name": "파손된 킴바야 유물",
+      "quantity": "246",
+      "source": "item",
+      "index": 131
+    },
+    {
+      "item_id": "파손된 이스탄불 로켓",
+      "name": "파손된 이스탄불 로켓",
+      "quantity": "193",
+      "source": "item",
+      "index": 132
+    },
+    {
+      "item_id": "마모된 이스탄불 로켓",
+      "name": "마모된 이스탄불 로켓",
+      "quantity": "383",
+      "source": "item",
+      "index": 133
+    },
+    {
+      "item_id": "온전한 이스탄불 로켓",
+      "name": "온전한 이스탄불 로켓",
+      "quantity": "97",
+      "source": "item",
+      "index": 134
+    },
+    {
+      "item_id": "위니페소키 스톤 조각",
+      "name": "위니페소키 스톤 조각",
+      "quantity": "1590",
+      "source": "item",
+      "index": 135
+    },
+    {
+      "item_id": "파손된 위니페소키 스톤",
+      "name": "파손된 위니페소키 스톤",
+      "quantity": "327",
+      "source": "item",
+      "index": 136
+    },
+    {
+      "item_id": "마모된 위니페소키 스톤",
+      "name": "마모된 위니페소키 스톤",
+      "quantity": "135",
+      "source": "item",
+      "index": 137
+    },
+    {
+      "item_id": "온전한 위니페소키 스톤",
+      "name": "온전한 위니페소키 스톤",
+      "quantity": "81",
+      "source": "item",
+      "index": 138
+    }
+  ],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-18_025058",
+    "session_started_at": "2026-04-18T02:50:58.561598",
+    "session_finished_at": "2026-04-18T02:52:11.517565",
+    "duration_sec": 73.0,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 139,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-18T02:52:11.517565"
+}

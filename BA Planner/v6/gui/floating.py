@@ -71,6 +71,15 @@ def _set_clickthrough(window: tk.Toplevel, enabled: bool) -> None:
         pass
 
 
+def _widget_alive(widget) -> bool:
+    if widget is None:
+        return False
+    try:
+        return bool(widget.winfo_exists())
+    except Exception:
+        return False
+
+
 class FloatingOverlay(tk.Toplevel):
     def __init__(
         self,
@@ -86,7 +95,7 @@ class FloatingOverlay(tk.Toplevel):
         on_view_students=None,
     ):
         super().__init__(master)
-        self._scan_backdrop = tk.Toplevel(master)
+        self._scan_backdrop: tk.Toplevel | None = None
 
         self._cbs = {
             "items": on_scan_items,
@@ -124,15 +133,9 @@ class FloatingOverlay(tk.Toplevel):
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
-        self.attributes("-alpha", 0.93)
+        self.attributes("-alpha", 1.0)
         self.configure(bg=BG)
         self.withdraw()
-
-        self._scan_backdrop.overrideredirect(True)
-        self._scan_backdrop.attributes("-topmost", True)
-        self._scan_backdrop.attributes("-alpha", 0.22)
-        self._scan_backdrop.configure(bg="#08131d")
-        self._scan_backdrop.withdraw()
         self._init_progress_style()
 
         self._draw()
@@ -165,6 +168,7 @@ class FloatingOverlay(tk.Toplevel):
         self._scan_title_label = None
         self._scan_message_label = None
         self._scan_progress_label = None
+        self._scan_progress = None
 
         if self._app_state in (AppState.SCANNING, AppState.STOPPING):
             self._draw_scan_overlay()
@@ -418,19 +422,19 @@ class FloatingOverlay(tk.Toplevel):
             self._action_button(self._actions_frame, text, color, fg, key)
 
     def _refresh_dynamic_content(self) -> None:
-        if self._status_label is not None:
+        if _widget_alive(self._status_label):
             self._status_label.config(text=self._state_text())
-        if self._pyrox_label is not None:
+        if _widget_alive(self._pyrox_label):
             self._pyrox_label.config(text=f"청휘석 {self._resources.get('청휘석') or '-'}")
-        if self._credit_label is not None:
+        if _widget_alive(self._credit_label):
             self._credit_label.config(text=f"크레딧 {self._resources.get('크레딧') or '-'}")
-        if self._log_label is not None:
+        if _widget_alive(self._log_label):
             self._log_label.config(text="\n".join(self._log_lines[-3:]) if self._log_lines else "대기 중...")
-        if self._scan_title_label is not None:
+        if _widget_alive(self._scan_title_label):
             self._scan_title_label.config(
                 text="스캔 정리 중" if self._app_state == AppState.STOPPING else "학생 스캔 진행 중"
             )
-        if self._scan_progress is not None:
+        if _widget_alive(self._scan_progress):
             known_total = (
                 self._scan_progress_current is not None
                 and self._scan_progress_total is not None
@@ -447,7 +451,7 @@ class FloatingOverlay(tk.Toplevel):
             else:
                 self._scan_progress.configure(mode="indeterminate")
                 self._scan_progress.start(10)
-        if self._scan_progress_label is not None:
+        if _widget_alive(self._scan_progress_label):
             if (
                 self._scan_progress_current is not None
                 and self._scan_progress_total is not None
@@ -463,7 +467,7 @@ class FloatingOverlay(tk.Toplevel):
                 self._scan_progress_label.config(
                     text=self._scan_progress_note or "진행률 계산 중..."
                 )
-        if self._scan_message_label is not None:
+        if _widget_alive(self._scan_message_label):
             self._scan_message_label.config(
                 text=self._log_lines[-1] if self._log_lines else "스캔을 준비하고 있습니다..."
             )
@@ -505,17 +509,20 @@ class FloatingOverlay(tk.Toplevel):
             return False
 
         left, top, width, height = rect
-        self._scan_backdrop.geometry(
-            f"{max(width, 1)}x{max(height, 1)}+{left}+{top}"
-        )
-
         tw = scale_px(SCAN_CARD_W, self._ui_scale)
         th = scale_px(SCAN_CARD_H, self._ui_scale)
-        ox = left + max(0, (width - tw) // 2)
-        oy = top + max(0, (height - th) // 2)
-
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
+        margin = scale_px(16, self._ui_scale)
+        right_x = left + width + margin
+        left_x = left - tw - margin
+        if right_x + tw <= sw:
+            ox = right_x
+        elif left_x >= 0:
+            ox = left_x
+        else:
+            ox = max(0, min(left + max(0, (width - tw) // 2), sw - tw))
+        oy = max(0, min(top + margin, sh - th))
         ox = max(0, min(ox, sw - tw))
         oy = max(0, min(oy, sh - th))
         self.geometry(f"{tw}x{th}+{ox}+{oy}")
@@ -525,8 +532,6 @@ class FloatingOverlay(tk.Toplevel):
         if self._app_state in (AppState.SCANNING, AppState.STOPPING):
             if not self._position_scan_windows():
                 return
-            _set_clickthrough(self._scan_backdrop, True)
-            self._scan_backdrop.lift()
             self.lift()
             return
 
@@ -553,17 +558,10 @@ class FloatingOverlay(tk.Toplevel):
         self.geometry(f"{tw}x{th}+{ox}+{oy}")
 
     def _show_scan_backdrop(self) -> None:
-        if not self._visible or self._app_state not in (AppState.SCANNING, AppState.STOPPING):
-            self._scan_backdrop.withdraw()
-            return
-        self._position_scan_windows()
-        self._scan_backdrop.deiconify()
-        self._scan_backdrop.update_idletasks()
-        _set_clickthrough(self._scan_backdrop, True)
-        self._scan_backdrop.lift()
+        return
 
     def _hide_scan_backdrop(self) -> None:
-        self._scan_backdrop.withdraw()
+        return
 
     def _start_tracker(self):
         def loop():
@@ -611,7 +609,7 @@ class FloatingOverlay(tk.Toplevel):
     def set_app_state(self, state: AppState):
         prev = self._app_state
         self._app_state = state
-        if prev in (AppState.SCANNING, AppState.STOPPING) and self._scan_progress is not None:
+        if prev in (AppState.SCANNING, AppState.STOPPING) and _widget_alive(self._scan_progress):
             self._scan_progress.stop()
         if not self._expanded and state not in (AppState.SCANNING, AppState.STOPPING):
             self.after(0, self._draw)
@@ -658,7 +656,8 @@ class FloatingOverlay(tk.Toplevel):
 
     def destroy(self):
         self._stop_event.set()
-        if self._scan_progress is not None:
+        if _widget_alive(self._scan_progress):
             self._scan_progress.stop()
-        self._scan_backdrop.destroy()
+        if _widget_alive(self._scan_backdrop):
+            self._scan_backdrop.destroy()
         super().destroy()

@@ -635,8 +635,19 @@ def _current_weapon_level(record, target_weapon_level: int) -> int:
     return 0
 
 
+def _weapon_level_cap_for_star(weapon_star: int) -> int:
+    return {
+        1: 30,
+        2: 40,
+        3: 50,
+        4: 60,
+    }.get(max(0, int(weapon_star)), 0)
+
+
 def _calculate_weapon_level_cost(record, goal: StudentGoal) -> tuple[int, int]:
-    target_level = max(0, min(_safe_int(goal.target_weapon_level, 0), 60))
+    target_weapon_star = max(0, min(4, _safe_int(goal.target_weapon_star, 0)))
+    effective_weapon_star = max(_current_weapon_star(record), target_weapon_star)
+    target_level = max(0, min(_safe_int(goal.target_weapon_level, 0), _weapon_level_cap_for_star(effective_weapon_star)))
     current_level = _current_weapon_level(record, target_level)
     if target_level <= current_level:
         return 0, 0

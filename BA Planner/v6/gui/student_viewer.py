@@ -15,6 +15,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 
+import core.student_meta as student_meta
 from core.config import get_storage_paths
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -571,6 +572,7 @@ class StudentViewer(tk.Toplevel):
 
         self._sort_mode = tk.StringVar(value="star_desc")
         self._search_var = tk.StringVar(value="")
+        self._hide_jp_only = tk.BooleanVar(value=False)
         self._selected_filters: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
         self._filter_options: dict[str, list] = {}
 
@@ -700,6 +702,21 @@ class StudentViewer(tk.Toplevel):
             btn.pack(side="left", padx=scale_px(2, self._ui_scale))
             self._weapon_btns.append((value, btn))
 
+        tk.Checkbutton(
+            filter_row,
+            text="JP 전용 숨기기",
+            variable=self._hide_jp_only,
+            command=self._apply_filter,
+            bg=C["surface"],
+            fg=C["sub"],
+            activebackground=C["surface"],
+            activeforeground=C["text"],
+            selectcolor=C["card"],
+            relief="flat",
+            font=self._font_small,
+            highlightthickness=0,
+        ).pack(side="left", padx=(0, scale_px(8, self._ui_scale)))
+
         tk.Button(
             filter_row,
             text="새로고침",
@@ -791,6 +808,8 @@ class StudentViewer(tk.Toplevel):
         if query:
             q = query.lower()
             arr = [s for s in arr if q in (s.get("display_name") or "").lower() or q in (s.get("student_id") or "").lower()]
+        if self._hide_jp_only.get():
+            arr = [s for s in arr if not student_meta.is_jp_only(str(s.get("student_id") or ""))]
 
         mode = self._sort_mode.get()
         if mode == "star_desc":

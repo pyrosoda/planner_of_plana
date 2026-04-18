@@ -1,0 +1,344 @@
+{
+  "scan_id": "2026-04-17_200107",
+  "scanned_at": "2026-04-17T20:01:07+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {
+      "credit": "87996933",
+      "pyroxene": "49120"
+    },
+    "items": [
+      {
+        "index": 0,
+        "item_id": null,
+        "name": "기초 기술 노트 (백귀야행)",
+        "quantity": "2202"
+      },
+      {
+        "index": 1,
+        "item_id": null,
+        "name": "일반 기술 노트 (백귀야행)",
+        "quantity": "789"
+      },
+      {
+        "index": 2,
+        "item_id": null,
+        "name": "상급 기술 노트 (백귀야행)",
+        "quantity": "43"
+      },
+      {
+        "index": 3,
+        "item_id": null,
+        "name": "최상급 기술 노트 (백귀야행)",
+        "quantity": "17"
+      },
+      {
+        "index": 4,
+        "item_id": null,
+        "name": "기초 기술 노트 (붉은겨울)",
+        "quantity": "3684"
+      },
+      {
+        "index": 5,
+        "item_id": null,
+        "name": "일반 기술 노트 (붉은겨울)",
+        "quantity": "1694"
+      },
+      {
+        "index": 6,
+        "item_id": null,
+        "name": "상급 기술 노트 (붉은겨울)",
+        "quantity": "1188"
+      },
+      {
+        "index": 7,
+        "item_id": null,
+        "name": "최상급 기술 노트 (붉은겨울)",
+        "quantity": "359"
+      },
+      {
+        "index": 8,
+        "item_id": null,
+        "name": "기초 기술 노트 (트리니티)",
+        "quantity": "1485"
+      },
+      {
+        "index": 9,
+        "item_id": null,
+        "name": "일반 기술 노트 (트리니티)",
+        "quantity": "26"
+      },
+      {
+        "index": 10,
+        "item_id": null,
+        "name": "상급 기술 노트 (트리니티)",
+        "quantity": "257"
+      },
+      {
+        "index": 11,
+        "item_id": null,
+        "name": "최상급 기술 노트 (트리니티)",
+        "quantity": "4"
+      },
+      {
+        "index": 12,
+        "item_id": null,
+        "name": "기초 기술 노트 (게헨나)",
+        "quantity": "2122"
+      },
+      {
+        "index": 13,
+        "item_id": null,
+        "name": "일반 기술 노트 (게헨나)",
+        "quantity": "858"
+      },
+      {
+        "index": 14,
+        "item_id": null,
+        "name": "상급 기술 노트 (게헨나)",
+        "quantity": "636"
+      },
+      {
+        "index": 15,
+        "item_id": null,
+        "name": "최상급 기술 노트 (게헨나)",
+        "quantity": "219"
+      },
+      {
+        "index": 16,
+        "item_id": null,
+        "name": "기초 기술 노트 (아비도스)",
+        "quantity": "3331"
+      },
+      {
+        "index": 17,
+        "item_id": null,
+        "name": "일반 기술 노트 (아비도스)",
+        "quantity": "1516"
+      },
+      {
+        "index": 18,
+        "item_id": null,
+        "name": "상급 기술 노트 (아비도스)",
+        "quantity": "866"
+      },
+      {
+        "index": 19,
+        "item_id": null,
+        "name": "최상급 기술 노트 (아비도스)",
+        "quantity": "257"
+      },
+      {
+        "index": 20,
+        "item_id": null,
+        "name": "기초 기술 노트 (밀레니엄)",
+        "quantity": "2783"
+      },
+      {
+        "index": 21,
+        "item_id": null,
+        "name": "일반 기술 노트 (밀레니엄)",
+        "quantity": "978"
+      },
+      {
+        "index": 22,
+        "item_id": null,
+        "name": "상급 기술 노트 (밀레니엄)",
+        "quantity": "693"
+      },
+      {
+        "index": 23,
+        "item_id": null,
+        "name": "최상급 기술 노트 (밀레니엄)",
+        "quantity": "193"
+      },
+      {
+        "index": 24,
+        "item_id": null,
+        "name": "기초 기술 노트 (아리우스)",
+        "quantity": "2425"
+      },
+      {
+        "index": 25,
+        "item_id": null,
+        "name": "일반 기술 노트 (아리우스)",
+        "quantity": "1013"
+      },
+      {
+        "index": 26,
+        "item_id": null,
+        "name": "상급 기술 노트 (아리우스)",
+        "quantity": "667"
+      },
+      {
+        "index": 27,
+        "item_id": null,
+        "name": "최상급 기술 노트 (아리우스)",
+        "quantity": "119"
+      },
+      {
+        "index": 28,
+        "item_id": null,
+        "name": "기초 기술 노트 (산해경)",
+        "quantity": "2661"
+      },
+      {
+        "index": 29,
+        "item_id": null,
+        "name": "일반 기술 노트 (산해경)",
+        "quantity": "16"
+      },
+      {
+        "index": 30,
+        "item_id": null,
+        "name": "상급 기술 노트 (산해경)",
+        "quantity": "692"
+      },
+      {
+        "index": 31,
+        "item_id": null,
+        "name": "최상급 기술 노트 (산해경)",
+        "quantity": "177"
+      },
+      {
+        "index": 32,
+        "item_id": null,
+        "name": "기초 기술 노트 (발키리)",
+        "quantity": "2523"
+      },
+      {
+        "index": 33,
+        "item_id": null,
+        "name": "일반 기술 노트 (발키리)",
+        "quantity": "897"
+      },
+      {
+        "index": 34,
+        "item_id": null,
+        "name": "상급 기술 노트 (발키리)",
+        "quantity": "417"
+      },
+      {
+        "index": 35,
+        "item_id": null,
+        "name": "최상급 기술 노트 (발키리)",
+        "quantity": "5"
+      },
+      {
+        "index": 36,
+        "item_id": null,
+        "name": "기초 기술 노트 (하이랜더)",
+        "quantity": "664"
+      },
+      {
+        "index": 37,
+        "item_id": null,
+        "name": "일반 기술 노트 (하이랜더)",
+        "quantity": "267"
+      },
+      {
+        "index": 38,
+        "item_id": null,
+        "name": "상급 기술 노트 (하이랜더)",
+        "quantity": "173"
+      },
+      {
+        "index": 39,
+        "item_id": null,
+        "name": "최상급 기술 노트 (하이랜더)",
+        "quantity": "55"
+      },
+      {
+        "index": 40,
+        "item_id": null,
+        "name": "최상급 기술노트 (아리우스)",
+        "quantity": "119"
+      },
+      {
+        "index": 41,
+        "item_id": null,
+        "name": "상급기술 노트 (산해경)",
+        "quantity": "692"
+      },
+      {
+        "index": 42,
+        "item_id": null,
+        "name": "최상급 기술노트 (산해경)",
+        "quantity": "177"
+      },
+      {
+        "index": 43,
+        "item_id": null,
+        "name": "상급 기술노트 (발키리)",
+        "quantity": "417"
+      },
+      {
+        "index": 44,
+        "item_id": null,
+        "name": "최상급 기술노트 (발키리)",
+        "quantity": "5"
+      },
+      {
+        "index": 45,
+        "item_id": null,
+        "name": "기초 기술 노트 (하이랜터)",
+        "quantity": "664"
+      },
+      {
+        "index": 46,
+        "item_id": null,
+        "name": "일반 기술 노트 (하이랜터)",
+        "quantity": "267"
+      },
+      {
+        "index": 47,
+        "item_id": null,
+        "name": "상급 기술 노트 (하이랜터)",
+        "quantity": "173"
+      },
+      {
+        "index": 48,
+        "item_id": null,
+        "name": "최상급 기술 노트 (하이린더)",
+        "quantity": "55"
+      },
+      {
+        "index": 49,
+        "item_id": null,
+        "name": "기초 기술 노트 (와일드헌트)",
+        "quantity": "649"
+      },
+      {
+        "index": 50,
+        "item_id": null,
+        "name": "일반 기술 노트 (와일드헌트)",
+        "quantity": "320"
+      },
+      {
+        "index": 51,
+        "item_id": null,
+        "name": "상급 기술 노트 (와일드헌트)",
+        "quantity": "188"
+      },
+      {
+        "index": 52,
+        "item_id": null,
+        "name": "최상급 기술 노트 (와일드헌트)",
+        "quantity": "53"
+      },
+      {
+        "index": 53,
+        "item_id": null,
+        "name": "비의서",
+        "quantity": "53"
+      }
+    ],
+    "equipment": [],
+    "students": []
+  }
+}

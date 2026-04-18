@@ -1,0 +1,70 @@
+﻿{
+    "name":  "Item_Icon_SkillBook_Trinity_1",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  521,
+                              "y":  343
+                          },
+                          {
+                              "x":  796,
+                              "y":  343
+                          },
+                          {
+                              "x":  796,
+                              "y":  635
+                          },
+                          {
+                              "x":  521,
+                              "y":  635
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  521,
+                              "y":  343
+                          },
+                          {
+                              "x":  796,
+                              "y":  343
+                          },
+                          {
+                              "x":  796,
+                              "y":  635
+                          },
+                          {
+                              "x":  521,
+                              "y":  635
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.203516,
+                             "y":  0.238194
+                         },
+                         {
+                             "x":  0.310937,
+                             "y":  0.238194
+                         },
+                         {
+                             "x":  0.310937,
+                             "y":  0.440972
+                         },
+                         {
+                             "x":  0.203516,
+                             "y":  0.440972
+                         }
+                     ],
+    "shape":  "rectangle",
+    "captured_at":  "2026-04-18T00:56:39",
+    "output_size":  {
+                        "width":  275,
+                        "height":  292
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_detail\\tech_notes\\Item_Icon_SkillBook_Trinity_1.png"
+}

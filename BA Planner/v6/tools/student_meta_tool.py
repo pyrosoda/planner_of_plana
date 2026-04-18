@@ -17,6 +17,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from core.config import get_storage_paths
 from gui.ui_scale import get_ui_scale, scale_px
+from tools.schaledb_sync import build_student_meta_from_schale, local_id_to_schale_path, parse_student_source
 from tools.student_meta_options import FIELD_OPTIONS
 
 MODULE_NAME = "core.student_meta"
@@ -110,6 +111,70 @@ ANALYTICS_FIELDS = (
 STUDENT_SORTS = ("Value A-Z", "Value Z-A", "Match First")
 ITEM_SORTS = ("Shortage First", "Adjusted Asc", "Adjusted Desc", "Name A-Z")
 ITEM_FILTERS = ("All Items", "Shortage Only", "Zero Or Less", "Positive Only")
+SERVER_FILTERS = ("All", "KR", "JP Only")
+METADATA_TABLE_COLUMNS: tuple[tuple[str, str, int], ...] = (
+    ("student_id", "Student ID", 170),
+    ("display_name", "Name", 170),
+    ("server", "Server", 90),
+    ("group", "Group", 140),
+    ("variant", "Variant", 110),
+    ("school", "School", 120),
+    ("rarity", "Rarity", 60),
+    ("attack_type", "Attack", 90),
+    ("defense_type", "Defense", 90),
+    ("role", "Role", 90),
+    ("position", "Position", 90),
+    ("weapon_type", "Weapon", 90),
+    ("template_name", "Template", 160),
+)
+DETAIL_FIELD_ORDER: tuple[str, ...] = (
+    "display_name",
+    "template_name",
+    "group",
+    "variant",
+    "school",
+    "rarity",
+    "recruit_type",
+    "attack_type",
+    "attack_type_trait",
+    "defense_type",
+    "growth_material_main",
+    "growth_material_sub",
+    "growth_material_main_ex_levels",
+    "growth_material_main_skill_levels",
+    "growth_material_sub_ex_levels",
+    "growth_material_sub_skill_levels",
+    "equipment_slot_1",
+    "equipment_slot_2",
+    "equipment_slot_3",
+    "combat_class",
+    "cover_type",
+    "range_type",
+    "role",
+    "weapon_type",
+    "position",
+    "terrain_outdoor",
+    "terrain_urban",
+    "terrain_indoor",
+    "weapon3_terrain_boost",
+    "has_favorite_item",
+    "farmable",
+    "passive_stat",
+    "weapon_passive_stat",
+    "extra_passive_stat",
+    "skill_buff",
+    "skill_debuff",
+    "skill_cc",
+    "skill_special",
+    "skill_heal_targets",
+    "skill_dispel_targets",
+    "skill_reposition_targets",
+    "skill_summon_types",
+    "skill_ignore_cover",
+    "skill_is_area_damage",
+    "skill_buff_specials",
+    "skill_knockback",
+)
 
 
 def _load_module():
@@ -187,20 +252,20 @@ def build_field_options(students: dict[str, dict]) -> dict[str, tuple[str, ...]]
     return options
 
 
-def _replace_students_block(source: str, rendered_assignment: str) -> str:
+def _replace_named_assignment(source: str, assignment_name: str, rendered_assignment: str) -> str:
     tree = ast.parse(source)
     target = None
     for node in tree.body:
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "STUDENTS":
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == assignment_name:
             target = node
             break
         if isinstance(node, ast.Assign):
             for single_target in node.targets:
-                if isinstance(single_target, ast.Name) and single_target.id == "STUDENTS":
+                if isinstance(single_target, ast.Name) and single_target.id == assignment_name:
                     target = node
                     break
     if target is None:
-        raise RuntimeError("STUDENTS assignment not found in core.student_meta")
+        raise RuntimeError(f"{assignment_name} assignment not found in core.student_meta")
     lines = source.splitlines()
     return "\n".join(lines[: target.lineno - 1] + rendered_assignment.rstrip("\n").splitlines() + lines[target.end_lineno :]) + "\n"
 
@@ -208,7 +273,28 @@ def _replace_students_block(source: str, rendered_assignment: str) -> str:
 def _write_students(students: dict[str, dict]) -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     rendered = "STUDENTS: dict[str, StudentMeta] = " + pprint.pformat(students, width=100, sort_dicts=False)
-    MODULE_PATH.write_text(_replace_students_block(source, rendered), encoding="utf-8")
+    MODULE_PATH.write_text(_replace_named_assignment(source, "STUDENTS", rendered), encoding="utf-8")
+
+
+def get_jp_only_ids() -> set[str]:
+    module = _reload_module()
+    return set(module.JP_ONLY_STUDENT_IDS)
+
+
+def _write_jp_only_ids(student_ids: set[str]) -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    rendered = "JP_ONLY_STUDENT_IDS: frozenset[str] = frozenset(" + pprint.pformat(tuple(sorted(student_ids)), width=100) + ")"
+    MODULE_PATH.write_text(_replace_named_assignment(source, "JP_ONLY_STUDENT_IDS", rendered), encoding="utf-8")
+
+
+def set_jp_only(student_id: str, enabled: bool) -> set[str]:
+    student_ids = get_jp_only_ids()
+    if enabled:
+        student_ids.add(student_id)
+    else:
+        student_ids.discard(student_id)
+    _write_jp_only_ids(student_ids)
+    return get_jp_only_ids()
 
 
 def get_students() -> dict[str, dict]:
@@ -237,6 +323,8 @@ def delete_student(student_id: str) -> None:
         raise KeyError(student_id)
     students.pop(student_id)
     _write_students(students)
+    if student_id in get_jp_only_ids():
+        set_jp_only(student_id, False)
 
 
 def _safe_int(value: object, default: int = 0) -> int:
@@ -412,6 +500,68 @@ def build_item_stats(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return [{"value": label, "count": count, "percent": count / total * 100.0} for label, count in buckets]
 
 
+def _server_label(student_id: str) -> str:
+    module = _load_module()
+    return "JP Only" if module.is_jp_only(student_id) else "KR"
+
+
+def build_metadata_table_rows(
+    students: dict[str, dict],
+    *,
+    search_query: str = "",
+    server_filter: str = "All",
+) -> list[dict[str, object]]:
+    query = search_query.strip().casefold()
+    rows: list[dict[str, object]] = []
+    for student_id, meta in students.items():
+        row = {
+            "student_id": student_id,
+            "display_name": str(meta.get("display_name", "")),
+            "server": _server_label(student_id),
+            "group": str(meta.get("group", "") or ""),
+            "variant": _display("variant", meta.get("variant")),
+            "school": _display("school", meta.get("school")),
+            "rarity": _display("rarity", meta.get("rarity")),
+            "attack_type": _display("attack_type", meta.get("attack_type")),
+            "defense_type": _display("defense_type", meta.get("defense_type")),
+            "role": _display("role", meta.get("role")),
+            "position": _display("position", meta.get("position")),
+            "weapon_type": _display("weapon_type", meta.get("weapon_type")),
+            "template_name": _display("template_name", meta.get("template_name")),
+        }
+        haystack = " ".join(str(row[key]) for key, *_rest in METADATA_TABLE_COLUMNS).casefold()
+        if query and query not in haystack:
+            continue
+        if server_filter == "KR" and row["server"] != "KR":
+            continue
+        if server_filter == "JP Only" and row["server"] != "JP Only":
+            continue
+        rows.append(row)
+    rows.sort(key=lambda row: (str(row["display_name"]).casefold(), str(row["student_id"]).casefold()))
+    return rows
+
+
+def build_metadata_detail_rows(student_id: str, students: dict[str, dict]) -> list[tuple[str, str, str]]:
+    meta = students.get(student_id)
+    if meta is None:
+        return []
+    rows = [("student_id", "Student ID", student_id), ("server", "Server", _server_label(student_id))]
+    for field_name in DETAIL_FIELD_ORDER:
+        rows.append((field_name, LABELS.get(field_name, field_name), _display(field_name, _resolved_field_value(student_id, meta, field_name))))
+    return rows
+
+
+def build_preview_diff_rows(current_meta: dict[str, object], next_meta: dict[str, object]) -> list[tuple[str, str, str, str]]:
+    field_names = ["display_name", "template_name", "group", "variant", *SYNC_FIELDS]
+    rows: list[tuple[str, str, str, str]] = []
+    for field_name in field_names:
+        current_value = _display(field_name, current_meta.get(field_name))
+        next_value = _display(field_name, next_meta.get(field_name))
+        status = "changed" if current_value != next_value else ""
+        rows.append((LABELS.get(field_name, field_name), current_value, next_value, status))
+    return rows
+
+
 def command_get(args: argparse.Namespace) -> int:
     module = _reload_module()
     meta = module.get(args.student_id)
@@ -449,9 +599,9 @@ def command_delete(args: argparse.Namespace) -> int:
 class StudentMetaToolApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("Student Meta Tool")
+        self.root.title("Student Metadata Debug Tool")
         self._ui_scale = get_ui_scale(self.root, base_width=1600, base_height=980)
-        self.root.geometry(f"{scale_px(1420, self._ui_scale)}x{scale_px(880, self._ui_scale)}")
+        self.root.geometry(f"{scale_px(1560, self._ui_scale)}x{scale_px(940, self._ui_scale)}")
         self.students = get_students()
         self.field_options = build_field_options(self.students)
         self.selected_student_id: str | None = None
@@ -473,12 +623,24 @@ class StudentMetaToolApp:
         self.item_stats_tree: ttk.Treeview | None = None
         self.item_tree: ttk.Treeview | None = None
         self.item_summary_var = tk.StringVar(value="")
+        self.metadata_search_var = tk.StringVar()
+        self.metadata_server_filter_var = tk.StringVar(value=SERVER_FILTERS[0])
+        self.metadata_tree: ttk.Treeview | None = None
+        self.detail_tree: ttk.Treeview | None = None
+        self.detail_title_var = tk.StringVar(value="Select a student to inspect")
+        self.preview_source_var = tk.StringVar()
+        self.preview_student_id_var = tk.StringVar()
+        self.preview_mark_jp_only_var = tk.BooleanVar(value=True)
+        self.preview_summary_var = tk.StringVar(value="Enter a SchaleDB URL or slug to preview a student.")
+        self.preview_tree: ttk.Treeview | None = None
+        self.preview_payload: dict[str, object] | None = None
         self._build_ui()
         self._refresh_student_list()
         self._new_student()
         self._refresh_attribute_value_options()
         self._refresh_student_analysis()
         self._reload_inventory_analysis()
+        self._refresh_metadata_debug()
 
     def _build_ui(self) -> None:
         self.root.columnconfigure(0, weight=1)
@@ -488,12 +650,15 @@ class StudentMetaToolApp:
         editor_tab = ttk.Frame(notebook, padding=10)
         student_tab = ttk.Frame(notebook, padding=10)
         item_tab = ttk.Frame(notebook, padding=10)
+        debug_tab = ttk.Frame(notebook, padding=10)
         notebook.add(editor_tab, text="Editor")
         notebook.add(student_tab, text="Student Stats")
         notebook.add(item_tab, text="Item Stats")
+        notebook.add(debug_tab, text="DB Debug")
         self._build_editor_tab(editor_tab)
         self._build_student_tab(student_tab)
         self._build_item_tab(item_tab)
+        self._build_debug_tab(debug_tab)
 
     def _build_editor_tab(self, parent: ttk.Frame) -> None:
         parent.columnconfigure(0, weight=0)
@@ -645,6 +810,76 @@ class StudentMetaToolApp:
         self.item_tree.grid(row=1, column=0, sticky="nsew")
         panes.add(item_rows_frame, weight=2)
 
+    def _build_debug_tab(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+        sync_frame = ttk.LabelFrame(parent, text="SchaleDB Import / Server Control", padding=10)
+        sync_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        for col in range(8):
+            sync_frame.columnconfigure(col, weight=1 if col in {1, 3, 5} else 0)
+        ttk.Label(sync_frame, text="SchaleDB URL / slug").grid(row=0, column=0, sticky="w")
+        preview_entry = ttk.Entry(sync_frame, textvariable=self.preview_source_var)
+        preview_entry.grid(row=0, column=1, sticky="ew", padx=(6, 12))
+        ttk.Label(sync_frame, text="Local Student ID").grid(row=0, column=2, sticky="w")
+        ttk.Entry(sync_frame, textvariable=self.preview_student_id_var).grid(row=0, column=3, sticky="ew", padx=(6, 12))
+        ttk.Checkbutton(sync_frame, text="Mark as JP-only after save", variable=self.preview_mark_jp_only_var).grid(row=0, column=4, columnspan=2, sticky="w")
+        ttk.Button(sync_frame, text="Preview Pull", command=self._preview_schale_import).grid(row=0, column=6, padx=(0, 6))
+        ttk.Button(sync_frame, text="Import & Save", command=self._save_preview_to_db).grid(row=0, column=7)
+        ttk.Label(sync_frame, textvariable=self.preview_summary_var).grid(row=1, column=0, columnspan=8, sticky="w", pady=(8, 8))
+        preview_buttons = ttk.Frame(sync_frame)
+        preview_buttons.grid(row=2, column=0, columnspan=8, sticky="w")
+        ttk.Button(preview_buttons, text="Load Preview Into Editor", command=self._apply_preview_to_editor).grid(row=0, column=0, padx=(0, 6))
+        ttk.Button(preview_buttons, text="Use Selected Student", command=self._prefill_preview_from_selection).grid(row=0, column=1, padx=(0, 6))
+        ttk.Button(preview_buttons, text="Set Selected To JP-only", command=lambda: self._set_selected_server_state(True)).grid(row=0, column=2, padx=(0, 6))
+        ttk.Button(preview_buttons, text="Transfer Selected JP -> KR", command=lambda: self._set_selected_server_state(False)).grid(row=0, column=3)
+        self.preview_tree = ttk.Treeview(sync_frame, columns=("field", "current", "new", "status"), show="headings", height=8)
+        for key, text, width in (("field", "Field", 180), ("current", "Current", 240), ("new", "Preview", 240), ("status", "Changed", 70)):
+            self.preview_tree.heading(key, text=text)
+            self.preview_tree.column(key, width=width, anchor="center" if key == "status" else "w")
+        self.preview_tree.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(8, 0))
+
+        body = ttk.Panedwindow(parent, orient="horizontal")
+        body.grid(row=1, column=0, sticky="nsew")
+        table_frame = ttk.Frame(body, padding=4)
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(2, weight=1)
+        filters = ttk.Frame(table_frame)
+        filters.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        filters.columnconfigure(1, weight=1)
+        filters.columnconfigure(3, weight=1)
+        ttk.Label(filters, text="Search").grid(row=0, column=0, sticky="w")
+        search_entry = ttk.Entry(filters, textvariable=self.metadata_search_var)
+        search_entry.grid(row=0, column=1, sticky="ew", padx=(6, 12))
+        search_entry.bind("<KeyRelease>", lambda _e: self._refresh_metadata_debug())
+        ttk.Label(filters, text="Server").grid(row=0, column=2, sticky="w")
+        server_combo = ttk.Combobox(filters, textvariable=self.metadata_server_filter_var, values=SERVER_FILTERS, state="readonly")
+        server_combo.grid(row=0, column=3, sticky="ew")
+        server_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_metadata_debug())
+        ttk.Label(table_frame, text="Student Metadata Table").grid(row=1, column=0, sticky="w", pady=(0, 6))
+        self.metadata_tree = ttk.Treeview(
+            table_frame,
+            columns=tuple(key for key, _text, _width in METADATA_TABLE_COLUMNS),
+            show="headings",
+            height=18,
+        )
+        for key, text, width in METADATA_TABLE_COLUMNS:
+            self.metadata_tree.heading(key, text=text)
+            self.metadata_tree.column(key, width=width, anchor="w")
+        self.metadata_tree.grid(row=2, column=0, sticky="nsew")
+        self.metadata_tree.bind("<<TreeviewSelect>>", self._on_metadata_selected)
+        body.add(table_frame, weight=3)
+
+        detail_frame = ttk.Frame(body, padding=4)
+        detail_frame.columnconfigure(0, weight=1)
+        detail_frame.rowconfigure(1, weight=1)
+        ttk.Label(detail_frame, textvariable=self.detail_title_var).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.detail_tree = ttk.Treeview(detail_frame, columns=("field", "label", "value"), show="headings", height=18)
+        for key, text, width in (("field", "Field", 160), ("label", "Label", 180), ("value", "Value", 280)):
+            self.detail_tree.heading(key, text=text)
+            self.detail_tree.column(key, width=width, anchor="w")
+        self.detail_tree.grid(row=1, column=0, sticky="nsew")
+        body.add(detail_frame, weight=2)
+
     def _current_attribute_name(self) -> str:
         for field_name in ANALYTICS_FIELDS:
             if LABELS[field_name] == self.attribute_var.get():
@@ -732,12 +967,7 @@ class StudentMetaToolApp:
         except Exception as exc:
             messagebox.showerror("Save failed", str(exc))
             return
-        self.students = get_students()
-        self._refresh_field_options()
-        self._refresh_student_list()
-        self._refresh_attribute_value_options()
-        self._refresh_student_analysis()
-        self._load_student_into_form(student_id)
+        self._refresh_all_views(preserve_student_id=student_id)
         self.status_var.set(f"Saved: {student_id}")
         messagebox.showinfo("Saved", f"{student_id} saved successfully.")
 
@@ -756,20 +986,12 @@ class StudentMetaToolApp:
         except Exception as exc:
             messagebox.showerror("Delete failed", str(exc))
             return
-        self.students = get_students()
-        self._refresh_field_options()
-        self._refresh_student_list()
-        self._refresh_attribute_value_options()
-        self._refresh_student_analysis()
+        self._refresh_all_views()
         self._new_student()
         self.status_var.set(f"Deleted: {student_id}")
 
     def _reload_students(self) -> None:
-        self.students = get_students()
-        self._refresh_field_options()
-        self._refresh_student_list()
-        self._refresh_attribute_value_options()
-        self._refresh_student_analysis()
+        self._refresh_all_views(preserve_student_id=self.vars["student_id"].get().strip() or None)
         self.status_var.set("Reloaded from core.student_meta")
 
     def _on_attribute_changed(self, _event=None) -> None:
@@ -818,6 +1040,159 @@ class StudentMetaToolApp:
         )
         self._populate_tree(self.item_stats_tree, [(r["value"], r["count"], f"{float(r['percent']):.1f}%") for r in stats])
         self._populate_tree(self.item_tree, [(r["item"], r["current_qty"], r["plan_delta"], r["adjusted_qty"], "" if int(r["index"]) < 0 else r["index"]) for r in filtered])
+
+    def _refresh_all_views(self, *, preserve_student_id: str | None = None) -> None:
+        self.students = get_students()
+        self._refresh_field_options()
+        self._refresh_student_list()
+        self._refresh_attribute_value_options()
+        self._refresh_student_analysis()
+        self._refresh_metadata_debug(select_student_id=preserve_student_id)
+        if preserve_student_id and preserve_student_id in self.students:
+            self._load_student_into_form(preserve_student_id)
+        elif preserve_student_id is None:
+            self._new_student()
+
+    def _refresh_metadata_debug(self, *, select_student_id: str | None = None) -> None:
+        rows = build_metadata_table_rows(
+            self.students,
+            search_query=self.metadata_search_var.get(),
+            server_filter=self.metadata_server_filter_var.get(),
+        )
+        if self.metadata_tree is not None:
+            for item_id in self.metadata_tree.get_children():
+                self.metadata_tree.delete(item_id)
+            for row in rows:
+                item_id = str(row["student_id"])
+                values = tuple(row[key] for key, _text, _width in METADATA_TABLE_COLUMNS)
+                self.metadata_tree.insert("", "end", iid=item_id, values=values)
+
+        target_id = select_student_id
+        if target_id is None and self.metadata_tree is not None:
+            selection = self.metadata_tree.selection()
+            if selection:
+                target_id = selection[0]
+        if target_id and self.metadata_tree is not None and self.metadata_tree.exists(target_id):
+            self.metadata_tree.selection_set(target_id)
+            self.metadata_tree.focus(target_id)
+            self._populate_detail_for_student(target_id)
+        elif rows:
+            self._populate_detail_for_student(str(rows[0]["student_id"]))
+        else:
+            self.detail_title_var.set("No students match the current filter")
+            self._populate_tree(self.detail_tree, [])
+
+    def _populate_detail_for_student(self, student_id: str) -> None:
+        rows = build_metadata_detail_rows(student_id, self.students)
+        name = self.students.get(student_id, {}).get("display_name", "")
+        self.detail_title_var.set(f"{student_id} | {name}")
+        self._populate_tree(self.detail_tree, rows)
+
+    def _selected_metadata_student_id(self) -> str | None:
+        if self.metadata_tree is None:
+            return None
+        selection = self.metadata_tree.selection()
+        return selection[0] if selection else None
+
+    def _on_metadata_selected(self, _event=None) -> None:
+        student_id = self._selected_metadata_student_id()
+        if student_id:
+            self._populate_detail_for_student(student_id)
+
+    def _prefill_preview_from_selection(self) -> None:
+        student_id = self._selected_metadata_student_id() or self.vars["student_id"].get().strip()
+        if not student_id:
+            messagebox.showinfo("SchaleDB Preview", "Select a student from the table or editor first.")
+            return
+        self.preview_student_id_var.set(student_id)
+        self.preview_source_var.set(local_id_to_schale_path(student_id))
+        self.preview_mark_jp_only_var.set(student_id in get_jp_only_ids())
+        self._preview_schale_import()
+
+    def _preview_schale_import(self) -> None:
+        source = self.preview_source_var.get().strip()
+        if not source:
+            messagebox.showinfo("SchaleDB Preview", "Enter a SchaleDB URL or student slug first.")
+            return
+        try:
+            payload = build_student_meta_from_schale(
+                source,
+                existing_students=self.students,
+                preferred_student_id=self.preview_student_id_var.get().strip() or None,
+            )
+        except Exception as exc:
+            messagebox.showerror("SchaleDB Preview Failed", str(exc))
+            return
+
+        self.preview_payload = payload
+        resolved_student_id = str(payload["student_id"])
+        is_new = bool(payload["is_new"])
+        slug = str(payload["slug"])
+        changed = len(payload["changed_fields"])
+        try:
+            parsed_slug = parse_student_source(source)
+        except Exception:
+            parsed_slug = slug
+        self.preview_source_var.set(parsed_slug)
+        self.preview_student_id_var.set(resolved_student_id)
+        if is_new and resolved_student_id not in get_jp_only_ids():
+            self.preview_mark_jp_only_var.set(True)
+        current_meta = payload["current_meta"]
+        next_meta = payload["meta"]
+        self.preview_summary_var.set(
+            f"Preview ready: slug={slug}  local_id={resolved_student_id}  "
+            f"{'new student' if is_new else 'existing student'}  changed_fields={changed}"
+        )
+        self._populate_tree(self.preview_tree, build_preview_diff_rows(current_meta, next_meta))
+
+    def _apply_preview_to_editor(self) -> None:
+        if not self.preview_payload:
+            messagebox.showinfo("Load Preview", "Preview a SchaleDB student first.")
+            return
+        student_id = str(self.preview_payload["student_id"])
+        meta = dict(self.preview_payload["meta"])
+        self.selected_student_id = None
+        self._clear_form()
+        self.vars["student_id"].set(student_id)
+        for field_name, value in meta.items():
+            if field_name in self.vars:
+                self.vars[field_name].set(_display(field_name, value))
+        self.status_var.set(f"Preview loaded into editor: {student_id}")
+
+    def _save_preview_to_db(self) -> None:
+        if not self.preview_payload:
+            self._preview_schale_import()
+            if not self.preview_payload:
+                return
+        student_id = str(self.preview_payload["student_id"])
+        meta = dict(self.preview_payload["meta"])
+        try:
+            upsert_student(student_id, meta)
+            set_jp_only(student_id, self.preview_mark_jp_only_var.get())
+        except Exception as exc:
+            messagebox.showerror("Import Failed", str(exc))
+            return
+        self.preview_summary_var.set(f"Saved {student_id} from SchaleDB.")
+        self._refresh_all_views(preserve_student_id=student_id)
+        messagebox.showinfo("Imported", f"{student_id} saved successfully.")
+
+    def _set_selected_server_state(self, jp_only: bool) -> None:
+        student_id = self._selected_metadata_student_id() or self.vars["student_id"].get().strip()
+        if not student_id:
+            messagebox.showinfo("Server State", "Select a student from the table or editor first.")
+            return
+        if student_id not in self.students:
+            messagebox.showinfo("Server State", f"Student does not exist: {student_id}")
+            return
+        try:
+            set_jp_only(student_id, jp_only)
+        except Exception as exc:
+            messagebox.showerror("Server State Failed", str(exc))
+            return
+        self.preview_mark_jp_only_var.set(jp_only)
+        self._refresh_all_views(preserve_student_id=student_id)
+        label = "JP-only" if jp_only else "KR"
+        self.status_var.set(f"Server state updated: {student_id} -> {label}")
 
     def run(self) -> int:
         self.root.mainloop()

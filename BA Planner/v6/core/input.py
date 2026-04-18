@@ -55,6 +55,7 @@ WHEEL_DELTA    = 120        # Windows 표준 휠 단위
 SW_RESTORE     = 9
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP   = 0x0004
+MOUSEEVENTF_WHEEL    = 0x0800
 INPUT_MOUSE          = 0
 
 # ── Win32 API ─────────────────────────────────────────────
@@ -212,6 +213,16 @@ def _post_scroll(hwnd: int, cx: int, cy: int, delta_clicks: int) -> bool:
     return bool(_u32.PostMessageW(hwnd, WM_MOUSEWHEEL, wp, lp))
 
 
+def _post_scroll_delta(hwnd: int, cx: int, cy: int, wheel_delta: int) -> bool:
+    """
+    Send WM_MOUSEWHEEL with a raw wheel delta instead of click units.
+    Useful for testing sub-notch values such as -30 or -60.
+    """
+    wp = (int(wheel_delta) & 0xFFFF) << 16
+    lp = _make_lparam(cx, cy)
+    return bool(_u32.PostMessageW(hwnd, WM_MOUSEWHEEL, wp, lp))
+
+
 # ══════════════════════════════════════════════════════════
 # pyautogui fallback
 # ══════════════════════════════════════════════════════════
@@ -253,6 +264,16 @@ def _mouse_event_click(sx: int, sy: int) -> bool:
         return False
 
 
+def _mouse_event_wheel(sx: int, sy: int, wheel_delta: int) -> bool:
+    try:
+        _u32.SetCursorPos(int(sx), int(sy))
+        _u32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, int(wheel_delta), 0)
+        return True
+    except Exception as e:
+        _log.warning(f"mouse_event wheel failed: {e}")
+        return False
+
+
 def _sendinput_click(sx: int, sy: int) -> bool:
     try:
         _u32.SetCursorPos(int(sx), int(sy))
@@ -277,6 +298,33 @@ def _pag_scroll(sx: int, sy: int, amount: int) -> bool:
         return True
     except Exception as e:
         _log.warning(f"pyautogui scroll 실패: {e}")
+        return False
+
+
+def _pag_drag_scroll(
+    start_sx: int,
+    start_sy: int,
+    end_sx: int,
+    end_sy: int,
+    *,
+    duration: float = 0.14,
+) -> bool:
+    if not HAS_PAG:
+        return False
+    try:
+        _pag.moveTo(start_sx, start_sy, duration=0.06)
+        _pag.mouseDown()
+        time.sleep(0.03)
+        _pag.moveTo(end_sx, end_sy, duration=duration)
+        time.sleep(0.03)
+        _pag.mouseUp()
+        return True
+    except Exception as e:
+        try:
+            _pag.mouseUp()
+        except Exception:
+            pass
+        _log.warning(f"pyautogui drag scroll failed: {e}")
         return False
 
 
@@ -526,11 +574,25 @@ def scroll(
     delay  : 스크롤 후 대기 시간 (초)
     """
     cx, cy = ratio_to_client(rect, rx, ry)
-    _move_cursor_to_client(hwnd, cx, cy)
-    ok = _post_scroll(hwnd, cx, cy, amount)
-    _log.debug(
-        f"postmessage scroll client=({cx},{cy}) amount={amount} ok={ok}"
-    )
+    screen = client_to_screen(hwnd, cx, cy)
+    ok = False
+    if bool(screen) and _can_use_physical_fallback(hwnd):
+        if not _is_foreground_window(hwnd):
+            activated = _activate_window(hwnd)
+            _log.debug(f"activate before scroll ok={activated}")
+            time.sleep(0.05)
+        if _is_foreground_window(hwnd):
+            ok = _pag_scroll(screen[0], screen[1], amount)
+            _log.debug(
+                f"physical scroll primary screen=({screen[0]},{screen[1]}) amount={amount} ok={ok}"
+            )
+
+    if not ok:
+        _move_cursor_to_client(hwnd, cx, cy)
+        ok = _post_scroll(hwnd, cx, cy, amount)
+        _log.debug(
+            f"postmessage scroll fallback client=({cx},{cy}) amount={amount} ok={ok}"
+        )
 
     if delay > 0:
         time.sleep(delay)
@@ -542,6 +604,82 @@ def scroll(
 # (capture.py 에서 이전된 함수 시그니처 그대로 유지)
 # scanner.py / 기타가 수정 없이 동작하도록
 # ══════════════════════════════════════════════════════════
+
+def scroll_raw_delta(
+    hwnd: int,
+    rect: tuple[int, int, int, int],
+    rx: float,
+    ry: float,
+    wheel_delta: int,
+    *,
+    delay: float = 0.30,
+) -> bool:
+    cx, cy = ratio_to_client(rect, rx, ry)
+    screen = client_to_screen(hwnd, cx, cy)
+    ok = False
+    if bool(screen) and _can_use_physical_fallback(hwnd):
+        if not _is_foreground_window(hwnd):
+            activated = _activate_window(hwnd)
+            _log.debug(f"activate before raw scroll ok={activated}")
+            time.sleep(0.05)
+        if _is_foreground_window(hwnd):
+            ok = _mouse_event_wheel(screen[0], screen[1], wheel_delta)
+            _log.debug(
+                f"physical raw scroll screen=({screen[0]},{screen[1]}) "
+                f"wheel_delta={wheel_delta} ok={ok}"
+            )
+
+    if not ok:
+        _move_cursor_to_client(hwnd, cx, cy)
+        ok = _post_scroll_delta(hwnd, cx, cy, wheel_delta)
+        _log.debug(
+            f"postmessage raw scroll client=({cx},{cy}) wheel_delta={wheel_delta} ok={ok}"
+        )
+    if delay > 0:
+        time.sleep(delay)
+    return ok
+
+
+def drag_scroll(
+    hwnd: int,
+    rect: tuple[int, int, int, int],
+    rx: float,
+    start_ry: float,
+    end_ry: float,
+    *,
+    delay: float = 0.35,
+    duration: float = 0.14,
+) -> bool:
+    start_cx, start_cy = ratio_to_client(rect, rx, start_ry)
+    end_cx, end_cy = ratio_to_client(rect, rx, end_ry)
+    start_screen = client_to_screen(hwnd, start_cx, start_cy)
+    end_screen = client_to_screen(hwnd, end_cx, end_cy)
+    ok = False
+
+    if bool(start_screen) and bool(end_screen) and _can_use_physical_fallback(hwnd):
+        if not _is_foreground_window(hwnd):
+            activated = _activate_window(hwnd)
+            _log.debug(f"activate before drag scroll ok={activated}")
+            time.sleep(0.05)
+        if _is_foreground_window(hwnd):
+            ok = _pag_drag_scroll(
+                start_screen[0],
+                start_screen[1],
+                end_screen[0],
+                end_screen[1],
+                duration=duration,
+            )
+            _log.debug(
+                "physical drag scroll "
+                f"start=({start_screen[0]},{start_screen[1]}) "
+                f"end=({end_screen[0]},{end_screen[1]}) "
+                f"delta_y={end_cy - start_cy} ok={ok}"
+            )
+
+    if delay > 0:
+        time.sleep(delay)
+    return ok
+
 
 def _get_hwnd() -> int:
     """등록된 HWND 반환. 미등록 시 0."""
@@ -596,20 +734,60 @@ def scroll_at(
     rx: float,
     ry: float,
     amount: int = -3,
-) -> None:
+) -> bool:
     """하위 호환 — capture.py scroll_at() 대체."""
     hwnd = _get_hwnd()
     if hwnd:
-        scroll(hwnd, rect, rx, ry, amount)
-        return
+        return scroll(hwnd, rect, rx, ry, amount)
 
     # HWND 없으면 pyautogui
     if HAS_PAG:
         l, t, w, h = rect
         sx = int(l + w * rx)
         sy = int(t + h * ry)
-        _pag_scroll(sx, sy, amount)
+        ok = _pag_scroll(sx, sy, amount)
         time.sleep(0.30)
+        return ok
+    return False
+
+
+def drag_scroll_at(
+    rect: tuple[int, int, int, int],
+    rx: float,
+    start_ry: float,
+    end_ry: float,
+    *,
+    delay: float = 0.35,
+    duration: float = 0.14,
+) -> bool:
+    hwnd = _get_hwnd()
+    if hwnd:
+        return drag_scroll(
+            hwnd,
+            rect,
+            rx,
+            start_ry,
+            end_ry,
+            delay=delay,
+            duration=duration,
+        )
+
+    if HAS_PAG:
+        l, t, w, h = rect
+        start_sx = int(l + w * rx)
+        end_sx = start_sx
+        start_sy = int(t + h * start_ry)
+        end_sy = int(t + h * end_ry)
+        ok = _pag_drag_scroll(
+            start_sx,
+            start_sy,
+            end_sx,
+            end_sy,
+            duration=duration,
+        )
+        time.sleep(delay)
+        return ok
+    return False
 
 
 def press_esc() -> None:
