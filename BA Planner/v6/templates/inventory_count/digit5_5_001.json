@@ -1,0 +1,70 @@
+﻿{
+    "name":  "digit5_5",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  1110,
+                              "y":  1035
+                          },
+                          {
+                              "x":  1128,
+                              "y":  1035
+                          },
+                          {
+                              "x":  1120,
+                              "y":  1066
+                          },
+                          {
+                              "x":  1102,
+                              "y":  1066
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  1110,
+                              "y":  1035
+                          },
+                          {
+                              "x":  1128,
+                              "y":  1035
+                          },
+                          {
+                              "x":  1120,
+                              "y":  1066
+                          },
+                          {
+                              "x":  1102,
+                              "y":  1066
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.433594,
+                             "y":  0.71875
+                         },
+                         {
+                             "x":  0.440625,
+                             "y":  0.71875
+                         },
+                         {
+                             "x":  0.4375,
+                             "y":  0.740278
+                         },
+                         {
+                             "x":  0.430469,
+                             "y":  0.740278
+                         }
+                     ],
+    "shape":  "parallelogram",
+    "captured_at":  "2026-04-18T18:55:05",
+    "output_size":  {
+                        "width":  18,
+                        "height":  32
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_count\\digit5_5_001.png"
+}

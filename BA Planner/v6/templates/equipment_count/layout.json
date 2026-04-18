@@ -1,0 +1,46 @@
+{
+  "digit_groups": [
+    {
+      "group_id": "eq_large_1_4",
+      "template_region": "eq_digit2_2",
+      "base_region": "eq_large_digit_base",
+      "step": {
+        "x": 28,
+        "y": 0
+      },
+      "starts": {
+        "1": {
+          "x": 1163,
+          "y": 1200
+        },
+        "2": {
+          "x": 1149,
+          "y": 1200
+        },
+        "3": {
+          "x": 1135,
+          "y": 1200
+        },
+        "4": {
+          "x": 1122,
+          "y": 1200
+        }
+      }
+    },
+    {
+      "group_id": "eq_small_5_6",
+      "template_region": "eq_digit5_5",
+      "base_region": "eq_small_digit_base",
+      "step": {
+        "x": 23,
+        "y": 0
+      },
+      "starts": {
+        "5": {
+          "x": 1114,
+          "y": 1200
+        }
+      }
+    }
+  ]
+}

@@ -44,6 +44,8 @@ PANEL_H = 620
 POINT_CAPTURE_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 REGION_CAPTURE_DIR = BASE_DIR / "debug" / "region_captures"
 INVENTORY_DETAIL_TEMPLATE_DIR = BASE_DIR / "templates" / "inventory_detail"
+INVENTORY_COUNT_TEMPLATE_DIR = BASE_DIR / "templates" / "inventory_count"
+EQUIPMENT_COUNT_TEMPLATE_DIR = BASE_DIR / "templates" / "equipment_count"
 DEFAULT_CAPTURE_NAME = "skill_close_button"
 DEFAULT_REGION_CAPTURE_NAME = "debug_region"
 PRESET_CAPTURE_NAMES = (
@@ -58,6 +60,17 @@ REGION_TEMPLATE_PROFILE_OPTIONS = (
     ("tactical_bd", "Tactical BD"),
     ("activity_reports", "Reports"),
     ("ooparts", "OOParts"),
+    ("equipment", "Equipment"),
+    ("digit2_2", "Digit 2_2"),
+    ("digit5_5", "Digit 5_5"),
+    ("eq_digit1", "Equip Digit 1"),
+    ("eq_digit2_2", "Equip Digit 2_2"),
+    ("eq_digit5_5", "Equip Digit 5_5"),
+    ("e_x_digit1", "Equip X 1"),
+    ("e_x_digit2", "Equip X 2"),
+    ("e_x_digit3", "Equip X 3"),
+    ("e_x_digit4", "Equip X 4"),
+    ("e_x_digit5", "Equip X 5"),
 )
 
 _log = get_logger(LOG_APP)
@@ -464,8 +477,8 @@ class InputTestOverlay(tk.Toplevel):
         self._countdown_text = tk.StringVar(value="No pending action")
         self._scroll_amount = tk.StringVar(value="-360")
         self._scroll_delta = tk.StringVar(value="-30")
-        self._drag_delta_y = tk.StringVar(value="-160")
-        self._drag_duration = tk.StringVar(value="0.14")
+        self._drag_delta_y = tk.StringVar(value="-1000")
+        self._drag_duration = tk.StringVar(value="0.50")
         self._drag_coord_mode = tk.StringVar(value="client")
         self._drag_coord_x = tk.StringVar(value="")
         self._drag_coord_y = tk.StringVar(value="")
@@ -1493,19 +1506,33 @@ class InputTestOverlay(tk.Toplevel):
         if not profile_id:
             self._status_text.set("Select a profile first.")
             return
-        base = INVENTORY_DETAIL_TEMPLATE_DIR / profile_id
-        if not base.exists():
-            self._status_text.set(f"Template folder not found: {profile_id}")
-            return
-
         payload = None
-        for json_path in sorted(base.glob("*.json")):
+
+        count_region_path = INVENTORY_COUNT_TEMPLATE_DIR / f"{profile_id}.region.json"
+        equipment_count_region_path = EQUIPMENT_COUNT_TEMPLATE_DIR / f"{profile_id}.region.json"
+        if count_region_path.exists():
             try:
-                payload = json.loads(json_path.read_text(encoding="utf-8-sig"))
+                payload = json.loads(count_region_path.read_text(encoding="utf-8-sig"))
             except Exception:
-                continue
-            if payload:
-                break
+                payload = None
+        elif equipment_count_region_path.exists():
+            try:
+                payload = json.loads(equipment_count_region_path.read_text(encoding="utf-8-sig"))
+            except Exception:
+                payload = None
+        else:
+            base = INVENTORY_DETAIL_TEMPLATE_DIR / profile_id
+            if not base.exists():
+                self._status_text.set(f"Template folder not found: {profile_id}")
+                return
+
+            for json_path in sorted(base.glob("*.json")):
+                try:
+                    payload = json.loads(json_path.read_text(encoding="utf-8-sig"))
+                except Exception:
+                    continue
+                if payload:
+                    break
         if not payload:
             self._status_text.set(f"No region json found for {profile_id}.")
             return

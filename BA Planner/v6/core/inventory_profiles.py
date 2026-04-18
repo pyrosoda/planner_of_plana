@@ -2,6 +2,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from core.equipment_items import (
+    EQUIPMENT_ITEM_ID_TO_NAME,
+    EQUIPMENT_ORDERED_ITEM_IDS,
+    EQUIPMENT_SERIES_BY_KEY,
+    EQUIPMENT_EXP_ITEMS,
+    WEAPON_PART_ITEMS,
+    build_equipment_aliases,
+    equipment_ordered_names,
+)
+from core.oparts import (
+    OPART_ITEM_ID_TO_NAME,
+    OPART_ORDERED_ITEM_IDS,
+    OPART_ORDERED_NAMES,
+    OPART_TIER_GROUPS,
+    OPART_WB_NAMES,
+    build_opart_aliases,
+)
+
 
 _SCHOOL_ORDER = (
     "백귀야행",
@@ -38,62 +56,7 @@ _TIER_LABELS = {
     "3": "최상급",
 }
 
-def _object_opart_variants(base: str, *, first_suffix: str = "조각") -> tuple[str, str, str, str]:
-    return (
-        f"{base} {first_suffix}",
-        f"파손된 {base}",
-        f"마모된 {base}",
-        f"온전한 {base}",
-    )
-
-
-_OOPART_GROUPS = (
-    _object_opart_variants("네브라 디스크"),
-    _object_opart_variants("파에스트스 원반"),
-    _object_opart_variants("볼프세크 강철"),
-    _object_opart_variants("님루드 렌즈"),
-    _object_opart_variants("만드라고라 농축액"),
-    _object_opart_variants("로혼치 사본"),
-    ("에테르 가루", "에테르 조각", "에테르 결정", "에테르 정수"),
-    _object_opart_variants("안티키테라 장치"),
-    _object_opart_variants("보이니치 사본"),
-    _object_opart_variants("수정 하니와", first_suffix="파편"),
-    _object_opart_variants("토템폴"),
-    _object_opart_variants("고대 전지"),
-    _object_opart_variants("황금 양모"),
-    _object_opart_variants("머리가 자라는 인형"),
-    _object_opart_variants("디스코 콜간테"),
-    _object_opart_variants("아틀란티스 메달"),
-    _object_opart_variants("로마 12면체"),
-    _object_opart_variants("킴바야 유물"),
-    _object_opart_variants("이스탄불 로켓"),
-    _object_opart_variants("위니페소키 스톤"),
-)
-
-_OOPART_WB_NAMES = ("교양 체육 WB", "교양 사격 WB", "교양 위생 WB")
-
-
-def _build_opart_aliases() -> dict[str, str]:
-    aliases: dict[str, str] = {}
-    short_forms = (
-        ("로혼치", "로혼치 사본", "조각"),
-        ("안티키테라", "안티키테라 장치", "조각"),
-        ("보이니치", "보이니치 사본", "조각"),
-        ("하니와", "수정 하니와", "파편"),
-        ("전지", "고대 전지", "조각"),
-        ("양털", "황금 양모", "조각"),
-        ("인형", "머리가 자라는 인형", "조각"),
-        ("콜간테", "디스코 콜간테", "조각"),
-        ("로마", "로마 12면체", "조각"),
-        ("킴바야", "킴바야 유물", "조각"),
-        ("이스탄불", "이스탄불 로켓", "조각"),
-    )
-    for short_name, full_name, first_suffix in short_forms:
-        short_variants = _object_opart_variants(short_name, first_suffix=first_suffix)
-        full_variants = _object_opart_variants(full_name, first_suffix=first_suffix)
-        aliases.update(dict(zip(short_variants, full_variants)))
-    return aliases
-
+_OOPART_GROUPS = OPART_TIER_GROUPS
 
 _ALIASES = {
     "붉은겨올": "붉은겨울",
@@ -116,7 +79,7 @@ _ALIASES = {
     "상급전술교육bd": "상급 전술 교육 bd",
     "최상급전술교육bd": "최상급 전술 교육 bd",
     "교약위생wb": "교양 위생 wb",
-} | _build_opart_aliases()
+} | build_opart_aliases() | build_equipment_aliases()
 
 
 def _tech_note_names() -> list[str]:
@@ -148,9 +111,15 @@ def _tactical_bd_names() -> list[str]:
     return ordered
 
 def _ooparts_ordered_names() -> list[str]:
-    ordered = [name for group in _OOPART_GROUPS for name in group]
-    ordered.extend(_OOPART_WB_NAMES)
-    return ordered
+    return list(OPART_ORDERED_NAMES)
+
+
+def _equipment_names() -> list[str]:
+    return equipment_ordered_names()
+
+
+def _equipment_ordered_item_ids() -> list[str]:
+    return list(EQUIPMENT_ORDERED_ITEM_IDS)
 
 _COIN_NAMES = [
     "총력전 코인",
@@ -215,7 +184,17 @@ _PROFILES = {
         profile_id="ooparts",
         source="item",
         ordered_names=tuple(_ooparts_ordered_names()),
-        terminal_names=frozenset({"교양 위생 WB"}),
+        terminal_names=frozenset({OPART_WB_NAMES[-1]}),
+        expected_item_ids=frozenset(OPART_ORDERED_ITEM_IDS),
+        terminal_item_ids=frozenset({OPART_ORDERED_ITEM_IDS[-1]}),
+    ),
+    "equipment": InventoryScanProfile(
+        profile_id="equipment",
+        source="equipment",
+        ordered_names=tuple(_equipment_names()),
+        terminal_names=frozenset({"스프링 T1"}),
+        expected_item_ids=frozenset(EQUIPMENT_ORDERED_ITEM_IDS),
+        terminal_item_ids=frozenset({"Equipment_Icon_WeaponExpGrowthA_0"}),
     ),
     "coins": InventoryScanProfile(
         profile_id="coins",
@@ -236,6 +215,7 @@ _PROFILE_LABELS = {
     "tech_notes": "기술 노트",
     "tactical_bd": "전술 교육 BD",
     "ooparts": "오파츠",
+    "equipment": "장비",
     "coins": "코인",
     "activity_reports": "활동 보고서",
 }
@@ -250,7 +230,7 @@ def _compact(text: str | None) -> str:
     out = out.replace(" ", "")
     out = out.replace("bd", "bd")
     out = out.replace("wb", "wb")
-    for wrong, right in _ALIASES.items():
+    for wrong, right in sorted(_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
         out = out.replace(wrong.lower().replace(" ", ""), right.lower().replace(" ", ""))
     return out
 
@@ -310,6 +290,29 @@ def inventory_item_display_name(item_id: str | None) -> str | None:
         if school_label and tier_label:
             return f"{tier_label} 전술 교육 BD ({school_label})"
 
+    if item_id.startswith("Equipment_Icon_Exp_"):
+        return EQUIPMENT_ITEM_ID_TO_NAME.get(item_id)
+
+    if item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+        suffix = item_id.removeprefix("Equipment_Icon_WeaponExpGrowth")
+        part_key, _, tier_key = suffix.rpartition("_")
+        part_label = dict(WEAPON_PART_ITEMS).get(part_key)
+        if part_label and tier_key.isdigit():
+            return f"{part_label} T{int(tier_key) + 1}"
+
+    if item_id.startswith("Equipment_Icon_") and "_Tier" in item_id:
+        suffix = item_id.removeprefix("Equipment_Icon_")
+        slot_key, _, tier_key = suffix.partition("_Tier")
+        series = EQUIPMENT_SERIES_BY_KEY.get(slot_key)
+        if series and tier_key.isdigit():
+            tier = int(tier_key)
+            if 1 <= tier <= len(series.tier_names):
+                return series.tier_names[tier - 1]
+
+    opart_name = OPART_ITEM_ID_TO_NAME.get(item_id)
+    if opart_name:
+        return opart_name
+
     return None
 
 
@@ -343,6 +346,12 @@ def inventory_profile_ordered_item_ids(profile: InventoryScanProfile) -> tuple[s
                 ordered.append(f"Item_Icon_Material_ExSkill_{school_key}_{tier}")
         return tuple(ordered)
 
+    if profile.profile_id == "ooparts":
+        return tuple(OPART_ORDERED_ITEM_IDS)
+
+    if profile.profile_id == "equipment":
+        return tuple(_equipment_ordered_item_ids())
+
     return tuple(None for _ in profile.ordered_names)
 
 
@@ -363,7 +372,16 @@ def infer_inventory_scan_profile(
     item_ids: list[str],
     raw_names: list[str] | None = None,
 ) -> InventoryScanProfile | None:
-    if source != "item":
+    if source == "equipment":
+        equipment_profile = _PROFILES["equipment"]
+        equipment_hits = [
+            item_id
+            for item_id in item_ids
+            if item_id in equipment_profile.expected_item_ids or item_id.startswith("Equipment_Icon_")
+        ]
+        if len(equipment_hits) >= 4 and len(equipment_hits) >= max(4, int(len(item_ids) * 0.5)):
+            return equipment_profile
+    elif source != "item":
         return None
 
     if item_ids:

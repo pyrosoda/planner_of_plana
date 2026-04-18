@@ -1,0 +1,70 @@
+﻿{
+    "name":  "eq_digit2_2",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  1177,
+                              "y":  1200
+                          },
+                          {
+                              "x":  1200,
+                              "y":  1200
+                          },
+                          {
+                              "x":  1189,
+                              "y":  1237
+                          },
+                          {
+                              "x":  1166,
+                              "y":  1237
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  1177,
+                              "y":  1200
+                          },
+                          {
+                              "x":  1200,
+                              "y":  1200
+                          },
+                          {
+                              "x":  1189,
+                              "y":  1237
+                          },
+                          {
+                              "x":  1166,
+                              "y":  1237
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.459766,
+                             "y":  0.833333
+                         },
+                         {
+                             "x":  0.46875,
+                             "y":  0.833333
+                         },
+                         {
+                             "x":  0.464453,
+                             "y":  0.859028
+                         },
+                         {
+                             "x":  0.455469,
+                             "y":  0.859028
+                         }
+                     ],
+    "shape":  "parallelogram",
+    "captured_at":  "2026-04-18T19:24:17",
+    "output_size":  {
+                        "width":  23,
+                        "height":  39
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\equipment_count\\eq_digit2_2_007.png"
+}

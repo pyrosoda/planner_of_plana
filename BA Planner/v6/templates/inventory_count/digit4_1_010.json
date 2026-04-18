@@ -1,0 +1,69 @@
+﻿{
+    "name":  "digit4_1",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  1109,
+                              "y":  1034
+                          },
+                          {
+                              "x":  1132,
+                              "y":  1034
+                          },
+                          {
+                              "x":  1121,
+                              "y":  1070
+                          },
+                          {
+                              "x":  1098,
+                              "y":  1070
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  1109,
+                              "y":  1034
+                          },
+                          {
+                              "x":  1132,
+                              "y":  1034
+                          },
+                          {
+                              "x":  1121,
+                              "y":  1070
+                          },
+                          {
+                              "x":  1098,
+                              "y":  1070
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.433203,
+                             "y":  0.718056
+                         },
+                         {
+                             "x":  0.442188,
+                             "y":  0.718056
+                         },
+                         {
+                             "x":  0.437891,
+                             "y":  0.743056
+                         },
+                         {
+                             "x":  0.428906,
+                             "y":  0.743056
+                         }
+                     ],
+    "captured_at":  "2026-04-18T00:38:24",
+    "output_size":  {
+                        "width":  23,
+                        "height":  38
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_count\\digit4_1_010.png"
+}

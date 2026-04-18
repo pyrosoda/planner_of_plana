@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from core.oparts import OPART_FAMILY_NAMES_EN
+
 
 # Add new dropdown options here.
 # The editor combines these values with values already present in core.student_meta.
@@ -60,28 +62,7 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "Elastic",
         "Composite",
     ),
-    "growth_material_main": (
-        "Nebra Disk",
-        "Phaistos Disc",
-        "Wolfsegg Steel",
-        "Nimrud Lens",
-        "Madrake Extract",
-        "Rohonc Codex",
-        "Aether Essence",
-        "Antikythera Mechanism",
-        "Voynich Manuscript",
-        "Crystal Haniwa",
-        "Totem Pole",
-        "Ancient Battery",
-        "Golden Fleece",
-        "Okiku Doll",
-        "Disco Colgante",
-        "Atlantis Medal",
-        "Roman Dodecahedron",
-        "Quimbaya Relic",
-        "Istanbul Rocket",
-        "Mystery Stone",
-    ),
+    "growth_material_main": OPART_FAMILY_NAMES_EN,
     "growth_material_sub": (),
     "equipment_slot_1": (
         "Gloves",

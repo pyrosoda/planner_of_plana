@@ -100,6 +100,28 @@ def init_db(path: Path | None = None) -> None:
             scan_id      TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS inventory_current (
+            item_key      TEXT PRIMARY KEY,
+            item_id       TEXT,
+            name          TEXT,
+            quantity      TEXT,
+            item_index    INTEGER,
+            item_source   TEXT,
+            last_seen_at  TEXT,
+            last_scan_id  TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS inventory_history (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_key      TEXT NOT NULL,
+            item_id       TEXT,
+            name          TEXT,
+            old_quantity  TEXT,
+            new_quantity  TEXT,
+            changed_at    TEXT NOT NULL,
+            scan_id       TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_items_scan
             ON items(scan_id);
         CREATE INDEX IF NOT EXISTS idx_equip_items_scan
@@ -108,6 +130,10 @@ def init_db(path: Path | None = None) -> None:
             ON student_history(student_id);
         CREATE INDEX IF NOT EXISTS idx_history_scan
             ON student_history(scan_id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_history_item
+            ON inventory_history(item_key);
+        CREATE INDEX IF NOT EXISTS idx_inventory_history_scan
+            ON inventory_history(scan_id);
         """
         )
     conn.close()

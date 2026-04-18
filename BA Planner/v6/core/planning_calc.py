@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
+from core.equipment_items import EQUIPMENT_SERIES_BY_KEY
 from core.planning import GrowthPlan, StudentGoal
 from core import student_meta
 
@@ -353,7 +354,12 @@ def _school_material_label(school_name: str | None, family: str, tier: int) -> s
     return f"{school} {family} T{tier}"
 
 
-def _equipment_material_label(tier: int) -> str:
+def _equipment_material_label(slot_name: str | None, tier: int) -> str:
+    series = EQUIPMENT_SERIES_BY_KEY.get(slot_name or "")
+    if series and 1 <= tier <= len(series.tier_names):
+        return series.tier_names[tier - 1]
+    if slot_name:
+        return f"{slot_name} T{tier}"
     return f"Equipment T{tier}"
 
 
@@ -579,7 +585,13 @@ def _minimum_equipment_tier_for_level(target_level: int) -> int:
     return max(_EQUIPMENT_TIER_MAX_LEVEL)
 
 
-def _calculate_single_equipment_cost(current_tier: int, current_level: int, target_tier: int, target_level: int) -> tuple[int, int, dict[str, int]]:
+def _calculate_single_equipment_cost(
+    slot_name: str | None,
+    current_tier: int,
+    current_level: int,
+    target_tier: int,
+    target_level: int,
+) -> tuple[int, int, dict[str, int]]:
     current = min(max(current_tier, 0), 10)
     effective_target_level = min(max(target_level, current_level), _EQUIPMENT_TIER_MAX_LEVEL[10])
     required_tier = _minimum_equipment_tier_for_level(effective_target_level)
@@ -620,7 +632,7 @@ def _calculate_single_equipment_cost(current_tier: int, current_level: int, targ
     for offset, target_amount in enumerate(target_materials, start=2):
         current_amount = current_materials[offset - 2] if offset - 2 < len(current_materials) else 0
         if target_amount > current_amount:
-            materials[_equipment_material_label(offset)] = target_amount - current_amount
+            materials[_equipment_material_label(slot_name, offset)] = target_amount - current_amount
 
     return credits, equipment_exp, materials
 
@@ -714,16 +726,19 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     summary.credits += star_credits
     summary.star_materials = star_materials
 
-    for equip_slot, equip_level_field, goal_target, goal_target_level in (
+    slot_names = student_meta.equipment_slots(getattr(record, "student_id", "")) if getattr(record, "student_id", None) else (None, None, None)
+    for slot_index, (equip_slot, equip_level_field, goal_target, goal_target_level) in enumerate((
         ("equip1", "equip1_level", goal.target_equip1_tier, goal.target_equip1_level),
         ("equip2", "equip2_level", goal.target_equip2_tier, goal.target_equip2_level),
         ("equip3", "equip3_level", goal.target_equip3_tier, goal.target_equip3_level),
-    ):
+    )):
+        slot_name = slot_names[slot_index] if slot_index < len(slot_names) else None
         current_tier = _parse_tier_number(getattr(record, equip_slot, None))
         target_tier = max(current_tier, _safe_int(goal_target, current_tier))
         current_equip_level = _equipment_current_level(current_tier, getattr(record, equip_level_field, 0))
         target_equip_level = max(current_equip_level, _safe_int(goal_target_level, current_equip_level))
         equip_credits, equip_exp, equip_materials = _calculate_single_equipment_cost(
+            slot_name,
             current_tier,
             current_equip_level,
             target_tier,

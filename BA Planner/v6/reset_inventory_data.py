@@ -1,11 +1,16 @@
 """
 Inventory-only reset utility.
 
-This script clears the saved inventory snapshot while preserving:
+This script clears the saved inventory data while preserving:
   - student data
   - growth plans
   - raw scan files
   - app settings and assets
+
+It resets:
+  - current inventory snapshot JSON
+  - inventory change history JSON
+  - per-profile DB inventory tables
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ def reset_inventory_data() -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Clear only the saved inventory snapshot and inventory history."
+        description="Clear saved inventory JSON snapshots/history and per-profile DB inventory tables."
     )
     parser.add_argument(
         "--yes",

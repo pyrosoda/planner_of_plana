@@ -1,69 +1,70 @@
-{
-  "name": "digit2_2",
-  "window_rect": {
-    "left": 0,
-    "top": 0,
-    "width": 2560,
-    "height": 1440
-  },
-  "points_screen": [
-    {
-      "x": 1080,
-      "y": 1033
-    },
-    {
-      "x": 1104,
-      "y": 1033
-    },
-    {
-      "x": 1094,
-      "y": 1070
-    },
-    {
-      "x": 1070,
-      "y": 1070
-    }
-  ],
-  "points_client": [
-    {
-      "x": 1080,
-      "y": 1033
-    },
-    {
-      "x": 1104,
-      "y": 1033
-    },
-    {
-      "x": 1094,
-      "y": 1070
-    },
-    {
-      "x": 1070,
-      "y": 1070
-    }
-  ],
-  "points_ratio": [
-    {
-      "x": 0.421875,
-      "y": 0.717361
-    },
-    {
-      "x": 0.43125,
-      "y": 0.717361
-    },
-    {
-      "x": 0.427344,
-      "y": 0.743056
-    },
-    {
-      "x": 0.417969,
-      "y": 0.743056
-    }
-  ],
-  "captured_at": "2026-04-18T00:22:28",
-  "output_size": {
-    "width": 24,
-    "height": 38
-  },
-  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\debug\\region_captures\\digit2_2_002.png"
+﻿{
+    "name":  "digit2_2",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  1175,
+                              "y":  1199
+                          },
+                          {
+                              "x":  1198,
+                              "y":  1199
+                          },
+                          {
+                              "x":  1189,
+                              "y":  1236
+                          },
+                          {
+                              "x":  1166,
+                              "y":  1236
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  1175,
+                              "y":  1199
+                          },
+                          {
+                              "x":  1198,
+                              "y":  1199
+                          },
+                          {
+                              "x":  1189,
+                              "y":  1236
+                          },
+                          {
+                              "x":  1166,
+                              "y":  1236
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.458984,
+                             "y":  0.832639
+                         },
+                         {
+                             "x":  0.467969,
+                             "y":  0.832639
+                         },
+                         {
+                             "x":  0.464453,
+                             "y":  0.858333
+                         },
+                         {
+                             "x":  0.455469,
+                             "y":  0.858333
+                         }
+                     ],
+    "shape":  "parallelogram",
+    "captured_at":  "2026-04-18T12:57:23",
+    "output_size":  {
+                        "width":  23,
+                        "height":  38
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_count\\digit2_2_002.png"
 }

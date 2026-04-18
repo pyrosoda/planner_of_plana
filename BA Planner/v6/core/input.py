@@ -308,6 +308,7 @@ def _pag_drag_scroll(
     end_sy: int,
     *,
     duration: float = 0.14,
+    end_hold: float = 0.30,
 ) -> bool:
     if not HAS_PAG:
         return False
@@ -316,7 +317,7 @@ def _pag_drag_scroll(
         _pag.mouseDown()
         time.sleep(0.03)
         _pag.moveTo(end_sx, end_sy, duration=duration)
-        time.sleep(0.03)
+        time.sleep(max(0.0, end_hold))
         _pag.mouseUp()
         return True
     except Exception as e:
@@ -649,6 +650,7 @@ def drag_scroll(
     *,
     delay: float = 0.35,
     duration: float = 0.14,
+    end_hold: float = 0.30,
 ) -> bool:
     start_cx, start_cy = ratio_to_client(rect, rx, start_ry)
     end_cx, end_cy = ratio_to_client(rect, rx, end_ry)
@@ -668,12 +670,13 @@ def drag_scroll(
                 end_screen[0],
                 end_screen[1],
                 duration=duration,
+                end_hold=end_hold,
             )
             _log.debug(
                 "physical drag scroll "
                 f"start=({start_screen[0]},{start_screen[1]}) "
                 f"end=({end_screen[0]},{end_screen[1]}) "
-                f"delta_y={end_cy - start_cy} ok={ok}"
+                f"delta_y={end_cy - start_cy} end_hold={end_hold:.2f} ok={ok}"
             )
 
     if delay > 0:

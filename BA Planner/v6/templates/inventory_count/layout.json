@@ -1,0 +1,46 @@
+{
+  "digit_groups": [
+    {
+      "group_id": "large_1_4",
+      "template_region": "digit2_2",
+      "base_region": "large_digit_base",
+      "step": {
+        "x": 28,
+        "y": 0
+      },
+      "starts": {
+        "1": {
+          "x": 1068,
+          "y": 1035
+        },
+        "2": {
+          "x": 1054,
+          "y": 1035
+        },
+        "3": {
+          "x": 1040,
+          "y": 1035
+        },
+        "4": {
+          "x": 1026,
+          "y": 1035
+        }
+      }
+    },
+    {
+      "group_id": "small_5_6",
+      "template_region": "digit5_5",
+      "base_region": "small_digit_base",
+      "step": {
+        "x": 23,
+        "y": 0
+      },
+      "starts": {
+        "5": {
+          "x": 1018,
+          "y": 1035
+        }
+      }
+    }
+  ]
+}

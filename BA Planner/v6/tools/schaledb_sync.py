@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any
 from urllib.request import Request, urlopen
 
+from core.oparts import OPART_FAMILY_EN_BY_ICON_TOKEN
 from tools.student_meta_options import FIELD_OPTIONS
 
 
@@ -69,10 +70,8 @@ SCHOOL_MAP: dict[str, str] = {
     "WildHunt": "Wild Hunt",
 }
 ARTIFACT_ICON_MAP: dict[str, str] = {
+    **OPART_FAMILY_EN_BY_ICON_TOKEN,
     "aether": "Aether Essence",
-    "ether": "Aether Essence",
-    "mandragora": "Madrake Extract",
-    "winnistone": "Mystery Stone",
 }
 DEFENSE_TYPE_MAP: dict[str, str] = {
     "LightArmor": "Light",

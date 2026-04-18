@@ -1,500 +1,1703 @@
 {
-  "네브라 디스크 조각": {
-    "item_id": "네브라 디스크 조각",
-    "name": "네브라 디스크 조각",
-    "quantity": "2155",
-    "index": 83
+  "Equipment_Icon_Exp_3": {
+    "item_id": "Equipment_Icon_Exp_3",
+    "name": "최상급 강화석",
+    "quantity": "207",
+    "index": 0,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
   },
-  "파손된 네브라 디스크": {
-    "item_id": null,
+  "Equipment_Icon_Exp_2": {
+    "item_id": "Equipment_Icon_Exp_2",
+    "name": "상급 강화석",
+    "quantity": "19149",
+    "index": 1,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Exp_1": {
+    "item_id": "Equipment_Icon_Exp_1",
+    "name": "일반 강화석",
+    "quantity": "19976",
+    "index": 2,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Exp_0": {
+    "item_id": "Equipment_Icon_Exp_0",
+    "name": "하급 강화석",
+    "quantity": "19767",
+    "index": 3,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier10": {
+    "item_id": "Equipment_Icon_Necklace_Tier10",
+    "name": "메모리 네클리스",
+    "quantity": "95",
+    "index": 4,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier9": {
+    "item_id": "Equipment_Icon_Necklace_Tier9",
+    "name": "옥토퍼스 홀더",
+    "quantity": "33",
+    "index": 5,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier8": {
+    "item_id": "Equipment_Icon_Necklace_Tier8",
+    "name": "그린리프 목걸이",
+    "quantity": "301",
+    "index": 6,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier7": {
+    "item_id": "Equipment_Icon_Necklace_Tier7",
+    "name": "체인 목걸이",
+    "quantity": "247",
+    "index": 7,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier6": {
+    "item_id": "Equipment_Icon_Necklace_Tier6",
+    "name": "펑크 초커",
+    "quantity": "681",
+    "index": 8,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier5": {
+    "item_id": "Equipment_Icon_Necklace_Tier5",
+    "name": "도그택",
+    "quantity": "594",
+    "index": 9,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier4": {
+    "item_id": "Equipment_Icon_Necklace_Tier4",
+    "name": "십자가 초커",
+    "quantity": "1801",
+    "index": 10,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier3": {
+    "item_id": "Equipment_Icon_Necklace_Tier3",
+    "name": "니콜라이 로켓",
+    "quantity": "1799",
+    "index": 11,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier2": {
+    "item_id": "Equipment_Icon_Necklace_Tier2",
+    "name": "눈꽃 펜던트",
+    "quantity": "2020",
+    "index": 12,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Necklace_Tier1": {
+    "item_id": "Equipment_Icon_Necklace_Tier1",
+    "name": "블루투스 목걸이",
+    "quantity": "209",
+    "index": 13,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier10": {
+    "item_id": "Equipment_Icon_Watch_Tier10",
+    "name": "스크린 워치",
+    "quantity": "172",
+    "index": 14,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier9": {
+    "item_id": "Equipment_Icon_Watch_Tier9",
+    "name": "다이버 워치",
+    "quantity": "360",
+    "index": 15,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier8": {
+    "item_id": "Equipment_Icon_Watch_Tier8",
+    "name": "로렐라이 손목 시계",
+    "quantity": "769",
+    "index": 16,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier7": {
+    "item_id": "Equipment_Icon_Watch_Tier7",
+    "name": "스트릿 패션 시계",
+    "quantity": "51",
+    "index": 17,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier6": {
+    "item_id": "Equipment_Icon_Watch_Tier6",
+    "name": "고딕풍 손목 시계",
+    "quantity": "10",
+    "index": 18,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier5": {
+    "item_id": "Equipment_Icon_Watch_Tier5",
+    "name": "방진 손목 시계",
+    "quantity": "48",
+    "index": 19,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier4": {
+    "item_id": "Equipment_Icon_Watch_Tier4",
+    "name": "앤티크 회중 시계",
+    "quantity": "66",
+    "index": 20,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier3": {
+    "item_id": "Equipment_Icon_Watch_Tier3",
+    "name": "웨이브캣 손목 시계",
+    "quantity": "60",
+    "index": 21,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier2": {
+    "item_id": "Equipment_Icon_Watch_Tier2",
+    "name": "가죽 손목 시계",
+    "quantity": "91",
+    "index": 22,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Watch_Tier1": {
+    "item_id": "Equipment_Icon_Watch_Tier1",
+    "name": "방수 디지털 시계",
+    "quantity": "24",
+    "index": 23,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier10": {
+    "item_id": "Equipment_Icon_Charm_Tier10",
+    "name": "키캡 토이",
+    "quantity": "307",
+    "index": 24,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier9": {
+    "item_id": "Equipment_Icon_Charm_Tier9",
+    "name": "상어 이빨 부적",
+    "quantity": "892",
+    "index": 25,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier8": {
+    "item_id": "Equipment_Icon_Charm_Tier8",
+    "name": "드림캐쳐 부적",
+    "quantity": "109",
+    "index": 26,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier7": {
+    "item_id": "Equipment_Icon_Charm_Tier7",
+    "name": "휴대용 탈취제",
+    "quantity": "664",
+    "index": 27,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier6": {
+    "item_id": "Equipment_Icon_Charm_Tier6",
+    "name": "저주 인형",
+    "quantity": "550",
+    "index": 28,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier5": {
+    "item_id": "Equipment_Icon_Charm_Tier5",
+    "name": "카모 달마",
+    "quantity": "368",
+    "index": 29,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier4": {
+    "item_id": "Equipment_Icon_Charm_Tier4",
+    "name": "십자가",
+    "quantity": "501",
+    "index": 30,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier3": {
+    "item_id": "Equipment_Icon_Charm_Tier3",
+    "name": "페로로의 깃털",
+    "quantity": "39",
+    "index": 31,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier2": {
+    "item_id": "Equipment_Icon_Charm_Tier2",
+    "name": "발열팩",
+    "quantity": "16",
+    "index": 32,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Charm_Tier1": {
+    "item_id": "Equipment_Icon_Charm_Tier1",
+    "name": "교통안전 부적",
+    "quantity": "213",
+    "index": 33,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier10": {
+    "item_id": "Equipment_Icon_Hairpin_Tier10",
+    "name": "전자파 차단 헤어핀",
+    "quantity": "453",
+    "index": 34,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier9": {
+    "item_id": "Equipment_Icon_Hairpin_Tier9",
+    "name": "앵커 헤어핀",
+    "quantity": "7",
+    "index": 35,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier8": {
+    "item_id": "Equipment_Icon_Hairpin_Tier8",
+    "name": "나뭇잎 헤어핀",
+    "quantity": "26",
+    "index": 36,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier7": {
+    "item_id": "Equipment_Icon_Hairpin_Tier7",
+    "name": "캘리그라피 헤어핀",
+    "quantity": "540",
+    "index": 37,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier6": {
+    "item_id": "Equipment_Icon_Hairpin_Tier6",
+    "name": "박쥐 헤어핀",
+    "quantity": "316",
+    "index": 38,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier5": {
+    "item_id": "Equipment_Icon_Hairpin_Tier5",
+    "name": "다목적 헤어핀",
+    "quantity": "999",
+    "index": 39,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier4": {
+    "item_id": "Equipment_Icon_Hairpin_Tier4",
+    "name": "날개 헤어핀",
+    "quantity": "718",
+    "index": 40,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier3": {
+    "item_id": "Equipment_Icon_Hairpin_Tier3",
+    "name": "모모 헤어핀",
+    "quantity": "1203",
+    "index": 41,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier2": {
+    "item_id": "Equipment_Icon_Hairpin_Tier2",
+    "name": "헤어 슈슈",
+    "quantity": "1122",
+    "index": 42,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hairpin_Tier1": {
+    "item_id": "Equipment_Icon_Hairpin_Tier1",
+    "name": "테니스 헤어밴드",
+    "quantity": "1746",
+    "index": 43,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier10": {
+    "item_id": "Equipment_Icon_Badge_Tier10",
+    "name": "코인 배지",
+    "quantity": "616",
+    "index": 44,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier9": {
+    "item_id": "Equipment_Icon_Badge_Tier9",
+    "name": "하르피아 플렉시블 배지",
+    "quantity": "1130",
+    "index": 45,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier7": {
+    "item_id": "Equipment_Icon_Badge_Tier7",
+    "name": "스트릿 배지",
+    "quantity": "1052",
+    "index": 47,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier6": {
+    "item_id": "Equipment_Icon_Badge_Tier6",
+    "name": "코코데빌 실버 배지",
+    "quantity": "1065",
+    "index": 48,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier5": {
+    "item_id": "Equipment_Icon_Badge_Tier5",
+    "name": "카제야마 벨크로 패치",
+    "quantity": "346",
+    "index": 49,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier4": {
+    "item_id": "Equipment_Icon_Badge_Tier4",
+    "name": "베로니카 자수 배지",
+    "quantity": "291",
+    "index": 50,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier3": {
+    "item_id": "Equipment_Icon_Badge_Tier3",
+    "name": "앵그리 아델리 원형 배지",
+    "quantity": "1895",
+    "index": 51,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier2": {
+    "item_id": "Equipment_Icon_Badge_Tier2",
+    "name": "마나슬루 펠트 배지",
+    "quantity": "1674",
+    "index": 52,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier1": {
+    "item_id": "Equipment_Icon_Badge_Tier1",
+    "name": "서벌 금속 배지",
+    "quantity": "2071",
+    "index": 53,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier10": {
+    "item_id": "Equipment_Icon_Bag_Tier10",
+    "name": "메탈 케이스",
+    "quantity": "1856",
+    "index": 54,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier9": {
+    "item_id": "Equipment_Icon_Bag_Tier9",
+    "name": "슬링 드라이백",
+    "quantity": "1885",
+    "index": 55,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier8": {
+    "item_id": "Equipment_Icon_Bag_Tier8",
+    "name": "버터플라이 숄더백",
+    "quantity": "1080",
+    "index": 56,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier7": {
+    "item_id": "Equipment_Icon_Bag_Tier7",
+    "name": "스트릿 백",
+    "quantity": "746",
+    "index": 57,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier6": {
+    "item_id": "Equipment_Icon_Bag_Tier6",
+    "name": "데빌 윙 토트백",
+    "quantity": "33",
+    "index": 58,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier5": {
+    "item_id": "Equipment_Icon_Bag_Tier5",
+    "name": "전술 란도셀",
+    "quantity": "70",
+    "index": 59,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier4": {
+    "item_id": "Equipment_Icon_Bag_Tier4",
+    "name": "감색 스쿨백",
+    "quantity": "799",
+    "index": 60,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier8": {
+    "item_id": "Equipment_Icon_Shoes_Tier8",
+    "name": "방수 등산 부츠",
+    "quantity": "1291",
+    "index": 66,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier7": {
+    "item_id": "Equipment_Icon_Shoes_Tier7",
+    "name": "캐주얼 스니커즈",
+    "quantity": "462",
+    "index": 67,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier6": {
+    "item_id": "Equipment_Icon_Shoes_Tier6",
+    "name": "펌프스 힐",
+    "quantity": "348",
+    "index": 68,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier5": {
+    "item_id": "Equipment_Icon_Shoes_Tier5",
+    "name": "전술 부츠",
+    "quantity": "374",
+    "index": 69,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier4": {
+    "item_id": "Equipment_Icon_Shoes_Tier4",
+    "name": "앤티크 에나멜 로퍼",
+    "quantity": "955",
+    "index": 70,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier3": {
+    "item_id": "Equipment_Icon_Shoes_Tier3",
+    "name": "핑키파카 슬리퍼",
+    "quantity": "27",
+    "index": 71,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier2": {
+    "item_id": "Equipment_Icon_Shoes_Tier2",
+    "name": "어그 부츠",
+    "quantity": "354",
+    "index": 72,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier1": {
+    "item_id": "Equipment_Icon_Shoes_Tier1",
+    "name": "핑크 스니커즈",
+    "quantity": "418",
+    "index": 73,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier10": {
+    "item_id": "Equipment_Icon_Gloves_Tier10",
+    "name": "슈퍼 글러브",
+    "quantity": "253",
+    "index": 74,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier9": {
+    "item_id": "Equipment_Icon_Gloves_Tier9",
+    "name": "세일링 글러브",
+    "quantity": "382",
+    "index": 75,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier8": {
+    "item_id": "Equipment_Icon_Gloves_Tier8",
+    "name": "진주 털실 장갑",
+    "quantity": "168",
+    "index": 76,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier7": {
+    "item_id": "Equipment_Icon_Gloves_Tier7",
+    "name": "팔 토시 워머",
+    "quantity": "519",
+    "index": 77,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier6": {
+    "item_id": "Equipment_Icon_Gloves_Tier6",
+    "name": "레이스 글러브",
+    "quantity": "781",
+    "index": 78,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier5": {
+    "item_id": "Equipment_Icon_Gloves_Tier5",
+    "name": "택티컬 글러브",
+    "quantity": "1788",
+    "index": 79,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier4": {
+    "item_id": "Equipment_Icon_Gloves_Tier4",
+    "name": "가죽 글러브",
+    "quantity": "664",
+    "index": 80,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier3": {
+    "item_id": "Equipment_Icon_Gloves_Tier3",
+    "name": "페로로 오븐 장갑",
+    "quantity": "1169",
+    "index": 81,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier2": {
+    "item_id": "Equipment_Icon_Gloves_Tier2",
+    "name": "니트 벙어리 장갑",
+    "quantity": "869",
+    "index": 82,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Gloves_Tier1": {
+    "item_id": "Equipment_Icon_Gloves_Tier1",
+    "name": "스포츠용 장갑",
+    "quantity": "233",
+    "index": 83,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier10": {
+    "item_id": "Equipment_Icon_Hat_Tier10",
+    "name": "게이밍 헬멧",
+    "quantity": "338",
+    "index": 84,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier9": {
+    "item_id": "Equipment_Icon_Hat_Tier9",
+    "name": "세일러 햇",
+    "quantity": "762",
+    "index": 85,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier8": {
+    "item_id": "Equipment_Icon_Hat_Tier8",
+    "name": "리프 리본 페도라",
+    "quantity": "159",
+    "index": 86,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier7": {
+    "item_id": "Equipment_Icon_Hat_Tier7",
+    "name": "버킷 햇",
+    "quantity": "171",
+    "index": 87,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier6": {
+    "item_id": "Equipment_Icon_Hat_Tier6",
+    "name": "프릴 미니 햇",
+    "quantity": "709",
+    "index": 88,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier5": {
+    "item_id": "Equipment_Icon_Hat_Tier5",
+    "name": "방탄 헬멧",
+    "quantity": "239",
+    "index": 89,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier4": {
+    "item_id": "Equipment_Icon_Hat_Tier4",
+    "name": "리본 베레모",
+    "quantity": "190",
+    "index": 90,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier3": {
+    "item_id": "Equipment_Icon_Hat_Tier3",
+    "name": "빅 브라더 페도라",
+    "quantity": "810",
+    "index": 91,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier2": {
+    "item_id": "Equipment_Icon_Hat_Tier2",
+    "name": "니트 털모자",
+    "quantity": "195",
+    "index": 92,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Hat_Tier1": {
+    "item_id": "Equipment_Icon_Hat_Tier1",
+    "name": "무지 캡모자",
+    "quantity": "132",
+    "index": 93,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthZ_3": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthZ_3",
+    "name": "공이 T4",
+    "quantity": "40",
+    "index": 94,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthZ_2": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthZ_2",
+    "name": "공이 T3",
+    "quantity": "235",
+    "index": 95,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthC_3": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthC_3",
+    "name": "총열 T4",
+    "quantity": "12",
+    "index": 98,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthC_2": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthC_2",
+    "name": "총열 T3",
+    "quantity": "296",
+    "index": 99,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthC_0": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthC_0",
+    "name": "총열 T1",
+    "quantity": "10430",
+    "index": 101,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthB_3": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthB_3",
+    "name": "해머 T4",
+    "quantity": "1",
+    "index": 102,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthB_2": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthB_2",
+    "name": "해머 T3",
+    "quantity": "10",
+    "index": 103,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthB_1": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthB_1",
+    "name": "해머 T2",
+    "quantity": "421",
+    "index": 104,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthB_0": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthB_0",
+    "name": "해머 T1",
+    "quantity": "11603",
+    "index": 105,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthA_3": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthA_3",
+    "name": "스프링 T4",
+    "quantity": "1",
+    "index": 106,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthA_2": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthA_2",
+    "name": "스프링 T3",
+    "quantity": "190",
+    "index": 107,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthA_1": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthA_1",
+    "name": "스프링 T2",
+    "quantity": "17988",
+    "index": 108,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthA_0": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthA_0",
+    "name": "스프링 T1",
+    "quantity": "9",
+    "index": 109,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Badge_Tier8": {
+    "item_id": "Equipment_Icon_Badge_Tier8",
+    "name": "로렐라이 배지",
+    "quantity": "1074",
+    "index": 46,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier1": {
+    "item_id": "Equipment_Icon_Bag_Tier1",
+    "name": "방수 스포츠백",
+    "quantity": "758",
+    "index": 63,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthZ_1": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthZ_1",
+    "name": "공이 T2",
+    "quantity": "1089",
+    "index": 96,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier3": {
+    "item_id": "Equipment_Icon_Bag_Tier3",
+    "name": "페로로 백팩",
+    "quantity": "1021",
+    "index": 61,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Bag_Tier2": {
+    "item_id": "Equipment_Icon_Bag_Tier2",
+    "name": "방한용 크로스백",
+    "quantity": "459",
+    "index": 62,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier10": {
+    "item_id": "Equipment_Icon_Shoes_Tier10",
+    "name": "게이밍 슬리퍼",
+    "quantity": "1638",
+    "index": 64,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_Shoes_Tier9": {
+    "item_id": "Equipment_Icon_Shoes_Tier9",
+    "name": "아쿠아 샌들",
+    "quantity": "1117",
+    "index": 65,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Equipment_Icon_WeaponExpGrowthC_1": {
+    "item_id": "Equipment_Icon_WeaponExpGrowthC_1",
+    "name": "총열 T2",
+    "quantity": "10430",
+    "index": 100,
+    "item_source": "equipment",
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Item_Icon_Material_Nebra_0": {
+    "item_id": "Item_Icon_Material_Nebra_0",
+    "name": "네브라 디스크 조각",
+    "quantity": "2162",
+    "index": 0,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
+  },
+  "Item_Icon_Material_Nebra_1": {
+    "item_id": "Item_Icon_Material_Nebra_1",
     "name": "파손된 네브라 디스크",
     "quantity": "838",
-    "index": 1
+    "index": 1,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 네브라 디스크": {
-    "item_id": null,
+  "Item_Icon_Material_Nebra_2": {
+    "item_id": "Item_Icon_Material_Nebra_2",
     "name": "마모된 네브라 디스크",
     "quantity": "782",
-    "index": 2
+    "index": 2,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 네브라 디스크": {
-    "item_id": "온전한 네브라 디스크",
+  "Item_Icon_Material_Nebra_3": {
+    "item_id": "Item_Icon_Material_Nebra_3",
     "name": "온전한 네브라 디스크",
     "quantity": "85",
-    "index": 84
+    "index": 3,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파에스트스 원반 조각": {
-    "item_id": "파에스트스 원반 조각",
-    "name": "파에스트스 원반 조각",
-    "quantity": "2800",
-    "index": 85
+  "Item_Icon_Material_Phaistos_0": {
+    "item_id": "Item_Icon_Material_Phaistos_0",
+    "name": "파에스토스 원반 조각",
+    "quantity": "2803",
+    "index": 4,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 파에스트스 원반": {
-    "item_id": "파손된 파에스트스 원반",
-    "name": "파손된 파에스트스 원반",
-    "quantity": "1250",
-    "index": 86
+  "Item_Icon_Material_Phaistos_1": {
+    "item_id": "Item_Icon_Material_Phaistos_1",
+    "name": "파손된 파에스토스 원반",
+    "quantity": "1252",
+    "index": 5,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 파에스트스 원반": {
-    "item_id": "마모된 파에스트스 원반",
-    "name": "마모된 파에스트스 원반",
+  "Item_Icon_Material_Phaistos_2": {
+    "item_id": "Item_Icon_Material_Phaistos_2",
+    "name": "마모된 파에스토스 원반",
     "quantity": "714",
-    "index": 87
+    "index": 6,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 파에스트스 원반": {
-    "item_id": "온전한 파에스트스 원반",
-    "name": "온전한 파에스트스 원반",
+  "Item_Icon_Material_Phaistos_3": {
+    "item_id": "Item_Icon_Material_Phaistos_3",
+    "name": "온전한 파에스토스 원반",
     "quantity": "109",
-    "index": 88
+    "index": 7,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "볼프세크 강철 조각": {
-    "item_id": "볼프세크 강철 조각",
-    "name": "볼프세크 강철 조각",
-    "quantity": "4257",
-    "index": 89
+  "Item_Icon_Material_Wolfsegg_0": {
+    "item_id": "Item_Icon_Material_Wolfsegg_0",
+    "name": "볼프세크 철광석",
+    "quantity": "4266",
+    "index": 8,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 볼프세크 강철": {
-    "item_id": "파손된 볼프세크 강철",
-    "name": "파손된 볼프세크 강철",
+  "Item_Icon_Material_Wolfsegg_1": {
+    "item_id": "Item_Icon_Material_Wolfsegg_1",
+    "name": "볼프세크 철조각",
     "quantity": "1383",
-    "index": 90
+    "index": 9,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 볼프세크 강철": {
-    "item_id": "마모된 볼프세크 강철",
-    "name": "마모된 볼프세크 강철",
-    "quantity": "1244",
-    "index": 91
+  "Item_Icon_Material_Wolfsegg_2": {
+    "item_id": "Item_Icon_Material_Wolfsegg_2",
+    "name": "저순도 볼프세크 강철",
+    "quantity": "1245",
+    "index": 10,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 볼프세크 강철": {
-    "item_id": "온전한 볼프세크 강철",
-    "name": "온전한 볼프세크 강철",
-    "quantity": "154",
-    "index": 92
+  "Item_Icon_Material_Wolfsegg_3": {
+    "item_id": "Item_Icon_Material_Wolfsegg_3",
+    "name": "고순도 볼프세크 강철",
+    "quantity": "155",
+    "index": 11,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "님루드 렌즈 조각": {
-    "item_id": "님루드 렌즈 조각",
+  "Item_Icon_Material_Nimrud_0": {
+    "item_id": "Item_Icon_Material_Nimrud_0",
     "name": "님루드 렌즈 조각",
     "quantity": "3749",
-    "index": 93
+    "index": 12,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 님루드 렌즈": {
-    "item_id": "파손된 님루드 렌즈",
+  "Item_Icon_Material_Nimrud_1": {
+    "item_id": "Item_Icon_Material_Nimrud_1",
     "name": "파손된 님루드 렌즈",
     "quantity": "1530",
-    "index": 94
+    "index": 13,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 님루드 렌즈": {
-    "item_id": "마모된 님루드 렌즈",
+  "Item_Icon_Material_Nimrud_2": {
+    "item_id": "Item_Icon_Material_Nimrud_2",
     "name": "마모된 님루드 렌즈",
     "quantity": "718",
-    "index": 95
+    "index": 14,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 님루드 렌즈": {
-    "item_id": "온전한 님루드 렌즈",
+  "Item_Icon_Material_Nimrud_3": {
+    "item_id": "Item_Icon_Material_Nimrud_3",
     "name": "온전한 님루드 렌즈",
     "quantity": "186",
-    "index": 96
+    "index": 15,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "만드라고라 농축액 조각": {
-    "item_id": "만드라고라 농축액 조각",
-    "name": "만드라고라 농축액 조각",
-    "quantity": "3996",
-    "index": 97
+  "Item_Icon_Material_Mandragora_0": {
+    "item_id": "Item_Icon_Material_Mandragora_0",
+    "name": "만드라고라 씨앗",
+    "quantity": "3998",
+    "index": 16,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 만드라고라 농축액": {
-    "item_id": "파손된 만드라고라 농축액",
-    "name": "파손된 만드라고라 농축액",
+  "Item_Icon_Material_Mandragora_1": {
+    "item_id": "Item_Icon_Material_Mandragora_1",
+    "name": "만드라고라 새싹",
     "quantity": "1947",
-    "index": 98
+    "index": 17,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 만드라고라 농축액": {
-    "item_id": "마모된 만드라고라 농축액",
-    "name": "마모된 만드라고라 농축액",
+  "Item_Icon_Material_Mandragora_2": {
+    "item_id": "Item_Icon_Material_Mandragora_2",
+    "name": "만드라고라 주스",
     "quantity": "609",
-    "index": 99
+    "index": 18,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 만드라고라 농축액": {
-    "item_id": "온전한 만드라고라 농축액",
-    "name": "온전한 만드라고라 농축액",
+  "Item_Icon_Material_Mandragora_3": {
+    "item_id": "Item_Icon_Material_Mandragora_3",
+    "name": "만드라고라 농축액",
     "quantity": "87",
-    "index": 100
+    "index": 19,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "로혼치 사본 조각": {
-    "item_id": null,
-    "name": "로혼치 사본 조각",
-    "quantity": "4986",
-    "index": 20
+  "Item_Icon_Material_Rohonc_0": {
+    "item_id": "Item_Icon_Material_Rohonc_0",
+    "name": "로혼치 사본 페이지",
+    "quantity": "4994",
+    "index": 20,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 로혼치 사본": {
-    "item_id": null,
-    "name": "파손된 로혼치 사본",
-    "quantity": "2529",
-    "index": 21
+  "Item_Icon_Material_Rohonc_1": {
+    "item_id": "Item_Icon_Material_Rohonc_1",
+    "name": "훼손된 로혼치 사본",
+    "quantity": "2535",
+    "index": 21,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 로혼치 사본": {
-    "item_id": null,
-    "name": "마모된 로혼치 사본",
-    "quantity": "1293",
-    "index": 22
+  "Item_Icon_Material_Rohonc_2": {
+    "item_id": "Item_Icon_Material_Rohonc_2",
+    "name": "편집된 로혼치 사본",
+    "quantity": "1295",
+    "index": 22,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 로혼치 사본": {
-    "item_id": null,
+  "Item_Icon_Material_Rohonc_3": {
+    "item_id": "Item_Icon_Material_Rohonc_3",
     "name": "온전한 로혼치 사본",
     "quantity": "449",
-    "index": 23
+    "index": 23,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "에테르 가루": {
-    "item_id": "에테르 가루",
+  "Item_Icon_Material_Ether_0": {
+    "item_id": "Item_Icon_Material_Ether_0",
     "name": "에테르 가루",
-    "quantity": "2914",
-    "index": 101
+    "quantity": "2920",
+    "index": 24,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "에테르 조각": {
-    "item_id": "에테르 조각",
+  "Item_Icon_Material_Ether_1": {
+    "item_id": "Item_Icon_Material_Ether_1",
     "name": "에테르 조각",
     "quantity": "2018",
-    "index": 102
+    "index": 25,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "에테르 결정": {
-    "item_id": "에테르 결정",
+  "Item_Icon_Material_Ether_2": {
+    "item_id": "Item_Icon_Material_Ether_2",
     "name": "에테르 결정",
     "quantity": "1150",
-    "index": 103
+    "index": 26,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "에테르 정수": {
-    "item_id": "에테르 정수",
+  "Item_Icon_Material_Ether_3": {
+    "item_id": "Item_Icon_Material_Ether_3",
     "name": "에테르 정수",
     "quantity": "173",
-    "index": 104
+    "index": 27,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "안티키테라 장치 조각": {
-    "item_id": "안티키테라 장치 조각",
+  "Item_Icon_Material_Antikythera_0": {
+    "item_id": "Item_Icon_Material_Antikythera_0",
     "name": "안티키테라 장치 조각",
-    "quantity": "2858",
-    "index": 105
+    "quantity": "2860",
+    "index": 28,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 안티키테라 장치": {
-    "item_id": null,
+  "Item_Icon_Material_Antikythera_1": {
+    "item_id": "Item_Icon_Material_Antikythera_1",
     "name": "파손된 안티키테라 장치",
     "quantity": "1069",
-    "index": 29
+    "index": 29,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 안티키테라 장치": {
-    "item_id": null,
+  "Item_Icon_Material_Antikythera_2": {
+    "item_id": "Item_Icon_Material_Antikythera_2",
     "name": "마모된 안티키테라 장치",
     "quantity": "269",
-    "index": 30
+    "index": 30,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 안티키테라 장치": {
-    "item_id": null,
+  "Item_Icon_Material_Antikythera_3": {
+    "item_id": "Item_Icon_Material_Antikythera_3",
     "name": "온전한 안티키테라 장치",
     "quantity": "166",
-    "index": 31
+    "index": 31,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "보이니치 사본 조각": {
-    "item_id": "보이니치 사본 조각",
-    "name": "보이니치 사본 조각",
-    "quantity": "4975",
-    "index": 106
+  "Item_Icon_Material_Voynich_0": {
+    "item_id": "Item_Icon_Material_Voynich_0",
+    "name": "보이니치 사본 페이지",
+    "quantity": "4989",
+    "index": 32,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 보이니치 사본": {
-    "item_id": "파손된 보이니치 사본",
-    "name": "파손된 보이니치 사본",
-    "quantity": "1857",
-    "index": 107
+  "Item_Icon_Material_Voynich_1": {
+    "item_id": "Item_Icon_Material_Voynich_1",
+    "name": "훼손된 보이니치 사본",
+    "quantity": "1858",
+    "index": 33,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 보이니치 사본": {
-    "item_id": null,
-    "name": "마모된 보이니치 사본",
-    "quantity": "1112",
-    "index": 34
+  "Item_Icon_Material_Voynich_2": {
+    "item_id": "Item_Icon_Material_Voynich_2",
+    "name": "편집된 보이니치 사본",
+    "quantity": "1113",
+    "index": 34,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 보이니치 사본": {
-    "item_id": null,
+  "Item_Icon_Material_Voynich_3": {
+    "item_id": "Item_Icon_Material_Voynich_3",
     "name": "온전한 보이니치 사본",
     "quantity": "167",
-    "index": 35
+    "index": 35,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "수정 하니와 파편": {
-    "item_id": null,
+  "Item_Icon_Material_CrystalHaniwa_0": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_0",
     "name": "수정 하니와 파편",
-    "quantity": "3316",
-    "index": 36
+    "quantity": "3319",
+    "index": 36,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 수정 하니와": {
-    "item_id": null,
+  "Item_Icon_Material_CrystalHaniwa_1": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_1",
     "name": "파손된 수정 하니와",
-    "quantity": "2199",
-    "index": 37
+    "quantity": "2200",
+    "index": 37,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 수정 하니와": {
-    "item_id": null,
-    "name": "마모된 수정 하니와",
-    "quantity": "840",
-    "index": 38
+  "Item_Icon_Material_CrystalHaniwa_2": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_2",
+    "name": "수리된 수정 하니와",
+    "quantity": "841",
+    "index": 38,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 수정 하니와": {
-    "item_id": "온전한 수정 하니와",
+  "Item_Icon_Material_CrystalHaniwa_3": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_3",
     "name": "온전한 수정 하니와",
-    "quantity": "236",
-    "index": 108
+    "quantity": "238",
+    "index": 39,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "토템폴 조각": {
-    "item_id": "토템폴 조각",
+  "Item_Icon_Material_TotemPole_0": {
+    "item_id": "Item_Icon_Material_TotemPole_0",
     "name": "토템폴 조각",
-    "quantity": "2107",
-    "index": 109
+    "quantity": "2111",
+    "index": 40,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 토템폴": {
-    "item_id": "파손된 토템폴",
+  "Item_Icon_Material_TotemPole_1": {
+    "item_id": "Item_Icon_Material_TotemPole_1",
     "name": "파손된 토템폴",
     "quantity": "995",
-    "index": 110
+    "index": 41,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 토템폴": {
-    "item_id": "마모된 토템폴",
-    "name": "마모된 토템폴",
+  "Item_Icon_Material_TotemPole_2": {
+    "item_id": "Item_Icon_Material_TotemPole_2",
+    "name": "수리된 토템폴",
     "quantity": "570",
-    "index": 111
+    "index": 42,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 토템폴": {
-    "item_id": "온전한 토템폴",
+  "Item_Icon_Material_TotemPole_3": {
+    "item_id": "Item_Icon_Material_TotemPole_3",
     "name": "온전한 토템폴",
     "quantity": "175",
-    "index": 112
+    "index": 43,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "고대 전지 조각": {
-    "item_id": "고대 전지 조각",
+  "Item_Icon_Material_Baghdad_0": {
+    "item_id": "Item_Icon_Material_Baghdad_0",
     "name": "고대 전지 조각",
-    "quantity": "934",
-    "index": 113
+    "quantity": "936",
+    "index": 44,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 고대 전지": {
-    "item_id": "파손된 고대 전지",
+  "Item_Icon_Material_Baghdad_1": {
+    "item_id": "Item_Icon_Material_Baghdad_1",
     "name": "파손된 고대 전지",
-    "quantity": "1908",
-    "index": 114
+    "quantity": "1910",
+    "index": 45,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 고대 전지": {
-    "item_id": "마모된 고대 전지",
+  "Item_Icon_Material_Baghdad_2": {
+    "item_id": "Item_Icon_Material_Baghdad_2",
     "name": "마모된 고대 전지",
     "quantity": "974",
-    "index": 115
+    "index": 46,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 고대 전지": {
-    "item_id": "온전한 고대 전지",
+  "Item_Icon_Material_Baghdad_3": {
+    "item_id": "Item_Icon_Material_Baghdad_3",
     "name": "온전한 고대 전지",
     "quantity": "199",
-    "index": 116
+    "index": 47,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "황금 양모 조각": {
-    "item_id": "황금 양모 조각",
-    "name": "황금 양모 조각",
-    "quantity": "1699",
-    "index": 117
+  "Item_Icon_Material_GoldenFleece_0": {
+    "item_id": "Item_Icon_Material_GoldenFleece_0",
+    "name": "황금 양털",
+    "quantity": "1701",
+    "index": 48,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 황금 양모": {
-    "item_id": "파손된 황금 양모",
-    "name": "파손된 황금 양모",
+  "Item_Icon_Material_GoldenFleece_1": {
+    "item_id": "Item_Icon_Material_GoldenFleece_1",
+    "name": "황금 털실",
     "quantity": "584",
-    "index": 118
+    "index": 49,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 황금 양모": {
-    "item_id": null,
-    "name": "마모된 황금 양모",
+  "Item_Icon_Material_GoldenFleece_2": {
+    "item_id": "Item_Icon_Material_GoldenFleece_2",
+    "name": "황금 양모",
     "quantity": "276",
-    "index": 50
+    "index": 50,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 황금 양모": {
-    "item_id": "온전한 황금 양모",
-    "name": "온전한 황금 양모",
+  "Item_Icon_Material_GoldenFleece_3": {
+    "item_id": "Item_Icon_Material_GoldenFleece_3",
+    "name": "황금 드레스",
     "quantity": "96",
-    "index": 119
+    "index": 51,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "머리가 자라는 인형 조각": {
-    "item_id": "머리가 자라는 인형 조각",
+  "Item_Icon_Material_Kikuko_0": {
+    "item_id": "Item_Icon_Material_Kikuko_0",
     "name": "머리가 자라는 인형 조각",
     "quantity": "1990",
-    "index": 120
+    "index": 52,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 머리가 자라는 인형": {
-    "item_id": "파손된 머리가 자라는 인형",
+  "Item_Icon_Material_Kikuko_1": {
+    "item_id": "Item_Icon_Material_Kikuko_1",
     "name": "파손된 머리가 자라는 인형",
     "quantity": "745",
-    "index": 121
+    "index": 53,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 머리가 자라는 인형": {
-    "item_id": "마모된 머리가 자라는 인형",
-    "name": "마모된 머리가 자라는 인형",
+  "Item_Icon_Material_Kikuko_2": {
+    "item_id": "Item_Icon_Material_Kikuko_2",
+    "name": "수리된 머리가 자라는 인형",
     "quantity": "352",
-    "index": 122
+    "index": 54,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 머리가 자라는 인형": {
-    "item_id": "온전한 머리가 자라는 인형",
+  "Item_Icon_Material_Kikuko_3": {
+    "item_id": "Item_Icon_Material_Kikuko_3",
     "name": "온전한 머리가 자라는 인형",
     "quantity": "128",
-    "index": 123
+    "index": 55,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "디스코 콜간테 조각": {
-    "item_id": "디스코 콜간테 조각",
+  "Item_Icon_Material_DiscoColgante_0": {
+    "item_id": "Item_Icon_Material_DiscoColgante_0",
     "name": "디스코 콜간테 조각",
-    "quantity": "1381",
-    "index": 124
+    "quantity": "1383",
+    "index": 56,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 디스코 콜간테": {
-    "item_id": null,
+  "Item_Icon_Material_DiscoColgante_1": {
+    "item_id": "Item_Icon_Material_DiscoColgante_1",
     "name": "파손된 디스코 콜간테",
     "quantity": "701",
-    "index": 57
+    "index": 57,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 디스코 콜간테": {
-    "item_id": null,
-    "name": "마모된 디스코 콜간테",
+  "Item_Icon_Material_DiscoColgante_2": {
+    "item_id": "Item_Icon_Material_DiscoColgante_2",
+    "name": "수리된 디스코 콜간테",
     "quantity": "303",
-    "index": 58
+    "index": 58,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 디스코 콜간테": {
-    "item_id": null,
+  "Item_Icon_Material_DiscoColgante_3": {
+    "item_id": "Item_Icon_Material_DiscoColgante_3",
     "name": "온전한 디스코 콜간테",
     "quantity": "73",
-    "index": 59
+    "index": 59,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "아틀란티스 메달 조각": {
-    "item_id": "아틀란티스 메달 조각",
+  "Item_Icon_Material_AtlantisMedal_0": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_0",
     "name": "아틀란티스 메달 조각",
-    "quantity": "879",
-    "index": 125
+    "quantity": "881",
+    "index": 60,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 아틀란티스 메달": {
-    "item_id": "파손된 아틀란티스 메달",
+  "Item_Icon_Material_AtlantisMedal_1": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_1",
     "name": "파손된 아틀란티스 메달",
-    "quantity": "240",
-    "index": 126
+    "quantity": "250",
+    "index": 61,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 아틀란티스 메달": {
-    "item_id": "마모된 아틀란티스 메달",
+  "Item_Icon_Material_AtlantisMedal_2": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_2",
     "name": "마모된 아틀란티스 메달",
     "quantity": "161",
-    "index": 127
+    "index": 62,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 아틀란티스 메달": {
-    "item_id": null,
+  "Item_Icon_Material_AtlantisMedal_3": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_3",
     "name": "온전한 아틀란티스 메달",
     "quantity": "89",
-    "index": 63
+    "index": 63,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "로마 12면체 조각": {
-    "item_id": "로마 12면체 조각",
+  "Item_Icon_Material_RomanDice_0": {
+    "item_id": "Item_Icon_Material_RomanDice_0",
     "name": "로마 12면체 조각",
-    "quantity": "1061",
-    "index": 128
+    "quantity": "1063",
+    "index": 64,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 로마 12면체": {
-    "item_id": "파손된 로마 12면체",
+  "Item_Icon_Material_RomanDice_1": {
+    "item_id": "Item_Icon_Material_RomanDice_1",
     "name": "파손된 로마 12면체",
     "quantity": "184",
-    "index": 129
+    "index": 65,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 로마 12면체": {
-    "item_id": null,
-    "name": "마모된 로마 12면체",
+  "Item_Icon_Material_RomanDice_2": {
+    "item_id": "Item_Icon_Material_RomanDice_2",
+    "name": "수리된 로마 12면체",
     "quantity": "341",
-    "index": 66
+    "index": 66,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 로마 12면체": {
-    "item_id": null,
+  "Item_Icon_Material_RomanDice_3": {
+    "item_id": "Item_Icon_Material_RomanDice_3",
     "name": "온전한 로마 12면체",
-    "quantity": "47",
-    "index": 67
+    "quantity": "57",
+    "index": 67,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "킴바야 유물 조각": {
-    "item_id": "킴바야 유물 조각",
+  "Item_Icon_Material_Quimbaya_0": {
+    "item_id": "Item_Icon_Material_Quimbaya_0",
     "name": "킴바야 유물 조각",
-    "quantity": "984",
-    "index": 130
+    "quantity": "988",
+    "index": 68,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 킴바야 유물": {
-    "item_id": "파손된 킴바야 유물",
+  "Item_Icon_Material_Quimbaya_1": {
+    "item_id": "Item_Icon_Material_Quimbaya_1",
     "name": "파손된 킴바야 유물",
-    "quantity": "246",
-    "index": 131
+    "quantity": "252",
+    "index": 69,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 킴바야 유물": {
-    "item_id": null,
-    "name": "마모된 킴바야 유물",
+  "Item_Icon_Material_Quimbaya_2": {
+    "item_id": "Item_Icon_Material_Quimbaya_2",
+    "name": "수리된 킴바야 유물",
     "quantity": "243",
-    "index": 70
+    "index": 70,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 킴바야 유물": {
-    "item_id": null,
+  "Item_Icon_Material_Quimbaya_3": {
+    "item_id": "Item_Icon_Material_Quimbaya_3",
     "name": "온전한 킴바야 유물",
-    "quantity": "33",
-    "index": 71
+    "quantity": "43",
+    "index": 71,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "이스탄불 로켓 조각": {
-    "item_id": null,
+  "Item_Icon_Material_Rocket_0": {
+    "item_id": "Item_Icon_Material_Rocket_0",
     "name": "이스탄불 로켓 조각",
     "quantity": "649",
-    "index": 72
+    "index": 72,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 이스탄불 로켓": {
-    "item_id": "파손된 이스탄불 로켓",
+  "Item_Icon_Material_Rocket_1": {
+    "item_id": "Item_Icon_Material_Rocket_1",
     "name": "파손된 이스탄불 로켓",
     "quantity": "193",
-    "index": 132
+    "index": 73,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 이스탄불 로켓": {
-    "item_id": "마모된 이스탄불 로켓",
-    "name": "마모된 이스탄불 로켓",
-    "quantity": "383",
-    "index": 133
+  "Item_Icon_Material_Rocket_2": {
+    "item_id": "Item_Icon_Material_Rocket_2",
+    "name": "수리된 이스탄불 로켓",
+    "quantity": "394",
+    "index": 74,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 이스탄불 로켓": {
-    "item_id": "온전한 이스탄불 로켓",
+  "Item_Icon_Material_Rocket_3": {
+    "item_id": "Item_Icon_Material_Rocket_3",
     "name": "온전한 이스탄불 로켓",
     "quantity": "97",
-    "index": 134
+    "index": 75,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "위니페소키 스톤 조각": {
-    "item_id": "위니페소키 스톤 조각",
+  "Item_Icon_Material_WinniStone_0": {
+    "item_id": "Item_Icon_Material_WinniStone_0",
     "name": "위니페소키 스톤 조각",
-    "quantity": "1590",
-    "index": 135
+    "quantity": "1594",
+    "index": 76,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "파손된 위니페소키 스톤": {
-    "item_id": "파손된 위니페소키 스톤",
+  "Item_Icon_Material_WinniStone_1": {
+    "item_id": "Item_Icon_Material_WinniStone_1",
     "name": "파손된 위니페소키 스톤",
     "quantity": "327",
-    "index": 136
+    "index": 77,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "마모된 위니페소키 스톤": {
-    "item_id": "마모된 위니페소키 스톤",
+  "Item_Icon_Material_WinniStone_2": {
+    "item_id": "Item_Icon_Material_WinniStone_2",
     "name": "마모된 위니페소키 스톤",
     "quantity": "135",
-    "index": 137
+    "index": 78,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   },
-  "온전한 위니페소키 스톤": {
-    "item_id": "온전한 위니페소키 스톤",
+  "Item_Icon_Material_WinniStone_3": {
+    "item_id": "Item_Icon_Material_WinniStone_3",
     "name": "온전한 위니페소키 스톤",
     "quantity": "81",
-    "index": 138
-  },
-  "교양 체육 WB": {
-    "item_id": null,
-    "name": "교양 체육 WB",
-    "quantity": "196",
-    "index": 80
-  },
-  "교양 사격 WB": {
-    "item_id": null,
-    "name": "교양 사격 WB",
-    "quantity": "309",
-    "index": 81
-  },
-  "교양 위생 WB": {
-    "item_id": null,
-    "name": "교양 위생 WB",
-    "quantity": "325",
-    "index": 82
+    "index": 79,
+    "item_source": "item",
+    "last_seen_at": "2026-04-18T21:21:58+09:00",
+    "last_scan_id": "2026-04-18_212158"
   }
 }

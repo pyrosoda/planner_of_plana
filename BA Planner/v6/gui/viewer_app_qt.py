@@ -19,6 +19,8 @@ if str(BASE_DIR) not in sys.path:
 
 import core.student_meta as student_meta
 from core.config import get_storage_paths
+from core.db import init_db
+from core.inventory_profiles import inventory_item_display_name
 from core.planning import (
     MAX_TARGET_EQUIP_LEVEL,
     MAX_TARGET_EQUIP_TIER,
@@ -1125,13 +1127,102 @@ def load_students() -> list[StudentRecord]:
 def load_inventory_snapshot() -> dict[str, dict]:
     paths = get_storage_paths()
     inventory_json = paths.current_inventory_json
-    if not inventory_json.exists():
-        return {}
-    try:
-        payload = json.loads(inventory_json.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    payload: dict[str, dict] = {}
+    loaded_from_db = False
+
+    db_path = paths.db_path
+    if db_path.exists():
+        try:
+            init_db(db_path)
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT item_key, item_id, name, quantity, item_index, item_source, last_seen_at, last_scan_id
+                FROM inventory_current
+                ORDER BY COALESCE(item_index, 999999), item_key
+                """
+            ).fetchall()
+            conn.close()
+            if rows:
+                payload = {
+                    str(row["item_key"]): {
+                        "item_id": row["item_id"],
+                        "name": row["name"],
+                        "quantity": row["quantity"],
+                        "index": row["item_index"],
+                        "item_source": row["item_source"],
+                        "last_seen_at": row["last_seen_at"],
+                        "last_scan_id": row["last_scan_id"],
+                    }
+                    for row in rows
+                }
+                loaded_from_db = True
+        except Exception:
+            payload = {}
+
+    if not payload:
+        if not inventory_json.exists():
+            return {}
+        try:
+            raw_payload = json.loads(inventory_json.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        if not isinstance(raw_payload, dict):
+            return {}
+        payload = raw_payload
+
+    normalized: dict[str, dict] = {}
+    changed = False
+    for key, raw_value in payload.items():
+        if not isinstance(raw_value, dict):
+            continue
+        entry = dict(raw_value)
+        item_id = entry.get("item_id") or (key if isinstance(key, str) and ("_Icon_" in key or key.startswith("Item_")) else None)
+        display_name = inventory_item_display_name(str(item_id)) if item_id else None
+        if display_name and entry.get("name") != display_name:
+            entry["name"] = display_name
+            changed = True
+        normalized[str(key)] = entry
+
+    if changed:
+        try:
+            inventory_json.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    if not loaded_from_db and normalized:
+        try:
+            init_db(db_path)
+            conn = sqlite3.connect(db_path)
+            with conn:
+                conn.execute("DELETE FROM inventory_current")
+                conn.executemany(
+                    """
+                    INSERT INTO inventory_current (
+                        item_key, item_id, name, quantity,
+                        item_index, item_source, last_seen_at, last_scan_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            item_key,
+                            entry.get("item_id"),
+                            entry.get("name"),
+                            entry.get("quantity"),
+                            entry.get("index"),
+                            entry.get("item_source"),
+                            entry.get("last_seen_at"),
+                            entry.get("last_scan_id"),
+                        )
+                        for item_key, entry in normalized.items()
+                    ],
+                )
+            conn.close()
+        except Exception:
+            pass
+
+    return normalized
 
 
 def _row_to_record(row: dict, owned: bool) -> StudentRecord:
@@ -1478,6 +1569,13 @@ class StudentViewerWindow(QMainWindow):
         self._resource_current_student_id: str | None = None
         self._resource_syncing_controls = False
         self._inventory_snapshot = load_inventory_snapshot()
+        storage_paths = get_storage_paths()
+        self._storage_watch_paths = (
+            storage_paths.current_students_json,
+            storage_paths.current_inventory_json,
+            self._plan_path,
+        )
+        self._storage_mtimes = self._snapshot_storage_mtimes()
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
         self._card_layout_guard = False
@@ -1485,6 +1583,11 @@ class StudentViewerWindow(QMainWindow):
         self._thumb_pump.setSingleShot(False)
         self._thumb_pump.setInterval(0)
         self._thumb_pump.timeout.connect(self._drain_thumb_queue)
+        self._storage_watch_timer = QTimer(self)
+        self._storage_watch_timer.setSingleShot(False)
+        self._storage_watch_timer.setInterval(1000)
+        self._storage_watch_timer.timeout.connect(self._poll_storage_changes)
+        self._storage_watch_timer.start()
 
         self._build_ui()
         self._apply_filters()
@@ -1500,6 +1603,22 @@ class StudentViewerWindow(QMainWindow):
             return
         self._startup_window_applied = True
         QTimer.singleShot(0, self._apply_startup_window_state)
+
+    def _snapshot_storage_mtimes(self) -> dict[Path, int | None]:
+        mtimes: dict[Path, int | None] = {}
+        for path in self._storage_watch_paths:
+            try:
+                mtimes[path] = path.stat().st_mtime_ns
+            except OSError:
+                mtimes[path] = None
+        return mtimes
+
+    def _poll_storage_changes(self) -> None:
+        current_mtimes = self._snapshot_storage_mtimes()
+        if current_mtimes == self._storage_mtimes:
+            return
+        self._storage_mtimes = current_mtimes
+        self._reload_data()
 
     def _apply_startup_window_state(self) -> None:
         self._apply_work_area_geometry()
@@ -3824,6 +3943,8 @@ class StudentViewerWindow(QMainWindow):
     def _reload_data(self) -> None:
         self._all_students = load_students()
         self._inventory_snapshot = load_inventory_snapshot()
+        self._plan = load_plan(self._plan_path)
+        self._storage_mtimes = self._snapshot_storage_mtimes()
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._filter_options = build_filter_options(self._all_students)
         self._unowned_icon_cache.clear()

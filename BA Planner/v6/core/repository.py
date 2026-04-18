@@ -19,6 +19,7 @@ from core.merge import (
     merge_inventory_snapshot,
     merge_student_entry,
 )
+from core.inventory_profiles import get_inventory_profile, inventory_item_display_name
 from core.scanner import ItemEntry, ScanResult, StudentEntry
 
 
@@ -78,13 +79,15 @@ def _items_to_inventory(items: list[ItemEntry]) -> dict:
         key = item.item_id or item.name
         if not key:
             continue
+        display_name = inventory_item_display_name(item.item_id) or item.name
         current = inventory.get(key)
         if current is None:
             inventory[key] = {
                 "item_id": item.item_id,
-                "name": item.name,
+                "name": display_name,
                 "quantity": item.quantity,
                 "index": item.index,
+                "item_source": item.source,
             }
             continue
 
@@ -98,11 +101,41 @@ def _items_to_inventory(items: list[ItemEntry]) -> dict:
         if _rank(item) > _rank(current_item):
             inventory[key] = {
                 "item_id": item.item_id,
-                "name": item.name,
+                "name": display_name,
                 "quantity": item.quantity,
                 "index": item.index,
+                "item_source": item.source,
             }
     return inventory
+
+
+def _looks_like_item_id(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return "_Icon_" in value or value.startswith("Item_")
+
+
+def _normalize_inventory_entry(item_key: str, raw_entry: dict[str, Any]) -> dict[str, Any]:
+    entry = dict(raw_entry)
+    item_id = entry.get("item_id") or (item_key if _looks_like_item_id(item_key) else None)
+    display_name = inventory_item_display_name(str(item_id)) if item_id else None
+    return {
+        "item_id": item_id,
+        "name": display_name or entry.get("name") or item_key,
+        "quantity": entry.get("quantity"),
+        "index": entry.get("index"),
+        "item_source": entry.get("item_source") or entry.get("source"),
+    }
+
+
+def _normalize_inventory_snapshot(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    normalized: dict[str, dict[str, Any]] = {}
+    for raw_key, raw_entry in snapshot.items():
+        if not isinstance(raw_entry, dict):
+            continue
+        item_key = str(raw_key)
+        normalized[item_key] = _normalize_inventory_entry(item_key, raw_entry)
+    return normalized
 
 
 class ScanRepository:
@@ -122,7 +155,12 @@ class ScanRepository:
 
         self._save_raw(result, meta)
         student_changes = self._merge_students(result.students, scan_id, scanned_at)
-        inventory_changes = self._merge_inventory(result.items + result.equipment, scan_id, scanned_at)
+        inventory_changes = self._merge_inventory(
+            result.items + result.equipment,
+            scan_id,
+            scanned_at,
+            profile_id=meta.get("item_scan_filter_profile"),
+        )
         self._save_db(result, meta)
 
         summary = {
@@ -140,7 +178,39 @@ class ScanRepository:
         return _read_json(self._current / "students.json", default={})
 
     def load_current_inventory(self) -> dict[str, dict]:
-        return _read_json(self._current / "inventory.json", default={})
+        try:
+            init_db(self._db_path)
+            conn = get_connection(self._db_path)
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT item_key, item_id, name, quantity, item_index, item_source, last_seen_at, last_scan_id
+                    FROM inventory_current
+                    ORDER BY COALESCE(item_index, 999999), item_key
+                    """
+                ).fetchall()
+            finally:
+                conn.close()
+            if rows:
+                return {
+                    str(row["item_key"]): {
+                        "item_id": row["item_id"],
+                        "name": row["name"],
+                        "quantity": row["quantity"],
+                        "index": row["item_index"],
+                        "item_source": row["item_source"],
+                        "last_seen_at": row["last_seen_at"],
+                        "last_scan_id": row["last_scan_id"],
+                    }
+                    for row in rows
+                }
+        except Exception:
+            pass
+
+        fallback = _normalize_inventory_snapshot(_read_json(self._current / "inventory.json", default={}))
+        if fallback:
+            self._replace_inventory_db_snapshot(fallback)
+        return fallback
 
     def load_student_changes(self, student_id: str | None = None, limit: int = 200) -> list[dict]:
         changes: list[dict] = _read_json(self._history / "student_changes.json", default=[])
@@ -149,6 +219,37 @@ class ScanRepository:
         return changes[-limit:]
 
     def load_inventory_changes(self, limit: int = 200) -> list[dict]:
+        try:
+            init_db(self._db_path)
+            conn = get_connection(self._db_path)
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT item_key, item_id, name, old_quantity, new_quantity, changed_at, scan_id
+                    FROM inventory_history
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            finally:
+                conn.close()
+            if rows:
+                return [
+                    {
+                        "item": row["item_key"],
+                        "item_id": row["item_id"],
+                        "name": row["name"],
+                        "old": row["old_quantity"],
+                        "new": row["new_quantity"],
+                        "changed_at": row["changed_at"],
+                        "scan_id": row["scan_id"],
+                    }
+                    for row in reversed(rows)
+                ]
+        except Exception:
+            pass
+
         changes: list[dict] = _read_json(self._history / "inventory_changes.json", default=[])
         return changes[-limit:]
 
@@ -162,6 +263,8 @@ class ScanRepository:
             with conn:
                 conn.execute("DELETE FROM items")
                 conn.execute("DELETE FROM equipment_items")
+                conn.execute("DELETE FROM inventory_current")
+                conn.execute("DELETE FROM inventory_history")
         finally:
             conn.close()
 
@@ -317,18 +420,46 @@ class ScanRepository:
         _write_json(self._history / "student_changes.json", history)
         return total_changes
 
-    def _merge_inventory(self, items: list[ItemEntry], scan_id: str, scanned_at: str) -> int:
-        current: dict = _read_json(self._current / "inventory.json", default={})
+    def _merge_inventory(
+        self,
+        items: list[ItemEntry],
+        scan_id: str,
+        scanned_at: str,
+        profile_id: str | None = None,
+    ) -> int:
+        current = _normalize_inventory_snapshot(_read_json(self._current / "inventory.json", default={}))
         history: list[dict] = _read_json(self._history / "inventory_changes.json", default=[])
 
-        new_snapshot = _items_to_inventory(items)
-        merged = merge_inventory_snapshot(current, new_snapshot)
+        new_snapshot = _normalize_inventory_snapshot(_items_to_inventory(items))
+        profile = get_inventory_profile(profile_id)
+        if profile is not None:
+            expected_item_ids = set(profile.expected_item_ids)
+            expected_names = set(profile.ordered_names)
+            current = {
+                item_key: entry
+                for item_key, entry in current.items()
+                if (
+                    (entry.get("item_id") or item_key) not in expected_item_ids
+                    and str(entry.get("name") or "") not in expected_names
+                )
+            }
+        merged = _normalize_inventory_snapshot(merge_inventory_snapshot(current, new_snapshot))
+        for item_key, entry in merged.items():
+            if item_key in new_snapshot:
+                entry["last_seen_at"] = scanned_at
+                entry["last_scan_id"] = scan_id
+            else:
+                entry["last_seen_at"] = current.get(item_key, {}).get("last_seen_at")
+                entry["last_scan_id"] = current.get(item_key, {}).get("last_scan_id")
         diffs = compute_inventory_diff(current, merged)
 
         for diff in diffs:
+            item_entry = merged.get(diff.field, {})
             history.append(
                 {
                     "item": diff.field,
+                    "item_id": item_entry.get("item_id"),
+                    "name": item_entry.get("name"),
                     "old": diff.old_value,
                     "new": diff.new_value,
                     "changed_at": scanned_at,
@@ -338,6 +469,8 @@ class ScanRepository:
 
         _write_json(self._current / "inventory.json", merged)
         _write_json(self._history / "inventory_changes.json", history)
+        self._replace_inventory_db_snapshot(merged)
+        self._append_inventory_db_history(merged, diffs, scan_id, scanned_at)
         return len(diffs)
 
     def _save_db(self, result: ScanResult, meta: dict) -> None:
@@ -402,3 +535,74 @@ class ScanRepository:
             conn.close()
         except Exception as exc:
             print(f"[Repo] DB sync failed ({self._db_path}): {exc}")
+
+    def _replace_inventory_db_snapshot(self, inventory: dict[str, dict[str, Any]]) -> None:
+        try:
+            init_db(self._db_path)
+            conn = get_connection(self._db_path)
+            with conn:
+                conn.execute("DELETE FROM inventory_current")
+                for item_key, row in inventory.items():
+                    data = _normalize_inventory_entry(item_key, row)
+                    conn.execute(
+                        """
+                        INSERT INTO inventory_current (
+                            item_key, item_id, name, quantity,
+                            item_index, item_source, last_seen_at, last_scan_id
+                        ) VALUES (
+                            :item_key, :item_id, :name, :quantity,
+                            :item_index, :item_source, :last_seen_at, :last_scan_id
+                        )
+                        """,
+                        {
+                            "item_key": item_key,
+                            "item_id": data.get("item_id"),
+                            "name": data.get("name"),
+                            "quantity": data.get("quantity"),
+                            "item_index": data.get("index"),
+                            "item_source": data.get("item_source"),
+                            "last_seen_at": row.get("last_seen_at"),
+                            "last_scan_id": row.get("last_scan_id"),
+                        },
+                    )
+            conn.close()
+        except Exception as exc:
+            print(f"[Repo] Inventory DB sync failed ({self._db_path}): {exc}")
+
+    def _append_inventory_db_history(
+        self,
+        inventory: dict[str, dict[str, Any]],
+        diffs: list[FieldDiff],
+        scan_id: str,
+        scanned_at: str,
+    ) -> None:
+        if not diffs:
+            return
+        try:
+            init_db(self._db_path)
+            conn = get_connection(self._db_path)
+            with conn:
+                conn.executemany(
+                    """
+                    INSERT INTO inventory_history (
+                        item_key, item_id, name, old_quantity, new_quantity, changed_at, scan_id
+                    ) VALUES (
+                        :item_key, :item_id, :name, :old_quantity, :new_quantity, :changed_at, :scan_id
+                    )
+                    """,
+                    [
+                        {
+                            "item_key": diff.field,
+                            "item_id": inventory.get(diff.field, {}).get("item_id"),
+                            "name": inventory.get(diff.field, {}).get("name"),
+                            "old_quantity": diff.old_value,
+                            "new_quantity": diff.new_value,
+                            "changed_at": scanned_at,
+                            "scan_id": scan_id,
+                        }
+                        for diff in diffs
+                    ],
+                )
+            conn.close()
+        except Exception as exc:
+            print(f"[Repo] Inventory history DB sync failed ({self._db_path}): {exc}")

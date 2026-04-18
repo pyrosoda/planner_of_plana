@@ -239,6 +239,7 @@ def merge_inventory_snapshot(old: dict, new: dict) -> dict:
             "name":     new_entry.get("name", merged.get(name, {}).get("name")),
             "quantity": new_qty,
             "index":    new_entry.get("index", merged.get(name, {}).get("index")),
+            "item_source": new_entry.get("item_source", merged.get(name, {}).get("item_source")),
         }
 
     return merged

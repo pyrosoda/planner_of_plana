@@ -1,0 +1,797 @@
+{
+  "meta": {
+    "scan_id": "2026-04-18_193933",
+    "scanned_at": "2026-04-18T19:39:33+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 0,
+    "equipment_count": 107,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {},
+  "students": [],
+  "items": [],
+  "equipment": [
+    {
+      "item_id": "Equipment_Icon_Exp_3",
+      "name": "최상급 강화석",
+      "quantity": "207",
+      "source": "equipment",
+      "index": 0
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_2",
+      "name": "상급 강화석",
+      "quantity": "19149",
+      "source": "equipment",
+      "index": 1
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_1",
+      "name": "일반 강화석",
+      "quantity": "19976",
+      "source": "equipment",
+      "index": 2
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_0",
+      "name": "하급 강화석",
+      "quantity": "19767",
+      "source": "equipment",
+      "index": 3
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier10",
+      "name": "메모리 네클리스",
+      "quantity": "95",
+      "source": "equipment",
+      "index": 4
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier9",
+      "name": "옥토퍼스 홀더",
+      "quantity": "33",
+      "source": "equipment",
+      "index": 5
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier8",
+      "name": "그린리프 목걸이",
+      "quantity": "301",
+      "source": "equipment",
+      "index": 6
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier7",
+      "name": "체인 목걸이",
+      "quantity": "247",
+      "source": "equipment",
+      "index": 7
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier6",
+      "name": "펑크 초커",
+      "quantity": "681",
+      "source": "equipment",
+      "index": 8
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier5",
+      "name": "도그택",
+      "quantity": "594",
+      "source": "equipment",
+      "index": 9
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier4",
+      "name": "십자가 초커",
+      "quantity": "1801",
+      "source": "equipment",
+      "index": 10
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier3",
+      "name": "니콜라이 로켓",
+      "quantity": "1799",
+      "source": "equipment",
+      "index": 11
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier2",
+      "name": "눈꽃 펜던트",
+      "quantity": "2020",
+      "source": "equipment",
+      "index": 12
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier1",
+      "name": "블루투스 목걸이",
+      "quantity": "209",
+      "source": "equipment",
+      "index": 13
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier10",
+      "name": "스크린 워치",
+      "quantity": "172",
+      "source": "equipment",
+      "index": 14
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier9",
+      "name": "다이버 워치",
+      "quantity": "360",
+      "source": "equipment",
+      "index": 15
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier8",
+      "name": "로렐라이 손목 시계",
+      "quantity": "769",
+      "source": "equipment",
+      "index": 16
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier7",
+      "name": "스트릿 패션 시계",
+      "quantity": "51",
+      "source": "equipment",
+      "index": 17
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier6",
+      "name": "고딕풍 손목 시계",
+      "quantity": "10",
+      "source": "equipment",
+      "index": 18
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier5",
+      "name": "방진 손목 시계",
+      "quantity": "48",
+      "source": "equipment",
+      "index": 19
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier4",
+      "name": "앤티크 회중 시계",
+      "quantity": "66",
+      "source": "equipment",
+      "index": 20
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier3",
+      "name": "웨이브캣 손목 시계",
+      "quantity": "60",
+      "source": "equipment",
+      "index": 21
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier2",
+      "name": "가죽 손목 시계",
+      "quantity": "91",
+      "source": "equipment",
+      "index": 22
+    },
+    {
+      "item_id": "Equipment_Icon_Watch_Tier1",
+      "name": "방수 디지털 시계",
+      "quantity": "24",
+      "source": "equipment",
+      "index": 23
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier10",
+      "name": "키캡 토이",
+      "quantity": "307",
+      "source": "equipment",
+      "index": 24
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier9",
+      "name": "상어 이빨 부적",
+      "quantity": "892",
+      "source": "equipment",
+      "index": 25
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier8",
+      "name": "드림캐쳐 부적",
+      "quantity": "109",
+      "source": "equipment",
+      "index": 26
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier7",
+      "name": "휴대용 탈취제",
+      "quantity": "664",
+      "source": "equipment",
+      "index": 27
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier6",
+      "name": "저주 인형",
+      "quantity": "550",
+      "source": "equipment",
+      "index": 28
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier5",
+      "name": "카모 달마",
+      "quantity": "368",
+      "source": "equipment",
+      "index": 29
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier4",
+      "name": "십자가",
+      "quantity": "501",
+      "source": "equipment",
+      "index": 30
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier3",
+      "name": "페로로의 깃털",
+      "quantity": "39",
+      "source": "equipment",
+      "index": 31
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier2",
+      "name": "발열팩",
+      "quantity": "16",
+      "source": "equipment",
+      "index": 32
+    },
+    {
+      "item_id": "Equipment_Icon_Charm_Tier1",
+      "name": "교통안전 부적",
+      "quantity": "213",
+      "source": "equipment",
+      "index": 33
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier10",
+      "name": "전자파 차단 헤어핀",
+      "quantity": "453",
+      "source": "equipment",
+      "index": 34
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier9",
+      "name": "앵커 헤어핀",
+      "quantity": "7",
+      "source": "equipment",
+      "index": 35
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier8",
+      "name": "나뭇잎 헤어핀",
+      "quantity": "26",
+      "source": "equipment",
+      "index": 36
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier7",
+      "name": "캘리그라피 헤어핀",
+      "quantity": "540",
+      "source": "equipment",
+      "index": 37
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier6",
+      "name": "박쥐 헤어핀",
+      "quantity": "316",
+      "source": "equipment",
+      "index": 38
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier5",
+      "name": "다목적 헤어핀",
+      "quantity": "999",
+      "source": "equipment",
+      "index": 39
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier4",
+      "name": "날개 헤어핀",
+      "quantity": "718",
+      "source": "equipment",
+      "index": 40
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier3",
+      "name": "모모 헤어핀",
+      "quantity": "1203",
+      "source": "equipment",
+      "index": 41
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier2",
+      "name": "헤어 슈슈",
+      "quantity": "1122",
+      "source": "equipment",
+      "index": 42
+    },
+    {
+      "item_id": "Equipment_Icon_Hairpin_Tier1",
+      "name": "테니스 헤어밴드",
+      "quantity": "1746",
+      "source": "equipment",
+      "index": 43
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier10",
+      "name": "코인 배지",
+      "quantity": "616",
+      "source": "equipment",
+      "index": 44
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier9",
+      "name": "하르피아 플렉시블 배지",
+      "quantity": "1130",
+      "source": "equipment",
+      "index": 45
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier8",
+      "name": "로렐라이 배지",
+      "quantity": "1074",
+      "source": "equipment",
+      "index": 46
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier7",
+      "name": "스트릿 배지",
+      "quantity": "1052",
+      "source": "equipment",
+      "index": 47
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier6",
+      "name": "코코데빌 실버 배지",
+      "quantity": "1065",
+      "source": "equipment",
+      "index": 48
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier5",
+      "name": "카제야마 벨크로 패치",
+      "quantity": "346",
+      "source": "equipment",
+      "index": 49
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier4",
+      "name": "베로니카 자수 배지",
+      "quantity": "291",
+      "source": "equipment",
+      "index": 50
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier3",
+      "name": "앵그리 아델리 원형 배지",
+      "quantity": "1895",
+      "source": "equipment",
+      "index": 51
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier2",
+      "name": "마나슬루 펠트 배지",
+      "quantity": "1674",
+      "source": "equipment",
+      "index": 52
+    },
+    {
+      "item_id": "Equipment_Icon_Badge_Tier1",
+      "name": "서벌 금속 배지",
+      "quantity": "2071",
+      "source": "equipment",
+      "index": 53
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier10",
+      "name": "메탈 케이스",
+      "quantity": "1856",
+      "source": "equipment",
+      "index": 54
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier9",
+      "name": "슬링 드라이백",
+      "quantity": "1885",
+      "source": "equipment",
+      "index": 55
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier8",
+      "name": "버터플라이 숄더백",
+      "quantity": "1080",
+      "source": "equipment",
+      "index": 56
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier7",
+      "name": "스트릿 백",
+      "quantity": "746",
+      "source": "equipment",
+      "index": 57
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier6",
+      "name": "데빌 윙 토트백",
+      "quantity": "33",
+      "source": "equipment",
+      "index": 58
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier5",
+      "name": "전술 란도셀",
+      "quantity": "70",
+      "source": "equipment",
+      "index": 59
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier4",
+      "name": "감색 스쿨백",
+      "quantity": "799",
+      "source": "equipment",
+      "index": 60
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier3",
+      "name": "페로로 백팩",
+      "quantity": "1021",
+      "source": "equipment",
+      "index": 61
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier2",
+      "name": "방한용 크로스백",
+      "quantity": "459",
+      "source": "equipment",
+      "index": 62
+    },
+    {
+      "item_id": "Equipment_Icon_Bag_Tier1",
+      "name": "방수 스포츠백",
+      "quantity": "758",
+      "source": "equipment",
+      "index": 63
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier10",
+      "name": "게이밍 슬리퍼",
+      "quantity": "1638",
+      "source": "equipment",
+      "index": 64
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier9",
+      "name": "아쿠아 샌들",
+      "quantity": "1117",
+      "source": "equipment",
+      "index": 65
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier8",
+      "name": "방수 등산 부츠",
+      "quantity": "1291",
+      "source": "equipment",
+      "index": 66
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier7",
+      "name": "캐주얼 스니커즈",
+      "quantity": "462",
+      "source": "equipment",
+      "index": 67
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier6",
+      "name": "펌프스 힐",
+      "quantity": "348",
+      "source": "equipment",
+      "index": 68
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier5",
+      "name": "전술 부츠",
+      "quantity": "374",
+      "source": "equipment",
+      "index": 69
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier4",
+      "name": "앤티크 에나멜 로퍼",
+      "quantity": "955",
+      "source": "equipment",
+      "index": 70
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier3",
+      "name": "핑키파카 슬리퍼",
+      "quantity": "27",
+      "source": "equipment",
+      "index": 71
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier2",
+      "name": "어그 부츠",
+      "quantity": "354",
+      "source": "equipment",
+      "index": 72
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier1",
+      "name": "핑크 스니커즈",
+      "quantity": "418",
+      "source": "equipment",
+      "index": 73
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier10",
+      "name": "슈퍼 글러브",
+      "quantity": "253",
+      "source": "equipment",
+      "index": 74
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier9",
+      "name": "세일링 글러브",
+      "quantity": "382",
+      "source": "equipment",
+      "index": 75
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier8",
+      "name": "진주 털실 장갑",
+      "quantity": "168",
+      "source": "equipment",
+      "index": 76
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier7",
+      "name": "팔 토시 워머",
+      "quantity": "519",
+      "source": "equipment",
+      "index": 77
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier6",
+      "name": "레이스 글러브",
+      "quantity": "781",
+      "source": "equipment",
+      "index": 78
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier5",
+      "name": "택티컬 글러브",
+      "quantity": "1788",
+      "source": "equipment",
+      "index": 79
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier4",
+      "name": "가죽 글러브",
+      "quantity": "664",
+      "source": "equipment",
+      "index": 80
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier3",
+      "name": "페로로 오븐 장갑",
+      "quantity": "1169",
+      "source": "equipment",
+      "index": 81
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier2",
+      "name": "니트 벙어리 장갑",
+      "quantity": "869",
+      "source": "equipment",
+      "index": 82
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier1",
+      "name": "스포츠용 장갑",
+      "quantity": "233",
+      "source": "equipment",
+      "index": 83
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier10",
+      "name": "게이밍 헬멧",
+      "quantity": "338",
+      "source": "equipment",
+      "index": 84
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier9",
+      "name": "세일러 햇",
+      "quantity": "762",
+      "source": "equipment",
+      "index": 85
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier8",
+      "name": "리프 리본 페도라",
+      "quantity": "159",
+      "source": "equipment",
+      "index": 86
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier7",
+      "name": "버킷 햇",
+      "quantity": "171",
+      "source": "equipment",
+      "index": 87
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier6",
+      "name": "프릴 미니 햇",
+      "quantity": "709",
+      "source": "equipment",
+      "index": 88
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier5",
+      "name": "방탄 헬멧",
+      "quantity": "239",
+      "source": "equipment",
+      "index": 89
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier4",
+      "name": "리본 베레모",
+      "quantity": "190",
+      "source": "equipment",
+      "index": 90
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier3",
+      "name": "빅 브라더 페도라",
+      "quantity": "810",
+      "source": "equipment",
+      "index": 91
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier2",
+      "name": "니트 털모자",
+      "quantity": "195",
+      "source": "equipment",
+      "index": 92
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier1",
+      "name": "무지 캡모자",
+      "quantity": "132",
+      "source": "equipment",
+      "index": 93
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_3",
+      "name": "공이 T4",
+      "quantity": "40",
+      "source": "equipment",
+      "index": 94
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_2",
+      "name": "공이 T3",
+      "quantity": "235",
+      "source": "equipment",
+      "index": 95
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthC_3",
+      "name": "총열 T4",
+      "quantity": "12",
+      "source": "equipment",
+      "index": 98
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthC_2",
+      "name": "총열 T3",
+      "quantity": "296",
+      "source": "equipment",
+      "index": 99
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthC_0",
+      "name": "총열 T1",
+      "quantity": "10430",
+      "source": "equipment",
+      "index": 101
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthB_3",
+      "name": "해머 T4",
+      "quantity": "10",
+      "source": "equipment",
+      "index": 102
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthB_2",
+      "name": "해머 T3",
+      "quantity": "421",
+      "source": "equipment",
+      "index": 103
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthB_1",
+      "name": "해머 T2",
+      "quantity": "11603",
+      "source": "equipment",
+      "index": 104
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthB_0",
+      "name": "해머 T1",
+      "quantity": "1",
+      "source": "equipment",
+      "index": 105
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthA_3",
+      "name": "스프링 T4",
+      "quantity": "15",
+      "source": "equipment",
+      "index": 106
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthA_2",
+      "name": "스프링 T3",
+      "quantity": "190",
+      "source": "equipment",
+      "index": 107
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthA_1",
+      "name": "스프링 T2",
+      "quantity": "17988",
+      "source": "equipment",
+      "index": 108
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthA_0",
+      "name": "스프링 T1",
+      "quantity": "9",
+      "source": "equipment",
+      "index": 109
+    }
+  ],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-18_193933",
+    "session_started_at": "2026-04-18T19:39:33.044014",
+    "session_finished_at": "2026-04-18T19:40:49.737776",
+    "duration_sec": 76.7,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 107,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-18T19:40:49.737776"
+}

@@ -23,6 +23,7 @@ from tools.student_meta_options import FIELD_OPTIONS
 MODULE_NAME = "core.student_meta"
 MODULE_PATH = ROOT_DIR / "core" / "student_meta.py"
 PLAN_FILE = "item_plan_adjustments.json"
+PORTRAIT_TEMPLATE_DIR = ROOT_DIR / "templates" / "students_portraits"
 
 FIELD_SPECS: list[dict[str, object]] = [
     {"name": "student_id", "label": "Student ID", "required": True},
@@ -268,6 +269,41 @@ def _replace_named_assignment(source: str, assignment_name: str, rendered_assign
         raise RuntimeError(f"{assignment_name} assignment not found in core.student_meta")
     lines = source.splitlines()
     return "\n".join(lines[: target.lineno - 1] + rendered_assignment.rstrip("\n").splitlines() + lines[target.end_lineno :]) + "\n"
+
+
+def resolve_portrait_template_path(template_name: object) -> Path | None:
+    name = str(template_name or "").strip()
+    if not name:
+        return None
+    direct_path = PORTRAIT_TEMPLATE_DIR / name
+    if direct_path.exists():
+        return direct_path
+    if Path(name).suffix:
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        candidate = PORTRAIT_TEMPLATE_DIR / f"{name}{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def warn_missing_portrait_template(student_id: str, meta: dict[str, object]) -> bool:
+    template_name = str(meta.get("template_name") or "").strip()
+    if resolve_portrait_template_path(template_name) is not None:
+        return False
+    display_name = str(meta.get("display_name") or student_id)
+    messagebox.showwarning(
+        "Missing Student Template",
+        "\n".join(
+            (
+                f"{display_name} ({student_id}) was moved to KR, but its portrait template is missing.",
+                "",
+                f"Expected template: {template_name or '(empty)'}",
+                f"Template folder: {PORTRAIT_TEMPLATE_DIR}",
+            )
+        ),
+    )
+    return True
 
 
 def _write_students(students: dict[str, dict]) -> None:
@@ -1166,14 +1202,18 @@ class StudentMetaToolApp:
                 return
         student_id = str(self.preview_payload["student_id"])
         meta = dict(self.preview_payload["meta"])
+        was_jp_only = student_id in get_jp_only_ids()
+        next_is_jp_only = self.preview_mark_jp_only_var.get()
         try:
             upsert_student(student_id, meta)
-            set_jp_only(student_id, self.preview_mark_jp_only_var.get())
+            set_jp_only(student_id, next_is_jp_only)
         except Exception as exc:
             messagebox.showerror("Import Failed", str(exc))
             return
         self.preview_summary_var.set(f"Saved {student_id} from SchaleDB.")
         self._refresh_all_views(preserve_student_id=student_id)
+        if was_jp_only and not next_is_jp_only:
+            warn_missing_portrait_template(student_id, meta)
         messagebox.showinfo("Imported", f"{student_id} saved successfully.")
 
     def _set_selected_server_state(self, jp_only: bool) -> None:
@@ -1184,6 +1224,7 @@ class StudentMetaToolApp:
         if student_id not in self.students:
             messagebox.showinfo("Server State", f"Student does not exist: {student_id}")
             return
+        was_jp_only = student_id in get_jp_only_ids()
         try:
             set_jp_only(student_id, jp_only)
         except Exception as exc:
@@ -1191,6 +1232,8 @@ class StudentMetaToolApp:
             return
         self.preview_mark_jp_only_var.set(jp_only)
         self._refresh_all_views(preserve_student_id=student_id)
+        if was_jp_only and not jp_only:
+            warn_missing_portrait_template(student_id, self.students.get(student_id, {}))
         label = "JP-only" if jp_only else "KR"
         self.status_var.set(f"Server state updated: {student_id} -> {label}")
 

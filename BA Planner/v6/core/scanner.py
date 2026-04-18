@@ -82,7 +82,10 @@ from core.inventory_profiles import (
     next_inventory_profile_name,
     resolve_inventory_profile_name,
 )
-from core.inventory_count_matcher import read_item_count_from_detail
+from core.inventory_count_matcher import (
+    read_equipment_count_from_detail,
+    read_item_count_from_detail,
+)
 
 
 
@@ -90,11 +93,6 @@ from core.inventory_count_matcher import read_item_count_from_detail
 
 
 MAX_SCROLLS          = 60
-SCROLL_ITEM          = -830
-SCROLL_EQUIP         = -830
-INVENTORY_DRAG_SCREEN_X = 2490
-INVENTORY_DRAG_SCREEN_Y = 1130
-INVENTORY_DRAG_DURATION = 0.35
 SAME_THRESH          = 0.97
 STUDENT_MENU_WAIT    = 3.0
 MAX_CONSECUTIVE_DUP  = 3
@@ -130,6 +128,29 @@ DELAY_AFTER_CLICK = 0.22  # generic click settle
 DELAY_TAB_SWITCH  = 0.55  # tab switch settle
 DELAY_NEXT        = 1.20  # next student settle
 DELAY_ESC         = 0.35  # escape settle
+
+
+@dataclass(frozen=True)
+class InventoryDragConfig:
+    start_screen_x: int
+    start_screen_y: int
+    delta_px: int
+    duration: float
+
+
+ITEM_INVENTORY_DRAG = InventoryDragConfig(
+    start_screen_x=1900,
+    start_screen_y=1135,
+    delta_px=-900,
+    duration=0.50,
+)
+
+EQUIPMENT_INVENTORY_DRAG = InventoryDragConfig(
+    start_screen_x=1900,
+    start_screen_y=1315,
+    delta_px=-1108,
+    duration=0.50,
+)
 
 
 
@@ -1649,8 +1670,21 @@ class Scanner:
             return None
 
         count = ""
-        if source == "item":
-            count_match = read_item_count_from_detail(img2)
+        if source == "item" or profile_id:
+            count_match = None
+            if source == "equipment" or profile_id == "equipment":
+                count_match = read_equipment_count_from_detail(img2)
+                if (
+                    count_match.value is None
+                    and count_match.reason in ("no_x_templates", "missing_digit_templates")
+                ):
+                    self.log(
+                        "    equipment count fallback -> item templates "
+                        f"(reason={count_match.reason})"
+                    )
+                    count_match = read_item_count_from_detail(img2)
+            else:
+                count_match = read_item_count_from_detail(img2)
             if count_match.value is not None:
                 count = count_match.value
                 self.log(
@@ -1679,17 +1713,8 @@ class Scanner:
                 item_id=matched_item_id,
                 match_score=matched_score,
             )
-
-        count_crop = crop_region(
-            img2,
-            _expand_region(count_r, left=0.004, top=0.003, right=0.020, bottom=0.004),
-        )
-        name_crop = crop_region(img2, name_r)
-        name = ocr.read_item_name(name_crop)
-        if not name:
-            return None
-        count = ocr.read_item_count(count_crop)
-        return InventoryVerification(name=name, count=count)
+        self.log("    detail template fallback disabled: profile/template match required")
+        return None
 
     def _match_inventory_icon(
         self,
@@ -1777,7 +1802,6 @@ class Scanner:
             unmatched.append(entry)
 
         rebuilt: list[ItemEntry] = []
-        inserted = 0
         for idx, expected_name in enumerate(ordered_names):
             expected_item_id = ordered_item_ids[idx] if idx < len(ordered_item_ids) else None
             matched = None
@@ -1786,25 +1810,15 @@ class Scanner:
             if matched is None and expected_name:
                 matched = by_name.pop(expected_name, None)
             if matched is None:
-                inserted += 1
-                matched = ItemEntry(
-                    name=expected_name,
-                    quantity="0",
-                    item_id=expected_item_id,
-                    source=source,
-                    index=idx,
-                )
-            else:
-                matched.name = expected_name or matched.name
-                matched.item_id = expected_item_id or matched.item_id
-                matched.index = idx
+                continue
+            matched.name = expected_name or matched.name
+            matched.item_id = expected_item_id or matched.item_id
+            matched.index = idx
             rebuilt.append(matched)
 
         tail = [entry for entry in items if entry not in rebuilt]
         for idx, entry in enumerate(tail, start=len(rebuilt)):
             entry.index = idx
-        if inserted:
-            self.log(f"  profile gaps filled: +{inserted} zero entries")
         return rebuilt + tail
 
     def _append_profile_gap_entries(
@@ -1821,31 +1835,16 @@ class Scanner:
     ) -> None:
         if end_idx <= start_idx:
             return
-        inserted = 0
-        for profile_idx in range(start_idx, min(end_idx, len(ordered_names))):
-            entry = ItemEntry(
-                name=ordered_names[profile_idx],
-                quantity="0",
-                item_id=ordered_item_ids[profile_idx] if profile_idx < len(ordered_item_ids) else None,
-                source=source,
-                index=len(items),
-            )
-            k = entry.key()
-            if k in seen_keys:
-                continue
-            seen_keys.add(k)
-            items.append(entry)
-            if entry.name:
-                profile_seen_names.add(entry.name)
-            inserted += 1
-        if inserted:
-            self.log(f"  profile gap inserted: +{inserted} zero entries")
+        self.log(
+            f"  profile gap skipped: start={start_idx} end={min(end_idx, len(ordered_names))}"
+        )
 
     def _scroll_inventory_page(
         self,
         rect: tuple[int, int, int, int],
         slots: list[dict],
         grid_r: dict,
+        drag_config: InventoryDragConfig,
         scroll_amount: int,
         grid_cols: int,
     ) -> tuple[bool, Optional[InventoryPageSnapshot], int, int]:
@@ -1863,8 +1862,8 @@ class Scanner:
         left, top, width, height = rect
         width = max(width, 1)
         height = max(height, 1)
-        start_rx = (INVENTORY_DRAG_SCREEN_X - left) / width
-        start_ry = (INVENTORY_DRAG_SCREEN_Y - top) / height
+        start_rx = (drag_config.start_screen_x - left) / width
+        start_ry = (drag_config.start_screen_y - top) / height
         attempts = [scroll_amount, int(scroll_amount * 1.05)]
 
         for idx, amount in enumerate(attempts, start=1):
@@ -1879,12 +1878,12 @@ class Scanner:
                 start_ry_clamped,
                 end_ry_clamped,
                 delay=0.35,
-                duration=INVENTORY_DRAG_DURATION,
+                duration=drag_config.duration,
             )
             self.log(
                 f"  drag try {idx}: start=({start_rx_clamped:.6f},{start_ry_clamped:.6f}) "
                 f"end=({start_rx_clamped:.6f},{end_ry_clamped:.6f}) "
-                f"delta_px={amount} duration={INVENTORY_DRAG_DURATION:.2f} ok={scroll_ok}"
+                f"delta_px={amount} duration={drag_config.duration:.2f} ok={scroll_ok}"
             )
             if not self._wait(0.18):
                 return False, None, next_amount, 0
@@ -1924,6 +1923,7 @@ class Scanner:
         self,
         section: str,
         source: str,
+        drag_config: InventoryDragConfig,
         scroll_amount: int,
     ) -> list[ItemEntry]:
         r_sec   = self.r[section]
@@ -1944,7 +1944,9 @@ class Scanner:
         icon_cache = self._inventory_icon_cache.setdefault(source, {})
         failed_hashes = self._inventory_failed_hashes.setdefault(source, set())
         prev_last_row_hashes: list[str] | None = None
-        active_profile = get_inventory_profile(self._forced_inventory_profile_id) if source == "item" else None
+        active_profile = get_inventory_profile(self._forced_inventory_profile_id)
+        if active_profile is not None and active_profile.source != source:
+            active_profile = None
         profile_seen_names: set[str] = set()
         icon = "아이템" if source == "item" else "장비"
         grid_cols = int(r_sec.get("grid_cols", 0))
@@ -1959,6 +1961,10 @@ class Scanner:
         }
         profile_hash_to_index: dict[str, int] = {}
         profile_cursor = 0
+        disable_first_match_realign = (
+            source == "equipment"
+            or (active_profile is not None and active_profile.profile_id == "equipment")
+        )
 
         self.log(f"{icon} 그리드 스캔 시작 (슬롯 {len(slots)}개)")
         if active_profile is not None:
@@ -2016,7 +2022,6 @@ class Scanner:
             page_skip_until = skip_slots
             page_alignment_locked = (
                 active_profile is None
-                or source != "item"
                 or prev_page_profile_indices is None
             )
             pending_alignment_entries: list[tuple[int, str, str]] = []
@@ -2027,7 +2032,7 @@ class Scanner:
                     continue
 
                 aligned_profile_idx: int | None = None
-                if active_profile is not None and source == "item":
+                if active_profile is not None:
                     aligned_profile_idx = profile_hash_to_index.get(slot_snap.icon_hash)
                     if aligned_profile_idx is not None:
                         if aligned_profile_idx < profile_cursor:
@@ -2072,18 +2077,18 @@ class Scanner:
                         name_r,
                         count_r,
                         source,
-                        profile_id=active_profile.profile_id if source == "item" and active_profile is not None else None,
+                        profile_id=active_profile.profile_id if active_profile is not None else None,
                     )
                     if not verified:
                         failed_hashes.add(slot_snap.icon_hash)
                         continue
                     name = verified.name
                     count = verified.count
-                    if source == "item" and verified.item_id:
+                    if verified.item_id:
                         detail_template_item_id = verified.item_id
                         detail_template_score = verified.match_score
                     item_id = detail_template_item_id or icon_template_item_id
-                    if source == "item":
+                    if active_profile is not None:
                         matched_profile_name = inventory_item_display_name(item_id)
                         if not matched_profile_name and item_id in profile_index_by_name:
                             matched_profile_name = item_id
@@ -2114,30 +2119,37 @@ class Scanner:
                                 None,
                             )
                             if prev_match_pos is not None:
-                                shift = prev_match_pos - slot_idx
-                                if 0 <= shift < len(slots):
-                                    inferred_skip = len(slots) - shift
-                                    if inferred_skip > page_skip_until:
-                                        page_skip_until = inferred_skip
-                                        for fill_idx in range(min(inferred_skip, len(slots))):
-                                            src_idx = fill_idx + shift
-                                            if 0 <= src_idx < len(prev_page_profile_indices):
-                                                current_page_profile_indices[fill_idx] = prev_page_profile_indices[src_idx]
-                                        self.log(
-                                            f"  page realigned by first match: "
-                                            f"slot={slot_idx} prev_slot={prev_match_pos} "
-                                            f"profile_idx={assigned_profile_idx} skip_slots={page_skip_until}"
-                                        )
-                                        page_alignment_locked = True
-                                if slot_idx < page_skip_until:
-                                    current_page_profile_indices[slot_idx] = assigned_profile_idx
-                                    profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                                    icon_cache[slot_snap.icon_hash] = (
-                                        matched_profile_name or name or item_id,
-                                        count,
-                                        item_id,
+                                if disable_first_match_realign:
+                                    self.log(
+                                        f"  page first-match realign ignored: "
+                                        f"slot={slot_idx} prev_slot={prev_match_pos} "
+                                        f"profile_idx={assigned_profile_idx}"
                                     )
-                                    continue
+                                else:
+                                    shift = prev_match_pos - slot_idx
+                                    if 0 <= shift < len(slots):
+                                        inferred_skip = len(slots) - shift
+                                        if inferred_skip > page_skip_until:
+                                            page_skip_until = inferred_skip
+                                            for fill_idx in range(min(inferred_skip, len(slots))):
+                                                src_idx = fill_idx + shift
+                                                if 0 <= src_idx < len(prev_page_profile_indices):
+                                                    current_page_profile_indices[fill_idx] = prev_page_profile_indices[src_idx]
+                                            self.log(
+                                                f"  page realigned by first match: "
+                                                f"slot={slot_idx} prev_slot={prev_match_pos} "
+                                                f"profile_idx={assigned_profile_idx} skip_slots={page_skip_until}"
+                                            )
+                                            page_alignment_locked = True
+                                    if slot_idx < page_skip_until:
+                                        current_page_profile_indices[slot_idx] = assigned_profile_idx
+                                        profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
+                                        icon_cache[slot_snap.icon_hash] = (
+                                            matched_profile_name or name or item_id,
+                                            count,
+                                            item_id,
+                                        )
+                                        continue
                             elif not page_alignment_locked:
                                 page_alignment_locked = True
                         elif not page_alignment_locked and item_id is not None:
@@ -2265,7 +2277,7 @@ class Scanner:
                         detect_source = f"detail_image_template+detail({detail_template_score:.2f})"
                     elif icon_template_matched:
                         detect_source = f"icon_template+detail({icon_template_score:.2f})"
-                    elif source == "item" and assigned_profile_idx is not None:
+                    elif active_profile is not None and assigned_profile_idx is not None:
                         detect_source = f"profile_order+detail({icon_template_score:.2f})"
                     else:
                         detect_source = "detail_template"
@@ -2273,7 +2285,7 @@ class Scanner:
                 canonical_name = inventory_item_display_name(item_id)
                 if canonical_name:
                     name = canonical_name
-                elif active_profile is not None and source != "item":
+                elif active_profile is not None:
                     profile_name = resolve_inventory_profile_name(active_profile, name, profile_seen_names)
                     if profile_name:
                         name = profile_name
@@ -2304,7 +2316,7 @@ class Scanner:
                     items.append(entry)
                     if entry.name:
                         profile_seen_names.add(entry.name)
-                        if active_profile is not None and source == "item":
+                        if active_profile is not None:
                             mapped_idx = profile_index_by_name.get(entry.name)
                             if mapped_idx is not None:
                                 profile_cursor = max(profile_cursor, mapped_idx + 1)
@@ -2379,13 +2391,14 @@ class Scanner:
             if len(page_slot_history) > 12:
                 page_slot_history.pop(0)
             pending_skip_rows = 0
-            if active_profile is not None and source == "item":
+            if active_profile is not None:
                 prev_page_profile_indices = current_page_profile_indices
 
             moved, after_page, current_scroll_amount, pending_skip_rows = self._scroll_inventory_page(
                 rect,
                 slots,
                 grid_r,
+                drag_config,
                 current_scroll_amount,
                 grid_cols,
             )
@@ -2403,7 +2416,7 @@ class Scanner:
             if new_this == 0 and (repeated_last_row or scroll_i >= 2):
                 self.log(f"  no new items: total {len(items)}")
                 break
-        if active_profile is not None and source == "item":
+        if active_profile is not None:
             items = self._fill_missing_profile_entries(items, active_profile, source)
         return items
 
@@ -2419,7 +2432,7 @@ class Scanner:
                 return []
             if not self._wait(0.5):
                 return []
-            result = self._scan_grid("item", "item", SCROLL_ITEM)
+            result = self._scan_grid("item", "item", ITEM_INVENTORY_DRAG, ITEM_INVENTORY_DRAG.delta_px)
             self.log(f"[scan] item scan done: {len(result)} entries")
             return result
         except Exception as e:
@@ -2430,23 +2443,29 @@ class Scanner:
 
     def scan_equipment(self) -> list[ItemEntry]:
         self.log("[scan] equipment scan start")
+        prev_forced_profile_id = self._forced_inventory_profile_id
         try:
-            ocr.load()
+            self._forced_inventory_profile_id = "equipment"
             if not self._open_menu():
                 return []
             if not self._go_to("equipment_entry_button", "equipment"): 
                 return []
             if not self._wait(0.5):
                 return []
-            result = self._scan_grid("equipment", "equipment", SCROLL_EQUIP)
+            result = self._scan_grid(
+                "equipment",
+                "equipment",
+                EQUIPMENT_INVENTORY_DRAG,
+                EQUIPMENT_INVENTORY_DRAG.delta_px,
+            )
             self.log(f"[scan] equipment scan done: {len(result)} entries")
             return result
         except Exception as e:
             self.log(f"equipment scan error: {e}")
             return []
         finally:
+            self._forced_inventory_profile_id = prev_forced_profile_id
             self._return_lobby()
-            ocr.unload()
 
 
 
