@@ -361,10 +361,44 @@ def get_inventory_profile(profile_id: str | None) -> InventoryScanProfile | None
     return _PROFILES.get(profile_id)
 
 
+def normalize_inventory_profile_ids(
+    profile_ids: str | list[str] | tuple[str, ...] | None,
+) -> tuple[str, ...]:
+    if profile_ids is None:
+        return ()
+    if isinstance(profile_ids, str):
+        values = [profile_ids]
+    else:
+        values = list(profile_ids)
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = str(raw_value or "").strip()
+        if not value or value in seen:
+            continue
+        if value == "all":
+            return ("all",)
+        if value not in _PROFILES:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return tuple(normalized)
+
+
 def inventory_profile_label(profile_id: str | None) -> str:
     if not profile_id:
         return _PROFILE_LABELS["all"]
     return _PROFILE_LABELS.get(profile_id, profile_id)
+
+
+def inventory_profile_labels(
+    profile_ids: str | list[str] | tuple[str, ...] | None,
+) -> str:
+    normalized = normalize_inventory_profile_ids(profile_ids)
+    if not normalized or normalized == ("all",):
+        return inventory_profile_label(None)
+    return ", ".join(inventory_profile_label(profile_id) for profile_id in normalized)
 
 
 def infer_inventory_scan_profile(

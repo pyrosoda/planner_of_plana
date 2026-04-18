@@ -19,7 +19,11 @@ from core.merge import (
     merge_inventory_snapshot,
     merge_student_entry,
 )
-from core.inventory_profiles import get_inventory_profile, inventory_item_display_name
+from core.inventory_profiles import (
+    get_inventory_profile,
+    inventory_item_display_name,
+    normalize_inventory_profile_ids,
+)
 from core.scanner import ItemEntry, ScanResult, StudentEntry
 
 
@@ -425,16 +429,22 @@ class ScanRepository:
         items: list[ItemEntry],
         scan_id: str,
         scanned_at: str,
-        profile_id: str | None = None,
+        profile_id: str | list[str] | tuple[str, ...] | None = None,
     ) -> int:
         current = _normalize_inventory_snapshot(_read_json(self._current / "inventory.json", default={}))
         history: list[dict] = _read_json(self._history / "inventory_changes.json", default=[])
 
         new_snapshot = _normalize_inventory_snapshot(_items_to_inventory(items))
-        profile = get_inventory_profile(profile_id)
-        if profile is not None:
-            expected_item_ids = set(profile.expected_item_ids)
-            expected_names = set(profile.ordered_names)
+        normalized_profile_ids = normalize_inventory_profile_ids(profile_id)
+        if normalized_profile_ids and normalized_profile_ids != ("all",):
+            expected_item_ids: set[str] = set()
+            expected_names: set[str] = set()
+            for selected_profile_id in normalized_profile_ids:
+                profile = get_inventory_profile(selected_profile_id)
+                if profile is None:
+                    continue
+                expected_item_ids.update(profile.expected_item_ids)
+                expected_names.update(profile.ordered_names)
             current = {
                 item_key: entry
                 for item_key, entry in current.items()

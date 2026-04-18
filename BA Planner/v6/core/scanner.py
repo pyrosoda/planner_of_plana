@@ -80,6 +80,7 @@ from core.inventory_profiles import (
     inventory_profile_ordered_item_ids,
     is_inventory_profile_complete,
     next_inventory_profile_name,
+    normalize_inventory_profile_ids,
     resolve_inventory_profile_name,
 )
 from core.inventory_count_matcher import (
@@ -120,6 +121,8 @@ TAB_ON_READY_WAIT = 1.5
 UI_FLAG_MATCH_DELAY = 0.10
 STAT_PANEL_MATCH_DELAY = 0.22
 CAPTURED_CLICK_POINTS_FILE = BASE_DIR / "debug" / "captured_click_points.json"
+REGION_CAPTURE_DIR = BASE_DIR / "debug" / "region_captures"
+INVENTORY_SORT_RULE_MATCH_THRESHOLD = 0.95
 
 # Retry policy
 RETRY_IDENTIFY   = 2      # max student identify retries
@@ -644,6 +647,9 @@ _INVENTORY_TEMPLATE_DIRS: dict[str, tuple[str, ...]] = {
 _INVENTORY_TEMPLATE_CATALOG: dict[str, list[tuple[str, str]]] = {}
 _INVENTORY_DETAIL_TEMPLATE_CATALOG: dict[str, list[tuple[str, str]]] = {}
 _INVENTORY_DETAIL_TEMPLATE_REGION: dict[str, dict] = {}
+_REGION_CAPTURE_PAYLOADS: dict[str, dict] = {}
+_REGION_CAPTURE_REGIONS: dict[str, dict] = {}
+_REGION_CAPTURE_REFERENCE_PATHS: dict[str, str | None] = {}
 
 
 def _inventory_template_catalog(source: str) -> list[tuple[str, str]]:
@@ -714,6 +720,69 @@ def _inventory_detail_template_region(profile_id: str | None) -> dict | None:
     return None
 
 
+def _load_region_capture_payload(name: str, *, reference: bool = False) -> dict | None:
+    suffix = "_001.json" if reference else ".region.json"
+    cache_key = f"{name}{suffix}"
+    cached = _REGION_CAPTURE_PAYLOADS.get(cache_key)
+    if cached is not None:
+        return cached
+
+    path = REGION_CAPTURE_DIR / f"{name}{suffix}"
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    _REGION_CAPTURE_PAYLOADS[cache_key] = payload
+    return payload
+
+
+def _region_from_payload(payload: dict) -> dict | None:
+    points = payload.get("points_ratio") or []
+    if len(points) < 4:
+        return None
+    try:
+        xs = [float(point.get("x", 0.0)) for point in points]
+        ys = [float(point.get("y", 0.0)) for point in points]
+    except Exception:
+        return None
+    return {
+        "x1": max(0.0, min(xs)),
+        "y1": max(0.0, min(ys)),
+        "x2": min(1.0, max(xs)),
+        "y2": min(1.0, max(ys)),
+    }
+
+
+def _region_capture_region(name: str) -> dict | None:
+    cached = _REGION_CAPTURE_REGIONS.get(name)
+    if cached is not None:
+        return cached
+    payload = _load_region_capture_payload(name)
+    if payload is None:
+        return None
+    region = _region_from_payload(payload)
+    if region is None:
+        return None
+    _REGION_CAPTURE_REGIONS[name] = region
+    return region
+
+
+def _region_capture_reference_path(name: str) -> str | None:
+    if name in _REGION_CAPTURE_REFERENCE_PATHS:
+        return _REGION_CAPTURE_REFERENCE_PATHS[name]
+    payload = _load_region_capture_payload(name, reference=True)
+    if payload is None:
+        return None
+    image_path = str(payload.get("image_path") or "").strip()
+    resolved = image_path if image_path and Path(image_path).exists() else None
+    _REGION_CAPTURE_REFERENCE_PATHS[name] = resolved
+    return resolved
+
+
 def _dict_to_student_entry(d: dict) -> StudentEntry:
     ws_raw = d.get("weapon_state")
     try:
@@ -762,7 +831,7 @@ class Scanner:
         student_saved_data: Optional[dict[str, dict]] = None,
         student_total_hint: Optional[int] = None,
         autosave_manager = None,   # AutoSaveManager | None
-        inventory_profile_id: str | None = None,
+        inventory_profile_id: str | list[str] | tuple[str, ...] | None = None,
         fast_student_ids: Optional[list[str]] = None,
     ):
         self.r             = regions
@@ -786,7 +855,12 @@ class Scanner:
             "item": set(),
             "equipment": set(),
         }
-        self._forced_inventory_profile_id = inventory_profile_id or None
+        self._default_inventory_profile_ids = normalize_inventory_profile_ids(inventory_profile_id)
+        self._forced_inventory_profile_id: str | None = (
+            None
+            if not self._default_inventory_profile_ids or self._default_inventory_profile_ids == ("all",)
+            else self._default_inventory_profile_ids[0]
+        )
 
         if self._maxed_ids:
             self._info(f"만렙 스킵용 저장데이터 로드: {len(self._maxed_ids)}명")
@@ -850,6 +924,108 @@ class Scanner:
         except Exception:
             return False
         return self._click_ratio_point(rx, ry, label=label or name, delay=delay)
+
+    def _click_region_capture(self, name: str, *, label: str = "", delay: float = 0.0) -> bool:
+        region = _region_capture_region(name)
+        if region is None:
+            self.log(f"warning: missing region capture {name}")
+            return False
+        clicked = self._click_r(region, label or name)
+        if clicked and delay > 0:
+            return self._wait(delay)
+        return clicked
+
+    def _region_capture_match_score(self, name: str) -> float | None:
+        region = _region_capture_region(name)
+        template_path = _region_capture_reference_path(name)
+        if region is None or not template_path:
+            return None
+        img = self._capture()
+        if img is None:
+            return None
+        crop = crop_region(img, region)
+        return match_score_resized(crop, template_path, focus_center=True)
+
+    def _ensure_region_matches_reference(
+        self,
+        name: str,
+        *,
+        threshold: float = INVENTORY_SORT_RULE_MATCH_THRESHOLD,
+        click_delay: float = DELAY_AFTER_CLICK,
+    ) -> bool:
+        score = self._region_capture_match_score(name)
+        if score is None:
+            self.log(f"  {name} reference unavailable -> skip check")
+            return False
+        self.log(f"  {name} match score={score:.3f}")
+        if score >= threshold:
+            return True
+        self.log(f"  {name} mismatch -> clicking")
+        if not self._click_region_capture(name, label=name, delay=click_delay):
+            return False
+        post_score = self._region_capture_match_score(name)
+        if post_score is not None:
+            self.log(f"  {name} post-click score={post_score:.3f}")
+            return post_score >= threshold
+        return True
+
+    def _item_scan_profiles(
+        self,
+        inventory_profile_id: str | list[str] | tuple[str, ...] | None,
+    ) -> tuple[str | None, ...]:
+        requested = inventory_profile_id
+        if requested is None:
+            requested = self._default_inventory_profile_ids
+        normalized = normalize_inventory_profile_ids(requested)
+        if not normalized or normalized == ("all",):
+            return (None,)
+        return tuple(normalized)
+
+    def _prepare_item_inventory(self, profile_id: str | None, *, ensure_sort_rule: bool) -> bool:
+        self.log("  item filter menu open")
+        if not self._click_region_capture("filtermenu_button", label="filtermenu_button", delay=0.35):
+            return False
+        if ensure_sort_rule:
+            if not self._click_region_capture("sort_tab", label="sort_tab", delay=0.2):
+                return False
+            self._ensure_region_matches_reference("sort_rule_check")
+        if not self._click_region_capture("filter_tab", label="filter_tab", delay=0.2):
+            return False
+        if not self._click_region_capture("filter_reset_button", label="filter_reset_button", delay=0.2):
+            return False
+
+        filter_button_by_profile = {
+            "tech_notes": "note_filter",
+            "tactical_bd": "bd_filter",
+            "ooparts": "ooparts_filter",
+            "coins": "coin_filter",
+            "activity_reports": "reports_filter",
+        }
+        filter_button = filter_button_by_profile.get(profile_id or "")
+        if filter_button:
+            if not self._click_region_capture(filter_button, label=filter_button, delay=0.15):
+                return False
+
+        self._esc(delay=0.3)
+        return self._wait(0.2)
+
+    def _prepare_equipment_inventory(self) -> bool:
+        self.log("  equipment filter menu open")
+        if not self._click_region_capture("eq_filtermenu_button", label="eq_filtermenu_button", delay=0.35):
+            return False
+        self._ensure_region_matches_reference("eq_sort_rule_check")
+        self._esc(delay=0.3)
+        return self._wait(0.2)
+
+    def _exit_inventory_to_menu(self) -> bool:
+        self._esc(delay=0.35)
+        return self._wait(0.25)
+
+    def _return_inventory_to_lobby(self) -> None:
+        self.log("로비 복귀...")
+        for _ in range(3):
+            self._esc(delay=0.35)
+            self._wait(0.2)
 
     def _close_student_panel(
         self,
@@ -2420,26 +2596,45 @@ class Scanner:
             items = self._fill_missing_profile_entries(items, active_profile, source)
         return items
 
-
-
-    def scan_items(self, inventory_profile_id: str | None = None) -> list[ItemEntry]:
+    def scan_items(
+        self,
+        inventory_profile_id: str | list[str] | tuple[str, ...] | None = None,
+    ) -> list[ItemEntry]:
         self.log("[scan] item scan start")
+        prev_forced_profile_id = self._forced_inventory_profile_id
         try:
-            self._forced_inventory_profile_id = inventory_profile_id or self._forced_inventory_profile_id
             if not self._open_menu():
                 return []
-            if not self._go_to("item_entry_button", "items"): 
-                return []
-            if not self._wait(0.5):
-                return []
-            result = self._scan_grid("item", "item", ITEM_INVENTORY_DRAG, ITEM_INVENTORY_DRAG.delta_px)
-            self.log(f"[scan] item scan done: {len(result)} entries")
-            return result
+            item_profiles = self._item_scan_profiles(inventory_profile_id)
+            all_items: list[ItemEntry] = []
+            sort_rule_checked = False
+
+            for index, profile_id in enumerate(item_profiles, start=1):
+                profile_label = profile_id or "all"
+                self.log(f"[scan] item pass {index}/{len(item_profiles)} profile={profile_label}")
+                self._forced_inventory_profile_id = profile_id
+                if not self._go_to("item_entry_button", "items"):
+                    return all_items
+                if not self._wait(0.5):
+                    return all_items
+                if not self._prepare_item_inventory(profile_id, ensure_sort_rule=not sort_rule_checked):
+                    return all_items
+                sort_rule_checked = True
+                result = self._scan_grid("item", "item", ITEM_INVENTORY_DRAG, ITEM_INVENTORY_DRAG.delta_px)
+                all_items.extend(result)
+                self.log(f"[scan] item pass done: {len(result)} entries")
+                if index < len(item_profiles):
+                    if not self._exit_inventory_to_menu():
+                        return all_items
+
+            self.log(f"[scan] item scan done: {len(all_items)} entries")
+            return all_items
         except Exception as e:
             self.log(f"item scan error: {e}")
             return []
         finally:
-            self._return_lobby()
+            self._forced_inventory_profile_id = prev_forced_profile_id
+            self._return_inventory_to_lobby()
 
     def scan_equipment(self) -> list[ItemEntry]:
         self.log("[scan] equipment scan start")
@@ -2451,6 +2646,8 @@ class Scanner:
             if not self._go_to("equipment_entry_button", "equipment"): 
                 return []
             if not self._wait(0.5):
+                return []
+            if not self._prepare_equipment_inventory():
                 return []
             result = self._scan_grid(
                 "equipment",
@@ -2465,7 +2662,7 @@ class Scanner:
             return []
         finally:
             self._forced_inventory_profile_id = prev_forced_profile_id
-            self._return_lobby()
+            self._return_inventory_to_lobby()
 
 
 

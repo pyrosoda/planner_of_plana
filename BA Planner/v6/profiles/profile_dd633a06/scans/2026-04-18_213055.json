@@ -1,0 +1,361 @@
+{
+  "meta": {
+    "scan_id": "2026-04-18_213055",
+    "scanned_at": "2026-04-18T21:30:55+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다",
+    "item_scan_filter_profile": "tactical_bd",
+    "item_scan_filter_label": "전술 교육 BD"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 44,
+    "equipment_count": 0,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {
+    "credit": "89696538",
+    "pyroxene": "49240"
+  },
+  "students": [],
+  "items": [
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_0",
+      "name": "기초 전술 교육 BD (백귀야행)",
+      "quantity": "834",
+      "source": "item",
+      "index": 0
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_1",
+      "name": "일반 전술 교육 BD (백귀야행)",
+      "quantity": "179",
+      "source": "item",
+      "index": 1
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_2",
+      "name": "상급 전술 교육 BD (백귀야행)",
+      "quantity": "112",
+      "source": "item",
+      "index": 2
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_3",
+      "name": "최상급 전술 교육 BD (백귀야행)",
+      "quantity": "28",
+      "source": "item",
+      "index": 3
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_RedWinter_0",
+      "name": "기초 전술 교육 BD (붉은겨울)",
+      "quantity": "1470",
+      "source": "item",
+      "index": 4
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_RedWinter_1",
+      "name": "일반 전술 교육 BD (붉은겨울)",
+      "quantity": "445",
+      "source": "item",
+      "index": 5
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_RedWinter_2",
+      "name": "상급 전술 교육 BD (붉은겨울)",
+      "quantity": "438",
+      "source": "item",
+      "index": 6
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_RedWinter_3",
+      "name": "최상급 전술 교육 BD (붉은겨울)",
+      "quantity": "80",
+      "source": "item",
+      "index": 7
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Trinity_0",
+      "name": "기초 전술 교육 BD (트리니티)",
+      "quantity": "584",
+      "source": "item",
+      "index": 8
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Trinity_1",
+      "name": "일반 전술 교육 BD (트리니티)",
+      "quantity": "26",
+      "source": "item",
+      "index": 9
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Trinity_2",
+      "name": "상급 전술 교육 BD (트리니티)",
+      "quantity": "135",
+      "source": "item",
+      "index": 10
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Trinity_3",
+      "name": "최상급 전술 교육 BD (트리니티)",
+      "quantity": "35",
+      "source": "item",
+      "index": 11
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Gehenna_0",
+      "name": "기초 전술 교육 BD (게헨나)",
+      "quantity": "848",
+      "source": "item",
+      "index": 12
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Gehenna_1",
+      "name": "일반 전술 교육 BD (게헨나)",
+      "quantity": "236",
+      "source": "item",
+      "index": 13
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Gehenna_2",
+      "name": "상급 전술 교육 BD (게헨나)",
+      "quantity": "151",
+      "source": "item",
+      "index": 14
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Gehenna_3",
+      "name": "최상급 전술 교육 BD (게헨나)",
+      "quantity": "42",
+      "source": "item",
+      "index": 15
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Abydos_0",
+      "name": "기초 전술 교육 BD (아비도스)",
+      "quantity": "1301",
+      "source": "item",
+      "index": 16
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Abydos_1",
+      "name": "일반 전술 교육 BD (아비도스)",
+      "quantity": "378",
+      "source": "item",
+      "index": 17
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Abydos_2",
+      "name": "상급 전술 교육 BD (아비도스)",
+      "quantity": "204",
+      "source": "item",
+      "index": 18
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Abydos_3",
+      "name": "최상급 전술 교육 BD (아비도스)",
+      "quantity": "76",
+      "source": "item",
+      "index": 19
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Millennium_0",
+      "name": "기초 전술 교육 BD (밀레니엄)",
+      "quantity": "1055",
+      "source": "item",
+      "index": 20
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Millennium_1",
+      "name": "일반 전술 교육 BD (밀레니엄)",
+      "quantity": "215",
+      "source": "item",
+      "index": 21
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Millennium_2",
+      "name": "상급 전술 교육 BD (밀레니엄)",
+      "quantity": "177",
+      "source": "item",
+      "index": 22
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Millennium_3",
+      "name": "최상급 전술 교육 BD (밀레니엄)",
+      "quantity": "44",
+      "source": "item",
+      "index": 23
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Arius_0",
+      "name": "기초 전술 교육 BD (아리우스)",
+      "quantity": "909",
+      "source": "item",
+      "index": 24
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Arius_1",
+      "name": "일반 전술 교육 BD (아리우스)",
+      "quantity": "279",
+      "source": "item",
+      "index": 25
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Arius_2",
+      "name": "상급 전술 교육 BD (아리우스)",
+      "quantity": "205",
+      "source": "item",
+      "index": 26
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Arius_3",
+      "name": "최상급 전술 교육 BD (아리우스)",
+      "quantity": "40",
+      "source": "item",
+      "index": 27
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_0",
+      "name": "기초 전술 교육 BD (산해경)",
+      "quantity": "975",
+      "source": "item",
+      "index": 28
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_1",
+      "name": "일반 전술 교육 BD (산해경)",
+      "quantity": "252",
+      "source": "item",
+      "index": 29
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_2",
+      "name": "상급 전술 교육 BD (산해경)",
+      "quantity": "205",
+      "source": "item",
+      "index": 30
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_3",
+      "name": "최상급 전술 교육 BD (산해경)",
+      "quantity": "49",
+      "source": "item",
+      "index": 31
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Valkyrie_0",
+      "name": "기초 전술 교육 BD (발키리)",
+      "quantity": "952",
+      "source": "item",
+      "index": 32
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Valkyrie_1",
+      "name": "일반 전술 교육 BD (발키리)",
+      "quantity": "230",
+      "source": "item",
+      "index": 33
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Valkyrie_2",
+      "name": "상급 전술 교육 BD (발키리)",
+      "quantity": "154",
+      "source": "item",
+      "index": 34
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Valkyrie_3",
+      "name": "최상급 전술 교육 BD (발키리)",
+      "quantity": "19",
+      "source": "item",
+      "index": 35
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Highlander_0",
+      "name": "기초 전술 교육 BD (하이랜더)",
+      "quantity": "268",
+      "source": "item",
+      "index": 36
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Highlander_1",
+      "name": "일반 전술 교육 BD (하이랜더)",
+      "quantity": "82",
+      "source": "item",
+      "index": 37
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Highlander_2",
+      "name": "상급 전술 교육 BD (하이랜더)",
+      "quantity": "104",
+      "source": "item",
+      "index": 38
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Highlander_3",
+      "name": "최상급 전술 교육 BD (하이랜더)",
+      "quantity": "17",
+      "source": "item",
+      "index": 39
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Wildhunt_0",
+      "name": "기초 전술 교육 BD (와일드헌트)",
+      "quantity": "289",
+      "source": "item",
+      "index": 40
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Wildhunt_1",
+      "name": "일반 전술 교육 BD (와일드헌트)",
+      "quantity": "104",
+      "source": "item",
+      "index": 41
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Wildhunt_2",
+      "name": "상급 전술 교육 BD (와일드헌트)",
+      "quantity": "69",
+      "source": "item",
+      "index": 42
+    },
+    {
+      "item_id": "Item_Icon_Material_ExSkill_Wildhunt_3",
+      "name": "최상급 전술 교육 BD (와일드헌트)",
+      "quantity": "10",
+      "source": "item",
+      "index": 43
+    }
+  ],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-18_213055",
+    "session_started_at": "2026-04-18T21:30:55.562347",
+    "session_finished_at": "2026-04-18T21:31:33.080616",
+    "duration_sec": 37.5,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 44,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-18T21:31:33.080616"
+}

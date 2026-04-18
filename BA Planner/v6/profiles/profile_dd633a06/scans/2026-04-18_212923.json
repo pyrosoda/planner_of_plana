@@ -1,0 +1,634 @@
+{
+  "meta": {
+    "scan_id": "2026-04-18_212923",
+    "scanned_at": "2026-04-18T21:29:23+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다",
+    "item_scan_filter_profile": "ooparts",
+    "item_scan_filter_label": "오파츠"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 83,
+    "equipment_count": 0,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {
+    "credit": "89696538",
+    "pyroxene": "49240"
+  },
+  "students": [],
+  "items": [
+    {
+      "item_id": "Item_Icon_Material_Nebra_0",
+      "name": "네브라 디스크 조각",
+      "quantity": "2162",
+      "source": "item",
+      "index": 0
+    },
+    {
+      "item_id": "Item_Icon_Material_Nebra_1",
+      "name": "파손된 네브라 디스크",
+      "quantity": "838",
+      "source": "item",
+      "index": 1
+    },
+    {
+      "item_id": "Item_Icon_Material_Nebra_2",
+      "name": "마모된 네브라 디스크",
+      "quantity": "782",
+      "source": "item",
+      "index": 2
+    },
+    {
+      "item_id": "Item_Icon_Material_Nebra_3",
+      "name": "온전한 네브라 디스크",
+      "quantity": "85",
+      "source": "item",
+      "index": 3
+    },
+    {
+      "item_id": "Item_Icon_Material_Phaistos_0",
+      "name": "파에스토스 원반 조각",
+      "quantity": "2803",
+      "source": "item",
+      "index": 4
+    },
+    {
+      "item_id": "Item_Icon_Material_Phaistos_1",
+      "name": "파손된 파에스토스 원반",
+      "quantity": "1252",
+      "source": "item",
+      "index": 5
+    },
+    {
+      "item_id": "Item_Icon_Material_Phaistos_2",
+      "name": "마모된 파에스토스 원반",
+      "quantity": "714",
+      "source": "item",
+      "index": 6
+    },
+    {
+      "item_id": "Item_Icon_Material_Phaistos_3",
+      "name": "온전한 파에스토스 원반",
+      "quantity": "109",
+      "source": "item",
+      "index": 7
+    },
+    {
+      "item_id": "Item_Icon_Material_Wolfsegg_0",
+      "name": "볼프세크 철광석",
+      "quantity": "4266",
+      "source": "item",
+      "index": 8
+    },
+    {
+      "item_id": "Item_Icon_Material_Wolfsegg_1",
+      "name": "볼프세크 철조각",
+      "quantity": "1383",
+      "source": "item",
+      "index": 9
+    },
+    {
+      "item_id": "Item_Icon_Material_Wolfsegg_2",
+      "name": "저순도 볼프세크 강철",
+      "quantity": "1245",
+      "source": "item",
+      "index": 10
+    },
+    {
+      "item_id": "Item_Icon_Material_Wolfsegg_3",
+      "name": "고순도 볼프세크 강철",
+      "quantity": "155",
+      "source": "item",
+      "index": 11
+    },
+    {
+      "item_id": "Item_Icon_Material_Nimrud_0",
+      "name": "님루드 렌즈 조각",
+      "quantity": "3749",
+      "source": "item",
+      "index": 12
+    },
+    {
+      "item_id": "Item_Icon_Material_Nimrud_1",
+      "name": "파손된 님루드 렌즈",
+      "quantity": "1530",
+      "source": "item",
+      "index": 13
+    },
+    {
+      "item_id": "Item_Icon_Material_Nimrud_2",
+      "name": "마모된 님루드 렌즈",
+      "quantity": "718",
+      "source": "item",
+      "index": 14
+    },
+    {
+      "item_id": "Item_Icon_Material_Nimrud_3",
+      "name": "온전한 님루드 렌즈",
+      "quantity": "186",
+      "source": "item",
+      "index": 15
+    },
+    {
+      "item_id": "Item_Icon_Material_Mandragora_0",
+      "name": "만드라고라 씨앗",
+      "quantity": "3998",
+      "source": "item",
+      "index": 16
+    },
+    {
+      "item_id": "Item_Icon_Material_Mandragora_1",
+      "name": "만드라고라 새싹",
+      "quantity": "1947",
+      "source": "item",
+      "index": 17
+    },
+    {
+      "item_id": "Item_Icon_Material_Mandragora_2",
+      "name": "만드라고라 주스",
+      "quantity": "609",
+      "source": "item",
+      "index": 18
+    },
+    {
+      "item_id": "Item_Icon_Material_Mandragora_3",
+      "name": "만드라고라 농축액",
+      "quantity": "87",
+      "source": "item",
+      "index": 19
+    },
+    {
+      "item_id": "Item_Icon_Material_Rohonc_0",
+      "name": "로혼치 사본 페이지",
+      "quantity": "4994",
+      "source": "item",
+      "index": 20
+    },
+    {
+      "item_id": "Item_Icon_Material_Rohonc_1",
+      "name": "훼손된 로혼치 사본",
+      "quantity": "2535",
+      "source": "item",
+      "index": 21
+    },
+    {
+      "item_id": "Item_Icon_Material_Rohonc_2",
+      "name": "편집된 로혼치 사본",
+      "quantity": "1295",
+      "source": "item",
+      "index": 22
+    },
+    {
+      "item_id": "Item_Icon_Material_Rohonc_3",
+      "name": "온전한 로혼치 사본",
+      "quantity": "449",
+      "source": "item",
+      "index": 23
+    },
+    {
+      "item_id": "Item_Icon_Material_Ether_0",
+      "name": "에테르 가루",
+      "quantity": "2920",
+      "source": "item",
+      "index": 24
+    },
+    {
+      "item_id": "Item_Icon_Material_Ether_1",
+      "name": "에테르 조각",
+      "quantity": "2018",
+      "source": "item",
+      "index": 25
+    },
+    {
+      "item_id": "Item_Icon_Material_Ether_2",
+      "name": "에테르 결정",
+      "quantity": "1150",
+      "source": "item",
+      "index": 26
+    },
+    {
+      "item_id": "Item_Icon_Material_Ether_3",
+      "name": "에테르 정수",
+      "quantity": "173",
+      "source": "item",
+      "index": 27
+    },
+    {
+      "item_id": "Item_Icon_Material_Antikythera_0",
+      "name": "안티키테라 장치 조각",
+      "quantity": "2860",
+      "source": "item",
+      "index": 28
+    },
+    {
+      "item_id": "Item_Icon_Material_Antikythera_1",
+      "name": "파손된 안티키테라 장치",
+      "quantity": "1069",
+      "source": "item",
+      "index": 29
+    },
+    {
+      "item_id": "Item_Icon_Material_Antikythera_2",
+      "name": "마모된 안티키테라 장치",
+      "quantity": "269",
+      "source": "item",
+      "index": 30
+    },
+    {
+      "item_id": "Item_Icon_Material_Antikythera_3",
+      "name": "온전한 안티키테라 장치",
+      "quantity": "166",
+      "source": "item",
+      "index": 31
+    },
+    {
+      "item_id": "Item_Icon_Material_Voynich_0",
+      "name": "보이니치 사본 페이지",
+      "quantity": "4989",
+      "source": "item",
+      "index": 32
+    },
+    {
+      "item_id": "Item_Icon_Material_Voynich_1",
+      "name": "훼손된 보이니치 사본",
+      "quantity": "1858",
+      "source": "item",
+      "index": 33
+    },
+    {
+      "item_id": "Item_Icon_Material_Voynich_2",
+      "name": "편집된 보이니치 사본",
+      "quantity": "1113",
+      "source": "item",
+      "index": 34
+    },
+    {
+      "item_id": "Item_Icon_Material_Voynich_3",
+      "name": "온전한 보이니치 사본",
+      "quantity": "167",
+      "source": "item",
+      "index": 35
+    },
+    {
+      "item_id": "Item_Icon_Material_CrystalHaniwa_0",
+      "name": "수정 하니와 파편",
+      "quantity": "3319",
+      "source": "item",
+      "index": 36
+    },
+    {
+      "item_id": "Item_Icon_Material_CrystalHaniwa_1",
+      "name": "파손된 수정 하니와",
+      "quantity": "2200",
+      "source": "item",
+      "index": 37
+    },
+    {
+      "item_id": "Item_Icon_Material_CrystalHaniwa_2",
+      "name": "수리된 수정 하니와",
+      "quantity": "841",
+      "source": "item",
+      "index": 38
+    },
+    {
+      "item_id": "Item_Icon_Material_CrystalHaniwa_3",
+      "name": "온전한 수정 하니와",
+      "quantity": "238",
+      "source": "item",
+      "index": 39
+    },
+    {
+      "item_id": "Item_Icon_Material_TotemPole_0",
+      "name": "토템폴 조각",
+      "quantity": "2111",
+      "source": "item",
+      "index": 40
+    },
+    {
+      "item_id": "Item_Icon_Material_TotemPole_1",
+      "name": "파손된 토템폴",
+      "quantity": "995",
+      "source": "item",
+      "index": 41
+    },
+    {
+      "item_id": "Item_Icon_Material_TotemPole_2",
+      "name": "수리된 토템폴",
+      "quantity": "570",
+      "source": "item",
+      "index": 42
+    },
+    {
+      "item_id": "Item_Icon_Material_TotemPole_3",
+      "name": "온전한 토템폴",
+      "quantity": "175",
+      "source": "item",
+      "index": 43
+    },
+    {
+      "item_id": "Item_Icon_Material_Baghdad_0",
+      "name": "고대 전지 조각",
+      "quantity": "936",
+      "source": "item",
+      "index": 44
+    },
+    {
+      "item_id": "Item_Icon_Material_Baghdad_1",
+      "name": "파손된 고대 전지",
+      "quantity": "1910",
+      "source": "item",
+      "index": 45
+    },
+    {
+      "item_id": "Item_Icon_Material_Baghdad_2",
+      "name": "마모된 고대 전지",
+      "quantity": "974",
+      "source": "item",
+      "index": 46
+    },
+    {
+      "item_id": "Item_Icon_Material_Baghdad_3",
+      "name": "온전한 고대 전지",
+      "quantity": "199",
+      "source": "item",
+      "index": 47
+    },
+    {
+      "item_id": "Item_Icon_Material_GoldenFleece_0",
+      "name": "황금 양털",
+      "quantity": "1701",
+      "source": "item",
+      "index": 48
+    },
+    {
+      "item_id": "Item_Icon_Material_GoldenFleece_1",
+      "name": "황금 털실",
+      "quantity": "584",
+      "source": "item",
+      "index": 49
+    },
+    {
+      "item_id": "Item_Icon_Material_GoldenFleece_2",
+      "name": "황금 양모",
+      "quantity": "276",
+      "source": "item",
+      "index": 50
+    },
+    {
+      "item_id": "Item_Icon_Material_GoldenFleece_3",
+      "name": "황금 드레스",
+      "quantity": "96",
+      "source": "item",
+      "index": 51
+    },
+    {
+      "item_id": "Item_Icon_Material_Kikuko_0",
+      "name": "머리가 자라는 인형 조각",
+      "quantity": "1990",
+      "source": "item",
+      "index": 52
+    },
+    {
+      "item_id": "Item_Icon_Material_Kikuko_1",
+      "name": "파손된 머리가 자라는 인형",
+      "quantity": "745",
+      "source": "item",
+      "index": 53
+    },
+    {
+      "item_id": "Item_Icon_Material_Kikuko_2",
+      "name": "수리된 머리가 자라는 인형",
+      "quantity": "352",
+      "source": "item",
+      "index": 54
+    },
+    {
+      "item_id": "Item_Icon_Material_Kikuko_3",
+      "name": "온전한 머리가 자라는 인형",
+      "quantity": "128",
+      "source": "item",
+      "index": 55
+    },
+    {
+      "item_id": "Item_Icon_Material_DiscoColgante_0",
+      "name": "디스코 콜간테 조각",
+      "quantity": "1383",
+      "source": "item",
+      "index": 56
+    },
+    {
+      "item_id": "Item_Icon_Material_DiscoColgante_1",
+      "name": "파손된 디스코 콜간테",
+      "quantity": "701",
+      "source": "item",
+      "index": 57
+    },
+    {
+      "item_id": "Item_Icon_Material_DiscoColgante_2",
+      "name": "수리된 디스코 콜간테",
+      "quantity": "303",
+      "source": "item",
+      "index": 58
+    },
+    {
+      "item_id": "Item_Icon_Material_DiscoColgante_3",
+      "name": "온전한 디스코 콜간테",
+      "quantity": "73",
+      "source": "item",
+      "index": 59
+    },
+    {
+      "item_id": "Item_Icon_Material_AtlantisMedal_0",
+      "name": "아틀란티스 메달 조각",
+      "quantity": "881",
+      "source": "item",
+      "index": 60
+    },
+    {
+      "item_id": "Item_Icon_Material_AtlantisMedal_1",
+      "name": "파손된 아틀란티스 메달",
+      "quantity": "250",
+      "source": "item",
+      "index": 61
+    },
+    {
+      "item_id": "Item_Icon_Material_AtlantisMedal_2",
+      "name": "마모된 아틀란티스 메달",
+      "quantity": "161",
+      "source": "item",
+      "index": 62
+    },
+    {
+      "item_id": "Item_Icon_Material_AtlantisMedal_3",
+      "name": "온전한 아틀란티스 메달",
+      "quantity": "89",
+      "source": "item",
+      "index": 63
+    },
+    {
+      "item_id": "Item_Icon_Material_RomanDice_0",
+      "name": "로마 12면체 조각",
+      "quantity": "1063",
+      "source": "item",
+      "index": 64
+    },
+    {
+      "item_id": "Item_Icon_Material_RomanDice_1",
+      "name": "파손된 로마 12면체",
+      "quantity": "184",
+      "source": "item",
+      "index": 65
+    },
+    {
+      "item_id": "Item_Icon_Material_RomanDice_2",
+      "name": "수리된 로마 12면체",
+      "quantity": "341",
+      "source": "item",
+      "index": 66
+    },
+    {
+      "item_id": "Item_Icon_Material_RomanDice_3",
+      "name": "온전한 로마 12면체",
+      "quantity": "57",
+      "source": "item",
+      "index": 67
+    },
+    {
+      "item_id": "Item_Icon_Material_Quimbaya_0",
+      "name": "킴바야 유물 조각",
+      "quantity": "988",
+      "source": "item",
+      "index": 68
+    },
+    {
+      "item_id": "Item_Icon_Material_Quimbaya_1",
+      "name": "파손된 킴바야 유물",
+      "quantity": "252",
+      "source": "item",
+      "index": 69
+    },
+    {
+      "item_id": "Item_Icon_Material_Quimbaya_2",
+      "name": "수리된 킴바야 유물",
+      "quantity": "243",
+      "source": "item",
+      "index": 70
+    },
+    {
+      "item_id": "Item_Icon_Material_Quimbaya_3",
+      "name": "온전한 킴바야 유물",
+      "quantity": "43",
+      "source": "item",
+      "index": 71
+    },
+    {
+      "item_id": "Item_Icon_Material_Rocket_0",
+      "name": "이스탄불 로켓 조각",
+      "quantity": "649",
+      "source": "item",
+      "index": 72
+    },
+    {
+      "item_id": "Item_Icon_Material_Rocket_1",
+      "name": "파손된 이스탄불 로켓",
+      "quantity": "193",
+      "source": "item",
+      "index": 73
+    },
+    {
+      "item_id": "Item_Icon_Material_Rocket_2",
+      "name": "수리된 이스탄불 로켓",
+      "quantity": "394",
+      "source": "item",
+      "index": 74
+    },
+    {
+      "item_id": "Item_Icon_Material_Rocket_3",
+      "name": "온전한 이스탄불 로켓",
+      "quantity": "97",
+      "source": "item",
+      "index": 75
+    },
+    {
+      "item_id": "Item_Icon_Material_WinniStone_0",
+      "name": "위니페소키 스톤 조각",
+      "quantity": "1594",
+      "source": "item",
+      "index": 76
+    },
+    {
+      "item_id": "Item_Icon_Material_WinniStone_1",
+      "name": "파손된 위니페소키 스톤",
+      "quantity": "327",
+      "source": "item",
+      "index": 77
+    },
+    {
+      "item_id": "Item_Icon_Material_WinniStone_2",
+      "name": "마모된 위니페소키 스톤",
+      "quantity": "135",
+      "source": "item",
+      "index": 78
+    },
+    {
+      "item_id": "Item_Icon_Material_WinniStone_3",
+      "name": "온전한 위니페소키 스톤",
+      "quantity": "81",
+      "source": "item",
+      "index": 79
+    },
+    {
+      "item_id": "교양 체육 WB",
+      "name": "교양 체육 WB",
+      "quantity": "196",
+      "source": "item",
+      "index": 80
+    },
+    {
+      "item_id": "교양 사격 WB",
+      "name": "교양 사격 WB",
+      "quantity": "309",
+      "source": "item",
+      "index": 81
+    },
+    {
+      "item_id": "교양 위생 WB",
+      "name": "교양 위생 WB",
+      "quantity": "325",
+      "source": "item",
+      "index": 82
+    }
+  ],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-18_212923",
+    "session_started_at": "2026-04-18T21:29:23.490338",
+    "session_finished_at": "2026-04-18T21:30:37.377492",
+    "duration_sec": 73.9,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 83,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-18T21:30:37.377492"
+}

@@ -1,1119 +1,12 @@
 [
   {
-    "item": "Equipment_Icon_Badge_Tier1",
-    "item_id": "Equipment_Icon_Badge_Tier1",
-    "name": "서벌 금속 배지",
-    "old": null,
-    "new": "2071",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier10",
-    "item_id": "Equipment_Icon_Badge_Tier10",
-    "name": "코인 배지",
-    "old": null,
-    "new": "616",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier2",
-    "item_id": "Equipment_Icon_Badge_Tier2",
-    "name": "마나슬루 펠트 배지",
-    "old": null,
-    "new": "1674",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier3",
-    "item_id": "Equipment_Icon_Badge_Tier3",
-    "name": "앵그리 아델리 원형 배지",
-    "old": null,
-    "new": "1895",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier4",
-    "item_id": "Equipment_Icon_Badge_Tier4",
-    "name": "베로니카 자수 배지",
-    "old": null,
-    "new": "291",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier5",
-    "item_id": "Equipment_Icon_Badge_Tier5",
-    "name": "카제야마 벨크로 패치",
-    "old": null,
-    "new": "346",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier6",
-    "item_id": "Equipment_Icon_Badge_Tier6",
-    "name": "코코데빌 실버 배지",
-    "old": null,
-    "new": "1065",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier7",
-    "item_id": "Equipment_Icon_Badge_Tier7",
-    "name": "스트릿 배지",
-    "old": null,
-    "new": "1052",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier9",
-    "item_id": "Equipment_Icon_Badge_Tier9",
-    "name": "하르피아 플렉시블 배지",
-    "old": null,
-    "new": "1130",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier10",
-    "item_id": "Equipment_Icon_Bag_Tier10",
-    "name": "메탈 케이스",
-    "old": null,
-    "new": "1856",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier4",
-    "item_id": "Equipment_Icon_Bag_Tier4",
-    "name": "감색 스쿨백",
-    "old": null,
-    "new": "799",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier5",
-    "item_id": "Equipment_Icon_Bag_Tier5",
-    "name": "전술 란도셀",
-    "old": null,
-    "new": "70",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier6",
-    "item_id": "Equipment_Icon_Bag_Tier6",
-    "name": "데빌 윙 토트백",
-    "old": null,
-    "new": "33",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier7",
-    "item_id": "Equipment_Icon_Bag_Tier7",
-    "name": "스트릿 백",
-    "old": null,
-    "new": "746",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier8",
-    "item_id": "Equipment_Icon_Bag_Tier8",
-    "name": "버터플라이 숄더백",
-    "old": null,
-    "new": "1080",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier9",
-    "item_id": "Equipment_Icon_Bag_Tier9",
-    "name": "슬링 드라이백",
-    "old": null,
-    "new": "1885",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier1",
-    "item_id": "Equipment_Icon_Charm_Tier1",
-    "name": "교통안전 부적",
-    "old": null,
-    "new": "213",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier10",
-    "item_id": "Equipment_Icon_Charm_Tier10",
-    "name": "키캡 토이",
-    "old": null,
-    "new": "307",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier2",
-    "item_id": "Equipment_Icon_Charm_Tier2",
-    "name": "발열팩",
-    "old": null,
-    "new": "16",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier3",
-    "item_id": "Equipment_Icon_Charm_Tier3",
-    "name": "페로로의 깃털",
-    "old": null,
-    "new": "39",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier4",
-    "item_id": "Equipment_Icon_Charm_Tier4",
-    "name": "십자가",
-    "old": null,
-    "new": "892",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier5",
-    "item_id": "Equipment_Icon_Charm_Tier5",
-    "name": "카모 달마",
-    "old": null,
-    "new": "368",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier6",
-    "item_id": "Equipment_Icon_Charm_Tier6",
-    "name": "저주 인형",
-    "old": null,
-    "new": "550",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier7",
-    "item_id": "Equipment_Icon_Charm_Tier7",
-    "name": "휴대용 탈취제",
-    "old": null,
-    "new": "664",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier8",
-    "item_id": "Equipment_Icon_Charm_Tier8",
-    "name": "드림캐쳐 부적",
-    "old": null,
-    "new": "109",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier9",
-    "item_id": "Equipment_Icon_Charm_Tier9",
-    "name": "상어 이빨 부적",
-    "old": null,
-    "new": "892",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Exp_0",
-    "item_id": "Equipment_Icon_Exp_0",
-    "name": "하급 강화석",
-    "old": null,
-    "new": "19767",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Exp_1",
-    "item_id": "Equipment_Icon_Exp_1",
-    "name": "일반 강화석",
-    "old": null,
-    "new": "19976",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Exp_2",
-    "item_id": "Equipment_Icon_Exp_2",
-    "name": "상급 강화석",
-    "old": null,
-    "new": "19149",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Exp_3",
-    "item_id": "Equipment_Icon_Exp_3",
-    "name": "최상급 강화석",
-    "old": null,
-    "new": "207",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier1",
-    "item_id": "Equipment_Icon_Gloves_Tier1",
-    "name": "스포츠용 장갑",
-    "old": null,
-    "new": "233",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier10",
-    "item_id": "Equipment_Icon_Gloves_Tier10",
-    "name": "슈퍼 글러브",
-    "old": null,
-    "new": "253",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier2",
-    "item_id": "Equipment_Icon_Gloves_Tier2",
-    "name": "니트 벙어리 장갑",
-    "old": null,
-    "new": "869",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier3",
-    "item_id": "Equipment_Icon_Gloves_Tier3",
-    "name": "페로로 오븐 장갑",
-    "old": null,
-    "new": "1169",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier4",
-    "item_id": "Equipment_Icon_Gloves_Tier4",
-    "name": "가죽 글러브",
-    "old": null,
-    "new": "664",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier5",
-    "item_id": "Equipment_Icon_Gloves_Tier5",
-    "name": "택티컬 글러브",
-    "old": null,
-    "new": "1788",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier6",
-    "item_id": "Equipment_Icon_Gloves_Tier6",
-    "name": "레이스 글러브",
-    "old": null,
-    "new": "781",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier7",
-    "item_id": "Equipment_Icon_Gloves_Tier7",
-    "name": "팔 토시 워머",
-    "old": null,
-    "new": "519",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier8",
-    "item_id": "Equipment_Icon_Gloves_Tier8",
-    "name": "진주 털실 장갑",
-    "old": null,
-    "new": "168",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Gloves_Tier9",
-    "item_id": "Equipment_Icon_Gloves_Tier9",
-    "name": "세일링 글러브",
-    "old": null,
-    "new": "382",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier1",
-    "item_id": "Equipment_Icon_Hairpin_Tier1",
-    "name": "테니스 헤어밴드",
-    "old": null,
-    "new": "1746",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier10",
-    "item_id": "Equipment_Icon_Hairpin_Tier10",
-    "name": "전자파 차단 헤어핀",
-    "old": null,
-    "new": "453",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier2",
-    "item_id": "Equipment_Icon_Hairpin_Tier2",
-    "name": "헤어 슈슈",
-    "old": null,
-    "new": "1122",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier3",
-    "item_id": "Equipment_Icon_Hairpin_Tier3",
-    "name": "모모 헤어핀",
-    "old": null,
-    "new": "1203",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier4",
-    "item_id": "Equipment_Icon_Hairpin_Tier4",
-    "name": "날개 헤어핀",
-    "old": null,
-    "new": "718",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier5",
-    "item_id": "Equipment_Icon_Hairpin_Tier5",
-    "name": "다목적 헤어핀",
-    "old": null,
-    "new": "999",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier6",
-    "item_id": "Equipment_Icon_Hairpin_Tier6",
-    "name": "박쥐 헤어핀",
-    "old": null,
-    "new": "316",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier7",
-    "item_id": "Equipment_Icon_Hairpin_Tier7",
-    "name": "캘리그라피 헤어핀",
-    "old": null,
-    "new": "540",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier8",
-    "item_id": "Equipment_Icon_Hairpin_Tier8",
-    "name": "나뭇잎 헤어핀",
-    "old": null,
-    "new": "26",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hairpin_Tier9",
-    "item_id": "Equipment_Icon_Hairpin_Tier9",
-    "name": "앵커 헤어핀",
-    "old": null,
-    "new": "7",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier1",
-    "item_id": "Equipment_Icon_Hat_Tier1",
-    "name": "무지 캡모자",
-    "old": null,
-    "new": "132",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier10",
-    "item_id": "Equipment_Icon_Hat_Tier10",
-    "name": "게이밍 헬멧",
-    "old": null,
-    "new": "338",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier2",
-    "item_id": "Equipment_Icon_Hat_Tier2",
-    "name": "니트 털모자",
-    "old": null,
-    "new": "195",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier3",
-    "item_id": "Equipment_Icon_Hat_Tier3",
-    "name": "빅 브라더 페도라",
-    "old": null,
-    "new": "810",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier4",
-    "item_id": "Equipment_Icon_Hat_Tier4",
-    "name": "리본 베레모",
-    "old": null,
-    "new": "190",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier5",
-    "item_id": "Equipment_Icon_Hat_Tier5",
-    "name": "방탄 헬멧",
-    "old": null,
-    "new": "239",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier6",
-    "item_id": "Equipment_Icon_Hat_Tier6",
-    "name": "프릴 미니 햇",
-    "old": null,
-    "new": "709",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier7",
-    "item_id": "Equipment_Icon_Hat_Tier7",
-    "name": "버킷 햇",
-    "old": null,
-    "new": "171",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier8",
-    "item_id": "Equipment_Icon_Hat_Tier8",
-    "name": "리프 리본 페도라",
-    "old": null,
-    "new": "159",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Hat_Tier9",
-    "item_id": "Equipment_Icon_Hat_Tier9",
-    "name": "세일러 햇",
-    "old": null,
-    "new": "762",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier1",
-    "item_id": "Equipment_Icon_Necklace_Tier1",
-    "name": "블루투스 목걸이",
-    "old": null,
-    "new": "209",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier10",
-    "item_id": "Equipment_Icon_Necklace_Tier10",
-    "name": "메모리 네클리스",
-    "old": null,
-    "new": "95",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier2",
-    "item_id": "Equipment_Icon_Necklace_Tier2",
-    "name": "눈꽃 펜던트",
-    "old": null,
-    "new": "2020",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier3",
-    "item_id": "Equipment_Icon_Necklace_Tier3",
-    "name": "니콜라이 로켓",
-    "old": null,
-    "new": "1799",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier4",
-    "item_id": "Equipment_Icon_Necklace_Tier4",
-    "name": "십자가 초커",
-    "old": null,
-    "new": "1801",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier5",
-    "item_id": "Equipment_Icon_Necklace_Tier5",
-    "name": "도그택",
-    "old": null,
-    "new": "594",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier6",
-    "item_id": "Equipment_Icon_Necklace_Tier6",
-    "name": "펑크 초커",
-    "old": null,
-    "new": "681",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier7",
-    "item_id": "Equipment_Icon_Necklace_Tier7",
-    "name": "체인 목걸이",
-    "old": null,
-    "new": "247",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier8",
-    "item_id": "Equipment_Icon_Necklace_Tier8",
-    "name": "그린리프 목걸이",
-    "old": null,
-    "new": "301",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Necklace_Tier9",
-    "item_id": "Equipment_Icon_Necklace_Tier9",
-    "name": "옥토퍼스 홀더",
-    "old": null,
-    "new": "33",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier1",
-    "item_id": "Equipment_Icon_Shoes_Tier1",
-    "name": "핑크 스니커즈",
-    "old": null,
-    "new": "418",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier2",
-    "item_id": "Equipment_Icon_Shoes_Tier2",
-    "name": "어그 부츠",
-    "old": null,
-    "new": "354",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier3",
-    "item_id": "Equipment_Icon_Shoes_Tier3",
-    "name": "핑키파카 슬리퍼",
-    "old": null,
-    "new": "27",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier4",
-    "item_id": "Equipment_Icon_Shoes_Tier4",
-    "name": "앤티크 에나멜 로퍼",
-    "old": null,
-    "new": "955",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier5",
-    "item_id": "Equipment_Icon_Shoes_Tier5",
-    "name": "전술 부츠",
-    "old": null,
-    "new": "374",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier6",
-    "item_id": "Equipment_Icon_Shoes_Tier6",
-    "name": "펌프스 힐",
-    "old": null,
-    "new": "348",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier7",
-    "item_id": "Equipment_Icon_Shoes_Tier7",
-    "name": "캐주얼 스니커즈",
-    "old": null,
-    "new": "1117",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier8",
-    "item_id": "Equipment_Icon_Shoes_Tier8",
-    "name": "방수 등산 부츠",
-    "old": null,
-    "new": "1291",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier1",
-    "item_id": "Equipment_Icon_Watch_Tier1",
-    "name": "방수 디지털 시계",
-    "old": null,
-    "new": "24",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier10",
-    "item_id": "Equipment_Icon_Watch_Tier10",
-    "name": "스크린 워치",
-    "old": null,
-    "new": "172",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier2",
-    "item_id": "Equipment_Icon_Watch_Tier2",
-    "name": "가죽 손목 시계",
-    "old": null,
-    "new": "91",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier3",
-    "item_id": "Equipment_Icon_Watch_Tier3",
-    "name": "웨이브캣 손목 시계",
-    "old": null,
-    "new": "60",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier4",
-    "item_id": "Equipment_Icon_Watch_Tier4",
-    "name": "앤티크 회중 시계",
-    "old": null,
-    "new": "66",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier5",
-    "item_id": "Equipment_Icon_Watch_Tier5",
-    "name": "방진 손목 시계",
-    "old": null,
-    "new": "48",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier6",
-    "item_id": "Equipment_Icon_Watch_Tier6",
-    "name": "고딕풍 손목 시계",
-    "old": null,
-    "new": "10",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier7",
-    "item_id": "Equipment_Icon_Watch_Tier7",
-    "name": "스트릿 패션 시계",
-    "old": null,
-    "new": "51",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier8",
-    "item_id": "Equipment_Icon_Watch_Tier8",
-    "name": "로렐라이 손목 시계",
-    "old": null,
-    "new": "769",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Watch_Tier9",
-    "item_id": "Equipment_Icon_Watch_Tier9",
-    "name": "다이버 워치",
-    "old": null,
-    "new": "360",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthA_0",
-    "item_id": "Equipment_Icon_WeaponExpGrowthA_0",
-    "name": "스프링 T1",
-    "old": null,
-    "new": "9",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthA_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthA_1",
-    "name": "스프링 T2",
-    "old": null,
-    "new": "17988",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthA_2",
-    "item_id": "Equipment_Icon_WeaponExpGrowthA_2",
-    "name": "스프링 T3",
-    "old": null,
-    "new": "190",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthA_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthA_3",
-    "name": "스프링 T4",
-    "old": null,
-    "new": "15",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_0",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_0",
-    "name": "해머 T1",
-    "old": null,
-    "new": "1",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_1",
-    "name": "해머 T2",
-    "old": null,
-    "new": "11603",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_2",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_2",
-    "name": "해머 T3",
-    "old": null,
-    "new": "421",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_3",
-    "name": "해머 T4",
-    "old": null,
-    "new": "10",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthC_0",
-    "item_id": "Equipment_Icon_WeaponExpGrowthC_0",
-    "name": "총열 T1",
-    "old": null,
-    "new": "10430",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthC_2",
-    "item_id": "Equipment_Icon_WeaponExpGrowthC_2",
-    "name": "총열 T3",
-    "old": null,
-    "new": "296",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthC_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthC_3",
-    "name": "총열 T4",
-    "old": null,
-    "new": "12",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthZ_2",
-    "item_id": "Equipment_Icon_WeaponExpGrowthZ_2",
-    "name": "공이 T3",
-    "old": null,
-    "new": "235",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthZ_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthZ_3",
-    "name": "공이 T4",
-    "old": null,
-    "new": "40",
-    "changed_at": "2026-04-18T19:59:37+09:00",
-    "scan_id": "2026-04-18_195937"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier2",
-    "item_id": "Equipment_Icon_Badge_Tier2",
-    "name": "마나슬루 펠트 배지",
-    "old": "1674",
-    "new": "1895",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier3",
-    "item_id": "Equipment_Icon_Badge_Tier3",
-    "name": "앵그리 아델리 원형 배지",
-    "old": "1895",
-    "new": "1856",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier8",
-    "item_id": "Equipment_Icon_Badge_Tier8",
-    "name": "로렐라이 배지",
-    "old": null,
-    "new": "1074",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier1",
-    "item_id": "Equipment_Icon_Bag_Tier1",
-    "name": "방수 스포츠백",
-    "old": null,
-    "new": "758",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier7",
-    "item_id": "Equipment_Icon_Bag_Tier7",
-    "name": "스트릿 백",
-    "old": "746",
-    "new": "1080",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Charm_Tier4",
-    "item_id": "Equipment_Icon_Charm_Tier4",
-    "name": "십자가",
-    "old": "892",
-    "new": "501",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier7",
-    "item_id": "Equipment_Icon_Shoes_Tier7",
-    "name": "캐주얼 스니커즈",
-    "old": "1117",
-    "new": "462",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthZ_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthZ_1",
-    "name": "공이 T2",
-    "old": null,
-    "new": "12",
-    "changed_at": "2026-04-18T20:05:21+09:00",
-    "scan_id": "2026-04-18_200521"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier2",
-    "item_id": "Equipment_Icon_Badge_Tier2",
-    "name": "마나슬루 펠트 배지",
-    "old": "1895",
-    "new": "1674",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Badge_Tier3",
-    "item_id": "Equipment_Icon_Badge_Tier3",
-    "name": "앵그리 아델리 원형 배지",
-    "old": "1856",
-    "new": "1895",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier2",
-    "item_id": "Equipment_Icon_Bag_Tier2",
-    "name": "방한용 크로스백",
-    "old": null,
-    "new": "459",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier3",
-    "item_id": "Equipment_Icon_Bag_Tier3",
-    "name": "페로로 백팩",
-    "old": null,
-    "new": "1021",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Bag_Tier7",
-    "item_id": "Equipment_Icon_Bag_Tier7",
-    "name": "스트릿 백",
-    "old": "1080",
-    "new": "746",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier10",
-    "item_id": "Equipment_Icon_Shoes_Tier10",
-    "name": "게이밍 슬리퍼",
-    "old": null,
-    "new": "1638",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_Shoes_Tier9",
-    "item_id": "Equipment_Icon_Shoes_Tier9",
-    "name": "아쿠아 샌들",
-    "old": null,
-    "new": "1117",
-    "changed_at": "2026-04-18T21:10:11+09:00",
-    "scan_id": "2026-04-18_211011"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthA_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthA_3",
-    "name": "스프링 T4",
-    "old": "15",
-    "new": "1",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_0",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_0",
-    "name": "해머 T1",
-    "old": "1",
-    "new": "11603",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_1",
-    "name": "해머 T2",
-    "old": "11603",
-    "new": "421",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_2",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_2",
-    "name": "해머 T3",
-    "old": "421",
-    "new": "10",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthB_3",
-    "item_id": "Equipment_Icon_WeaponExpGrowthB_3",
-    "name": "해머 T4",
-    "old": "10",
-    "new": "1",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthC_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthC_1",
-    "name": "총열 T2",
-    "old": null,
-    "new": "10430",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
-    "item": "Equipment_Icon_WeaponExpGrowthZ_1",
-    "item_id": "Equipment_Icon_WeaponExpGrowthZ_1",
-    "name": "공이 T2",
-    "old": "12",
-    "new": "1089",
-    "changed_at": "2026-04-18T21:18:08+09:00",
-    "scan_id": "2026-04-18_211808"
-  },
-  {
     "item": "Item_Icon_Material_Antikythera_0",
     "item_id": "Item_Icon_Material_Antikythera_0",
     "name": "안티키테라 장치 조각",
     "old": null,
     "new": "2860",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Antikythera_1",
@@ -1121,8 +14,8 @@
     "name": "파손된 안티키테라 장치",
     "old": null,
     "new": "1069",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Antikythera_2",
@@ -1130,8 +23,8 @@
     "name": "마모된 안티키테라 장치",
     "old": null,
     "new": "269",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Antikythera_3",
@@ -1139,8 +32,8 @@
     "name": "온전한 안티키테라 장치",
     "old": null,
     "new": "166",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_AtlantisMedal_0",
@@ -1148,8 +41,8 @@
     "name": "아틀란티스 메달 조각",
     "old": null,
     "new": "881",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_AtlantisMedal_1",
@@ -1157,8 +50,8 @@
     "name": "파손된 아틀란티스 메달",
     "old": null,
     "new": "250",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_AtlantisMedal_2",
@@ -1166,8 +59,8 @@
     "name": "마모된 아틀란티스 메달",
     "old": null,
     "new": "161",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_AtlantisMedal_3",
@@ -1175,8 +68,8 @@
     "name": "온전한 아틀란티스 메달",
     "old": null,
     "new": "89",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Baghdad_0",
@@ -1184,8 +77,8 @@
     "name": "고대 전지 조각",
     "old": null,
     "new": "936",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Baghdad_1",
@@ -1193,8 +86,8 @@
     "name": "파손된 고대 전지",
     "old": null,
     "new": "1910",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Baghdad_2",
@@ -1202,8 +95,8 @@
     "name": "마모된 고대 전지",
     "old": null,
     "new": "974",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Baghdad_3",
@@ -1211,8 +104,8 @@
     "name": "온전한 고대 전지",
     "old": null,
     "new": "199",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_CrystalHaniwa_0",
@@ -1220,8 +113,8 @@
     "name": "수정 하니와 파편",
     "old": null,
     "new": "3319",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_CrystalHaniwa_1",
@@ -1229,8 +122,8 @@
     "name": "파손된 수정 하니와",
     "old": null,
     "new": "2200",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_CrystalHaniwa_2",
@@ -1238,8 +131,8 @@
     "name": "수리된 수정 하니와",
     "old": null,
     "new": "841",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_CrystalHaniwa_3",
@@ -1247,8 +140,8 @@
     "name": "온전한 수정 하니와",
     "old": null,
     "new": "238",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_DiscoColgante_0",
@@ -1256,8 +149,8 @@
     "name": "디스코 콜간테 조각",
     "old": null,
     "new": "1383",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_DiscoColgante_1",
@@ -1265,8 +158,8 @@
     "name": "파손된 디스코 콜간테",
     "old": null,
     "new": "701",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_DiscoColgante_2",
@@ -1274,8 +167,8 @@
     "name": "수리된 디스코 콜간테",
     "old": null,
     "new": "303",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_DiscoColgante_3",
@@ -1283,8 +176,8 @@
     "name": "온전한 디스코 콜간테",
     "old": null,
     "new": "73",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Ether_0",
@@ -1292,8 +185,8 @@
     "name": "에테르 가루",
     "old": null,
     "new": "2920",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Ether_1",
@@ -1301,8 +194,8 @@
     "name": "에테르 조각",
     "old": null,
     "new": "2018",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Ether_2",
@@ -1310,8 +203,8 @@
     "name": "에테르 결정",
     "old": null,
     "new": "1150",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Ether_3",
@@ -1319,8 +212,8 @@
     "name": "에테르 정수",
     "old": null,
     "new": "173",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_GoldenFleece_0",
@@ -1328,8 +221,8 @@
     "name": "황금 양털",
     "old": null,
     "new": "1701",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_GoldenFleece_1",
@@ -1337,8 +230,8 @@
     "name": "황금 털실",
     "old": null,
     "new": "584",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_GoldenFleece_2",
@@ -1346,8 +239,8 @@
     "name": "황금 양모",
     "old": null,
     "new": "276",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_GoldenFleece_3",
@@ -1355,8 +248,8 @@
     "name": "황금 드레스",
     "old": null,
     "new": "96",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Kikuko_0",
@@ -1364,8 +257,8 @@
     "name": "머리가 자라는 인형 조각",
     "old": null,
     "new": "1990",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Kikuko_1",
@@ -1373,8 +266,8 @@
     "name": "파손된 머리가 자라는 인형",
     "old": null,
     "new": "745",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Kikuko_2",
@@ -1382,8 +275,8 @@
     "name": "수리된 머리가 자라는 인형",
     "old": null,
     "new": "352",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Kikuko_3",
@@ -1391,8 +284,8 @@
     "name": "온전한 머리가 자라는 인형",
     "old": null,
     "new": "128",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Mandragora_0",
@@ -1400,8 +293,8 @@
     "name": "만드라고라 씨앗",
     "old": null,
     "new": "3998",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Mandragora_1",
@@ -1409,8 +302,8 @@
     "name": "만드라고라 새싹",
     "old": null,
     "new": "1947",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Mandragora_2",
@@ -1418,8 +311,8 @@
     "name": "만드라고라 주스",
     "old": null,
     "new": "609",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Mandragora_3",
@@ -1427,8 +320,8 @@
     "name": "만드라고라 농축액",
     "old": null,
     "new": "87",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nebra_0",
@@ -1436,8 +329,8 @@
     "name": "네브라 디스크 조각",
     "old": null,
     "new": "2162",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nebra_1",
@@ -1445,8 +338,8 @@
     "name": "파손된 네브라 디스크",
     "old": null,
     "new": "838",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nebra_2",
@@ -1454,8 +347,8 @@
     "name": "마모된 네브라 디스크",
     "old": null,
     "new": "782",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nebra_3",
@@ -1463,8 +356,8 @@
     "name": "온전한 네브라 디스크",
     "old": null,
     "new": "85",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nimrud_0",
@@ -1472,8 +365,8 @@
     "name": "님루드 렌즈 조각",
     "old": null,
     "new": "3749",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nimrud_1",
@@ -1481,8 +374,8 @@
     "name": "파손된 님루드 렌즈",
     "old": null,
     "new": "1530",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nimrud_2",
@@ -1490,8 +383,8 @@
     "name": "마모된 님루드 렌즈",
     "old": null,
     "new": "718",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Nimrud_3",
@@ -1499,8 +392,8 @@
     "name": "온전한 님루드 렌즈",
     "old": null,
     "new": "186",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Phaistos_0",
@@ -1508,8 +401,8 @@
     "name": "파에스토스 원반 조각",
     "old": null,
     "new": "2803",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Phaistos_1",
@@ -1517,8 +410,8 @@
     "name": "파손된 파에스토스 원반",
     "old": null,
     "new": "1252",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Phaistos_2",
@@ -1526,8 +419,8 @@
     "name": "마모된 파에스토스 원반",
     "old": null,
     "new": "714",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Phaistos_3",
@@ -1535,8 +428,8 @@
     "name": "온전한 파에스토스 원반",
     "old": null,
     "new": "109",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Quimbaya_0",
@@ -1544,8 +437,8 @@
     "name": "킴바야 유물 조각",
     "old": null,
     "new": "988",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Quimbaya_1",
@@ -1553,8 +446,8 @@
     "name": "파손된 킴바야 유물",
     "old": null,
     "new": "252",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Quimbaya_2",
@@ -1562,8 +455,8 @@
     "name": "수리된 킴바야 유물",
     "old": null,
     "new": "243",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Quimbaya_3",
@@ -1571,8 +464,8 @@
     "name": "온전한 킴바야 유물",
     "old": null,
     "new": "43",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rocket_0",
@@ -1580,8 +473,8 @@
     "name": "이스탄불 로켓 조각",
     "old": null,
     "new": "649",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rocket_1",
@@ -1589,8 +482,8 @@
     "name": "파손된 이스탄불 로켓",
     "old": null,
     "new": "193",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rocket_2",
@@ -1598,8 +491,8 @@
     "name": "수리된 이스탄불 로켓",
     "old": null,
     "new": "394",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rocket_3",
@@ -1607,8 +500,8 @@
     "name": "온전한 이스탄불 로켓",
     "old": null,
     "new": "97",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rohonc_0",
@@ -1616,8 +509,8 @@
     "name": "로혼치 사본 페이지",
     "old": null,
     "new": "4994",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rohonc_1",
@@ -1625,8 +518,8 @@
     "name": "훼손된 로혼치 사본",
     "old": null,
     "new": "2535",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rohonc_2",
@@ -1634,8 +527,8 @@
     "name": "편집된 로혼치 사본",
     "old": null,
     "new": "1295",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Rohonc_3",
@@ -1643,8 +536,8 @@
     "name": "온전한 로혼치 사본",
     "old": null,
     "new": "449",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_RomanDice_0",
@@ -1652,8 +545,8 @@
     "name": "로마 12면체 조각",
     "old": null,
     "new": "1063",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_RomanDice_1",
@@ -1661,8 +554,8 @@
     "name": "파손된 로마 12면체",
     "old": null,
     "new": "184",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_RomanDice_2",
@@ -1670,8 +563,8 @@
     "name": "수리된 로마 12면체",
     "old": null,
     "new": "341",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_RomanDice_3",
@@ -1679,8 +572,8 @@
     "name": "온전한 로마 12면체",
     "old": null,
     "new": "57",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_TotemPole_0",
@@ -1688,8 +581,8 @@
     "name": "토템폴 조각",
     "old": null,
     "new": "2111",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_TotemPole_1",
@@ -1697,8 +590,8 @@
     "name": "파손된 토템폴",
     "old": null,
     "new": "995",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_TotemPole_2",
@@ -1706,8 +599,8 @@
     "name": "수리된 토템폴",
     "old": null,
     "new": "570",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_TotemPole_3",
@@ -1715,8 +608,8 @@
     "name": "온전한 토템폴",
     "old": null,
     "new": "175",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Voynich_0",
@@ -1724,8 +617,8 @@
     "name": "보이니치 사본 페이지",
     "old": null,
     "new": "4989",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Voynich_1",
@@ -1733,8 +626,8 @@
     "name": "훼손된 보이니치 사본",
     "old": null,
     "new": "1858",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Voynich_2",
@@ -1742,8 +635,8 @@
     "name": "편집된 보이니치 사본",
     "old": null,
     "new": "1113",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Voynich_3",
@@ -1751,8 +644,8 @@
     "name": "온전한 보이니치 사본",
     "old": null,
     "new": "167",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_WinniStone_0",
@@ -1760,8 +653,8 @@
     "name": "위니페소키 스톤 조각",
     "old": null,
     "new": "1594",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_WinniStone_1",
@@ -1769,8 +662,8 @@
     "name": "파손된 위니페소키 스톤",
     "old": null,
     "new": "327",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_WinniStone_2",
@@ -1778,8 +671,8 @@
     "name": "마모된 위니페소키 스톤",
     "old": null,
     "new": "135",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_WinniStone_3",
@@ -1787,8 +680,8 @@
     "name": "온전한 위니페소키 스톤",
     "old": null,
     "new": "81",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Wolfsegg_0",
@@ -1796,8 +689,8 @@
     "name": "볼프세크 철광석",
     "old": null,
     "new": "4266",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Wolfsegg_1",
@@ -1805,8 +698,8 @@
     "name": "볼프세크 철조각",
     "old": null,
     "new": "1383",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Wolfsegg_2",
@@ -1814,8 +707,8 @@
     "name": "저순도 볼프세크 강철",
     "old": null,
     "new": "1245",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
   },
   {
     "item": "Item_Icon_Material_Wolfsegg_3",
@@ -1823,7 +716,871 @@
     "name": "고순도 볼프세크 강철",
     "old": null,
     "new": "155",
-    "changed_at": "2026-04-18T21:21:58+09:00",
-    "scan_id": "2026-04-18_212158"
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
+  },
+  {
+    "item": "교양 사격 WB",
+    "item_id": "교양 사격 WB",
+    "name": "교양 사격 WB",
+    "old": null,
+    "new": "309",
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
+  },
+  {
+    "item": "교양 위생 WB",
+    "item_id": "교양 위생 WB",
+    "name": "교양 위생 WB",
+    "old": null,
+    "new": "325",
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
+  },
+  {
+    "item": "교양 체육 WB",
+    "item_id": "교양 체육 WB",
+    "name": "교양 체육 WB",
+    "old": null,
+    "new": "196",
+    "changed_at": "2026-04-18T21:29:23+09:00",
+    "scan_id": "2026-04-18_212923"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Abydos_0",
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_0",
+    "name": "기초 전술 교육 BD (아비도스)",
+    "old": null,
+    "new": "1301",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Abydos_1",
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_1",
+    "name": "일반 전술 교육 BD (아비도스)",
+    "old": null,
+    "new": "378",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Abydos_2",
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_2",
+    "name": "상급 전술 교육 BD (아비도스)",
+    "old": null,
+    "new": "204",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Abydos_3",
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_3",
+    "name": "최상급 전술 교육 BD (아비도스)",
+    "old": null,
+    "new": "76",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Arius_0",
+    "item_id": "Item_Icon_Material_ExSkill_Arius_0",
+    "name": "기초 전술 교육 BD (아리우스)",
+    "old": null,
+    "new": "909",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Arius_1",
+    "item_id": "Item_Icon_Material_ExSkill_Arius_1",
+    "name": "일반 전술 교육 BD (아리우스)",
+    "old": null,
+    "new": "279",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Arius_2",
+    "item_id": "Item_Icon_Material_ExSkill_Arius_2",
+    "name": "상급 전술 교육 BD (아리우스)",
+    "old": null,
+    "new": "205",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Arius_3",
+    "item_id": "Item_Icon_Material_ExSkill_Arius_3",
+    "name": "최상급 전술 교육 BD (아리우스)",
+    "old": null,
+    "new": "40",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Gehenna_0",
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_0",
+    "name": "기초 전술 교육 BD (게헨나)",
+    "old": null,
+    "new": "848",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Gehenna_1",
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_1",
+    "name": "일반 전술 교육 BD (게헨나)",
+    "old": null,
+    "new": "236",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Gehenna_2",
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_2",
+    "name": "상급 전술 교육 BD (게헨나)",
+    "old": null,
+    "new": "151",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Gehenna_3",
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_3",
+    "name": "최상급 전술 교육 BD (게헨나)",
+    "old": null,
+    "new": "42",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Highlander_0",
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_0",
+    "name": "기초 전술 교육 BD (하이랜더)",
+    "old": null,
+    "new": "268",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Highlander_1",
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_1",
+    "name": "일반 전술 교육 BD (하이랜더)",
+    "old": null,
+    "new": "82",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Highlander_2",
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_2",
+    "name": "상급 전술 교육 BD (하이랜더)",
+    "old": null,
+    "new": "104",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Highlander_3",
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_3",
+    "name": "최상급 전술 교육 BD (하이랜더)",
+    "old": null,
+    "new": "17",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Hyakkiyako_0",
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_0",
+    "name": "기초 전술 교육 BD (백귀야행)",
+    "old": null,
+    "new": "834",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Hyakkiyako_1",
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_1",
+    "name": "일반 전술 교육 BD (백귀야행)",
+    "old": null,
+    "new": "179",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Hyakkiyako_2",
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_2",
+    "name": "상급 전술 교육 BD (백귀야행)",
+    "old": null,
+    "new": "112",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Hyakkiyako_3",
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_3",
+    "name": "최상급 전술 교육 BD (백귀야행)",
+    "old": null,
+    "new": "28",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Millennium_0",
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_0",
+    "name": "기초 전술 교육 BD (밀레니엄)",
+    "old": null,
+    "new": "1055",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Millennium_1",
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_1",
+    "name": "일반 전술 교육 BD (밀레니엄)",
+    "old": null,
+    "new": "215",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Millennium_2",
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_2",
+    "name": "상급 전술 교육 BD (밀레니엄)",
+    "old": null,
+    "new": "177",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Millennium_3",
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_3",
+    "name": "최상급 전술 교육 BD (밀레니엄)",
+    "old": null,
+    "new": "44",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_RedWinter_0",
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_0",
+    "name": "기초 전술 교육 BD (붉은겨울)",
+    "old": null,
+    "new": "1470",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_RedWinter_1",
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_1",
+    "name": "일반 전술 교육 BD (붉은겨울)",
+    "old": null,
+    "new": "445",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_RedWinter_2",
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_2",
+    "name": "상급 전술 교육 BD (붉은겨울)",
+    "old": null,
+    "new": "438",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_RedWinter_3",
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_3",
+    "name": "최상급 전술 교육 BD (붉은겨울)",
+    "old": null,
+    "new": "80",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Shanhaijing_0",
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_0",
+    "name": "기초 전술 교육 BD (산해경)",
+    "old": null,
+    "new": "975",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Shanhaijing_1",
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_1",
+    "name": "일반 전술 교육 BD (산해경)",
+    "old": null,
+    "new": "252",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Shanhaijing_2",
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_2",
+    "name": "상급 전술 교육 BD (산해경)",
+    "old": null,
+    "new": "205",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Shanhaijing_3",
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_3",
+    "name": "최상급 전술 교육 BD (산해경)",
+    "old": null,
+    "new": "49",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Trinity_0",
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_0",
+    "name": "기초 전술 교육 BD (트리니티)",
+    "old": null,
+    "new": "584",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Trinity_1",
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_1",
+    "name": "일반 전술 교육 BD (트리니티)",
+    "old": null,
+    "new": "26",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Trinity_2",
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_2",
+    "name": "상급 전술 교육 BD (트리니티)",
+    "old": null,
+    "new": "135",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Trinity_3",
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_3",
+    "name": "최상급 전술 교육 BD (트리니티)",
+    "old": null,
+    "new": "35",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Valkyrie_0",
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_0",
+    "name": "기초 전술 교육 BD (발키리)",
+    "old": null,
+    "new": "952",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Valkyrie_1",
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_1",
+    "name": "일반 전술 교육 BD (발키리)",
+    "old": null,
+    "new": "230",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Valkyrie_2",
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_2",
+    "name": "상급 전술 교육 BD (발키리)",
+    "old": null,
+    "new": "154",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Valkyrie_3",
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_3",
+    "name": "최상급 전술 교육 BD (발키리)",
+    "old": null,
+    "new": "19",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Wildhunt_0",
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_0",
+    "name": "기초 전술 교육 BD (와일드헌트)",
+    "old": null,
+    "new": "289",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Wildhunt_1",
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_1",
+    "name": "일반 전술 교육 BD (와일드헌트)",
+    "old": null,
+    "new": "104",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Wildhunt_2",
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_2",
+    "name": "상급 전술 교육 BD (와일드헌트)",
+    "old": null,
+    "new": "69",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_Material_ExSkill_Wildhunt_3",
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_3",
+    "name": "최상급 전술 교육 BD (와일드헌트)",
+    "old": null,
+    "new": "10",
+    "changed_at": "2026-04-18T21:30:55+09:00",
+    "scan_id": "2026-04-18_213055"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_0",
+    "item_id": "Item_Icon_SkillBook_Abydos_0",
+    "name": "기초 기술 노트 (아비도스)",
+    "old": null,
+    "new": "3334",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_1",
+    "item_id": "Item_Icon_SkillBook_Abydos_1",
+    "name": "일반 기술 노트 (아비도스)",
+    "old": null,
+    "new": "1519",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_2",
+    "item_id": "Item_Icon_SkillBook_Abydos_2",
+    "name": "상급 기술 노트 (아비도스)",
+    "old": null,
+    "new": "868",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_3",
+    "item_id": "Item_Icon_SkillBook_Abydos_3",
+    "name": "최상급 기술 노트 (아비도스)",
+    "old": null,
+    "new": "258",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_0",
+    "item_id": "Item_Icon_SkillBook_Arius_0",
+    "name": "기초 기술 노트 (아리우스)",
+    "old": null,
+    "new": "2425",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_1",
+    "item_id": "Item_Icon_SkillBook_Arius_1",
+    "name": "일반 기술 노트 (아리우스)",
+    "old": null,
+    "new": "1013",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_2",
+    "item_id": "Item_Icon_SkillBook_Arius_2",
+    "name": "상급 기술 노트 (아리우스)",
+    "old": null,
+    "new": "667",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_3",
+    "item_id": "Item_Icon_SkillBook_Arius_3",
+    "name": "최상급 기술 노트 (아리우스)",
+    "old": null,
+    "new": "119",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_0",
+    "item_id": "Item_Icon_SkillBook_Gehenna_0",
+    "name": "기초 기술 노트 (게헨나)",
+    "old": null,
+    "new": "2122",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_1",
+    "item_id": "Item_Icon_SkillBook_Gehenna_1",
+    "name": "일반 기술 노트 (게헨나)",
+    "old": null,
+    "new": "858",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_2",
+    "item_id": "Item_Icon_SkillBook_Gehenna_2",
+    "name": "상급 기술 노트 (게헨나)",
+    "old": null,
+    "new": "636",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_3",
+    "item_id": "Item_Icon_SkillBook_Gehenna_3",
+    "name": "최상급 기술 노트 (게헨나)",
+    "old": null,
+    "new": "219",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_0",
+    "item_id": "Item_Icon_SkillBook_Highlander_0",
+    "name": "기초 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "664",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_1",
+    "item_id": "Item_Icon_SkillBook_Highlander_1",
+    "name": "일반 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "267",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_2",
+    "item_id": "Item_Icon_SkillBook_Highlander_2",
+    "name": "상급 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "173",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_3",
+    "item_id": "Item_Icon_SkillBook_Highlander_3",
+    "name": "최상급 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "55",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_0",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_0",
+    "name": "기초 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "2203",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_1",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_1",
+    "name": "일반 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "789",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_2",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_2",
+    "name": "상급 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "403",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_3",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_3",
+    "name": "최상급 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "17",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_0",
+    "item_id": "Item_Icon_SkillBook_Millennium_0",
+    "name": "기초 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "2791",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_1",
+    "item_id": "Item_Icon_SkillBook_Millennium_1",
+    "name": "일반 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "981",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_2",
+    "item_id": "Item_Icon_SkillBook_Millennium_2",
+    "name": "상급 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "735",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_3",
+    "item_id": "Item_Icon_SkillBook_Millennium_3",
+    "name": "최상급 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "219",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_0",
+    "item_id": "Item_Icon_SkillBook_RedWinter_0",
+    "name": "기초 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "3691",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_1",
+    "item_id": "Item_Icon_SkillBook_RedWinter_1",
+    "name": "일반 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "1697",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_2",
+    "item_id": "Item_Icon_SkillBook_RedWinter_2",
+    "name": "상급 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "1190",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_3",
+    "item_id": "Item_Icon_SkillBook_RedWinter_3",
+    "name": "최상급 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "361",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_0",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_0",
+    "name": "기초 기술 노트 (산해경)",
+    "old": null,
+    "new": "2661",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_1",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_1",
+    "name": "일반 기술 노트 (산해경)",
+    "old": null,
+    "new": "1006",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_2",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_2",
+    "name": "상급 기술 노트 (산해경)",
+    "old": null,
+    "new": "692",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_3",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_3",
+    "name": "최상급 기술 노트 (산해경)",
+    "old": null,
+    "new": "177",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_0",
+    "item_id": "Item_Icon_SkillBook_Trinity_0",
+    "name": "기초 기술 노트 (트리니티)",
+    "old": null,
+    "new": "1487",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_1",
+    "item_id": "Item_Icon_SkillBook_Trinity_1",
+    "name": "일반 기술 노트 (트리니티)",
+    "old": null,
+    "new": "260",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_2",
+    "item_id": "Item_Icon_SkillBook_Trinity_2",
+    "name": "상급 기술 노트 (트리니티)",
+    "old": null,
+    "new": "257",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_3",
+    "item_id": "Item_Icon_SkillBook_Trinity_3",
+    "name": "최상급 기술 노트 (트리니티)",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Ultimate_Piece",
+    "item_id": "Item_Icon_SkillBook_Ultimate_Piece",
+    "name": "비의서",
+    "old": null,
+    "new": "53",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_0",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_0",
+    "name": "기초 기술 노트 (발키리)",
+    "old": null,
+    "new": "2524",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_1",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_1",
+    "name": "일반 기술 노트 (발키리)",
+    "old": null,
+    "new": "897",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_2",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_2",
+    "name": "상급 기술 노트 (발키리)",
+    "old": null,
+    "new": "417",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_3",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_3",
+    "name": "최상급 기술 노트 (발키리)",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_0",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_0",
+    "name": "기초 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "654",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_1",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_1",
+    "name": "일반 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "322",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_2",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_2",
+    "name": "상급 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "191",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_3",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_3",
+    "name": "최상급 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "55",
+    "changed_at": "2026-04-18T21:34:03+09:00",
+    "scan_id": "2026-04-18_213403"
+  },
+  {
+    "item": "상급 활동 보고서",
+    "item_id": null,
+    "name": "상급 활동 보고서",
+    "old": null,
+    "new": "157",
+    "changed_at": "2026-04-18T21:35:16+09:00",
+    "scan_id": "2026-04-18_213516"
+  },
+  {
+    "item": "일반 활동 보고서",
+    "item_id": null,
+    "name": "일반 활동 보고서",
+    "old": null,
+    "new": "425",
+    "changed_at": "2026-04-18T21:35:16+09:00",
+    "scan_id": "2026-04-18_213516"
+  },
+  {
+    "item": "초급 활동 보고서",
+    "item_id": null,
+    "name": "초급 활동 보고서",
+    "old": null,
+    "new": "3696",
+    "changed_at": "2026-04-18T21:35:16+09:00",
+    "scan_id": "2026-04-18_213516"
+  },
+  {
+    "item": "최상급 활동 보고서",
+    "item_id": null,
+    "name": "최상급 활동 보고서",
+    "old": null,
+    "new": "78",
+    "changed_at": "2026-04-18T21:35:16+09:00",
+    "scan_id": "2026-04-18_213516"
   }
 ]

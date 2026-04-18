@@ -10,7 +10,7 @@ import queue
 import sys
 import threading
 import traceback
-from tkinter import TclError
+from tkinter import TclError, messagebox
 
 import tkinter as tk
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -107,7 +107,7 @@ try:
         save_config,
     )
     from core.db_writer import build_scan_meta
-    from core.inventory_profiles import inventory_profile_label
+    from core.inventory_profiles import inventory_profile_labels, normalize_inventory_profile_ids
     from core.lobby_watcher import LobbyWatcher, WatcherState
     from core.log_context import set_debug_dump
     from core.logger import LOG_APP, get_logger, setup_logging
@@ -196,7 +196,7 @@ class App(tk.Tk):
         self._destroyed = False
         self._target_close_handled = False
         self._ui_queue: queue.Queue[tuple] = queue.Queue()
-        self._last_item_scan_filter = "all"
+        self._last_item_scan_filter: tuple[str, ...] = ("all",)
 
         self._overlay = FloatingOverlay(
             self,
@@ -426,7 +426,7 @@ class App(tk.Tk):
             fast_student_ids=meta.get("fast_student_ids") or None,
         )
 
-    def _choose_item_scan_filter(self) -> str | None:
+    def _choose_item_scan_filter(self) -> str | list[str] | None:
         dialog = tk.Toplevel(self)
         dialog.title("아이템 스캔 필터")
         dialog.resizable(False, False)
@@ -437,8 +437,11 @@ class App(tk.Tk):
             pass
         dialog.grab_set()
 
-        selected = tk.StringVar(value=self._last_item_scan_filter)
-        result: dict[str, str | None] = {"value": None}
+        current_selection = set(normalize_inventory_profile_ids(self._last_item_scan_filter))
+        if not current_selection:
+            current_selection = {"all"}
+        selected: dict[str, tk.BooleanVar] = {}
+        result: dict[str, str | list[str] | None] = {"value": None}
 
         frame = tk.Frame(dialog, padx=14, pady=14)
         frame.pack(fill="both", expand=True)
@@ -450,21 +453,43 @@ class App(tk.Tk):
             justify="left",
         ).pack(fill="x", pady=(0, 10))
 
+        def on_toggle(value: str) -> None:
+            if value == "all":
+                if selected["all"].get():
+                    for other, _ in _ITEM_SCAN_FILTER_OPTIONS:
+                        if other != "all":
+                            selected[other].set(False)
+                return
+            if selected[value].get():
+                selected["all"].set(False)
+
         for value, label in _ITEM_SCAN_FILTER_OPTIONS:
-            tk.Radiobutton(
+            selected[value] = tk.BooleanVar(value=value in current_selection)
+            tk.Checkbutton(
                 frame,
                 text=label,
-                value=value,
-                variable=selected,
+                variable=selected[value],
+                onvalue=True,
+                offvalue=False,
                 anchor="w",
                 justify="left",
+                command=lambda option=value: on_toggle(option),
             ).pack(fill="x", pady=1)
 
         buttons = tk.Frame(frame)
         buttons.pack(fill="x", pady=(12, 0))
 
         def submit() -> None:
-            result["value"] = selected.get()
+            chosen = [value for value, _ in _ITEM_SCAN_FILTER_OPTIONS if selected[value].get()]
+            if not chosen:
+                messagebox.showinfo("Item Scan Filter", "Select at least one filter.", parent=dialog)
+                return
+            if "all" in chosen:
+                result["value"] = "all"
+            elif len(chosen) == 1:
+                result["value"] = chosen[0]
+            else:
+                result["value"] = chosen
             dialog.destroy()
 
         def cancel() -> None:
@@ -488,8 +513,9 @@ class App(tk.Tk):
         dialog.focus_force()
         dialog.wait_window()
         choice = result["value"]
-        if choice:
-            self._last_item_scan_filter = choice
+        normalized_choice = normalize_inventory_profile_ids(choice)
+        if normalized_choice:
+            self._last_item_scan_filter = normalized_choice
         return choice
 
     def _restore_last_fast_scan_backup(self) -> bool:
@@ -594,7 +620,7 @@ class App(tk.Tk):
                 "창을 먼저 선택해 주세요." if self.state == AppState.IDLE else "현재 상태에서는 스캔할 수 없습니다."
             )
             return
-        item_scan_filter: str | None = None
+        item_scan_filter: str | list[str] | None = None
         if mode in ("items", "all"):
             item_scan_filter = self._choose_item_scan_filter()
             if item_scan_filter is None:
@@ -617,13 +643,19 @@ class App(tk.Tk):
     def _scan(
         self,
         mode: str,
-        item_scan_filter: str | None = None,
+        item_scan_filter: str | list[str] | None = None,
         student_scan_options: dict | None = None,
     ) -> None:
         meta = build_scan_meta()
-        if item_scan_filter:
-            meta["item_scan_filter_profile"] = None if item_scan_filter == "all" else item_scan_filter
-            meta["item_scan_filter_label"] = inventory_profile_label(meta["item_scan_filter_profile"])
+        if item_scan_filter is not None:
+            normalized_filters = normalize_inventory_profile_ids(item_scan_filter)
+            if normalized_filters and normalized_filters != ("all",):
+                meta["item_scan_filter_profile"] = (
+                    list(normalized_filters) if len(normalized_filters) > 1 else normalized_filters[0]
+                )
+            else:
+                meta["item_scan_filter_profile"] = None
+            meta["item_scan_filter_label"] = inventory_profile_labels(item_scan_filter)
         if student_scan_options:
             meta.update(student_scan_options)
         if meta.get("student_scan_strategy") == "fast":
