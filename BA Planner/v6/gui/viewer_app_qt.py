@@ -90,7 +90,22 @@ _REPORT_NAME_TO_ICON = {
     "상급활동보고서": "report_2",
     "최상급활동보고서": "report_3",
 }
+_REPORT_ICON_TO_NAME = {
+    "report_0": "초급 활동 보고서",
+    "report_1": "일반 활동 보고서",
+    "report_2": "상급 활동 보고서",
+    "report_3": "최상급 활동 보고서",
+}
+_REPORT_ID_TO_ICON = {
+    **{icon_id: icon_id for icon_id in _REPORT_ICON_TO_NAME},
+    **{f"Item_Icon_ExpItem_{tier}": f"report_{tier}" for tier in range(4)},
+}
 _REPORT_ORDER = ("report_3", "report_2", "report_1", "report_0")
+_WORKBOOK_ID_TO_NAME = {
+    "Item_Icon_WorkBook_PotentialAttack": "Attack WB",
+    "Item_Icon_WorkBook_PotentialMaxHP": "Max HP WB",
+    "Item_Icon_WorkBook_PotentialHealPower": "Heal Power WB",
+}
 _WB_ITEM_IDS = tuple(item_id for item_id, _name in OPART_WB_ITEMS)
 _OPART_ITEM_IDS = tuple(item_id for item_id in OPART_ORDERED_ITEM_IDS if item_id not in _WB_ITEM_IDS)
 _SCHOOL_SEQUENCE = (
@@ -1065,8 +1080,26 @@ def _report_icon_token(name: str | None) -> str | None:
     return _REPORT_NAME_TO_ICON.get(_inventory_name_token(name))
 
 
-def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
+def _report_icon_for_entry(item_id: str | None, name: str | None) -> str | None:
     if item_id:
+        icon_token = _REPORT_ID_TO_ICON.get(item_id)
+        if icon_token:
+            return icon_token
+    return _report_icon_token(name)
+
+
+def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
+    report_icon = _report_icon_for_entry(item_id, name)
+    if report_icon:
+        path = POLI_BG_DIR / f"{report_icon}.png"
+        if path.exists():
+            return path
+
+    if item_id:
+        if item_id in _WORKBOOK_ID_TO_NAME:
+            path = POLI_BG_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
         if item_id.startswith("Item_Icon_SkillBook_"):
             path = INVENTORY_DETAIL_DIR / "tech_notes" / f"{item_id}.png"
             if path.exists():
@@ -1087,12 +1120,6 @@ def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
             path = POLI_BG_DIR / f"{item_id}.png"
             if path.exists():
                 return path
-
-    report_icon = _report_icon_token(name)
-    if report_icon:
-        path = POLI_BG_DIR / f"{report_icon}.png"
-        if path.exists():
-            return path
 
     if name:
         path = INVENTORY_DETAIL_DIR / "ooparts" / f"{name}.png"
@@ -1116,6 +1143,14 @@ def _inventory_quantity_value(raw_quantity: object) -> int | None:
 
 def _inventory_display_label(item_key: str, payload: dict) -> str:
     item_id = payload.get("item_id")
+    if item_id:
+        item_id_text = str(item_id)
+        report_icon = _REPORT_ID_TO_ICON.get(item_id_text)
+        if report_icon:
+            return _REPORT_ICON_TO_NAME.get(report_icon, item_id_text)
+        workbook_name = _WORKBOOK_ID_TO_NAME.get(item_id_text)
+        if workbook_name:
+            return workbook_name
     display_name = inventory_item_display_name(str(item_id)) if item_id else None
     return str(display_name or payload.get("name") or item_key)
 
@@ -3068,7 +3103,7 @@ class StudentViewerWindow(QMainWindow):
         name = _inventory_display_label(item_key, payload)
         if item_id in _OPART_ITEM_IDS:
             return "ooparts"
-        if item_id in _WB_ITEM_IDS:
+        if item_id in _WB_ITEM_IDS or item_id in _WORKBOOK_ID_TO_NAME:
             return "wb"
         if item_id.startswith("Equipment_Icon_Exp_"):
             return "stones"
@@ -3078,7 +3113,7 @@ class StudentViewerWindow(QMainWindow):
             return "tech_notes"
         if item_id.startswith("Item_Icon_Material_ExSkill_"):
             return "bd"
-        if _report_icon_token(name):
+        if _report_icon_for_entry(item_id or None, name):
             return "reports"
         return "other"
 
@@ -3160,7 +3195,10 @@ class StudentViewerWindow(QMainWindow):
             item_groups[self._inventory_classify_item(item_key, payload)].append((item_key, payload))
 
         opart_order = {item_id: index for index, item_id in enumerate(_OPART_ITEM_IDS)}
-        wb_order = {item_id: index for index, item_id in enumerate(_WB_ITEM_IDS)}
+        wb_order = {
+            item_id: index
+            for index, item_id in enumerate(tuple(_WORKBOOK_ID_TO_NAME) + _WB_ITEM_IDS)
+        }
         stone_order = {item_id: index for index, (item_id, _name) in enumerate(EQUIPMENT_EXP_ITEMS)}
         report_order = {token: index for index, token in enumerate(_REPORT_ORDER)}
         weapon_order = {
@@ -3222,7 +3260,14 @@ class StudentViewerWindow(QMainWindow):
             "reports": sorted(
                 item_groups["reports"],
                 key=lambda entry: (
-                    report_order.get(_report_icon_token(_inventory_display_label(entry[0], entry[1])) or "", 9999),
+                    report_order.get(
+                        _report_icon_for_entry(
+                            str(entry[1].get("item_id") or "") or None,
+                            _inventory_display_label(entry[0], entry[1]),
+                        )
+                        or "",
+                        9999,
+                    ),
                     _inventory_display_label(entry[0], entry[1]).lower(),
                 ),
             ),

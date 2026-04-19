@@ -1,0 +1,19 @@
+{
+  "scan_id": "2026-04-19_132544",
+  "scanned_at": "2026-04-19T13:25:44+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {
+      "credit": "91678548",
+      "pyroxene": "49260"
+    },
+    "items": [],
+    "equipment": [],
+    "students": []
+  }
+}

@@ -123,7 +123,19 @@ STAT_PANEL_MATCH_DELAY = 0.22
 CAPTURED_CLICK_POINTS_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 REGION_CAPTURE_DIR = BASE_DIR / "debug" / "region_captures"
 INVENTORY_SORT_RULE_MATCH_THRESHOLD = 0.78
+ITEM_SORT_RULE_MATCH_THRESHOLD = 0.68
 INVENTORY_SORT_RULE_MAX_ATTEMPTS = 3
+INVENTORY_FILTER_MENU_SETTLE_WAIT = 0.65
+INVENTORY_FILTER_TAB_SETTLE_WAIT = 0.45
+INVENTORY_SORT_RULE_CHECK_WAIT = 0.75
+INVENTORY_SORT_RULE_RETRY_WAIT = 0.45
+INVENTORY_FILTER_CONFIRM_WAIT = 0.65
+INVENTORY_PROFILE_MAX_UNIQUE_ITEMS = {
+    "activity_reports": 4,
+    "tech_notes": 45,
+    "tactical_bd": 44,
+    "ooparts": 83,
+}
 
 # Retry policy
 RETRY_IDENTIFY   = 2      # max student identify retries
@@ -953,9 +965,13 @@ class Scanner:
         *,
         threshold: float = INVENTORY_SORT_RULE_MATCH_THRESHOLD,
         click_delay: float = DELAY_AFTER_CLICK,
+        check_wait: float = INVENTORY_SORT_RULE_CHECK_WAIT,
+        retry_wait: float = INVENTORY_SORT_RULE_RETRY_WAIT,
         max_attempts: int = INVENTORY_SORT_RULE_MAX_ATTEMPTS,
     ) -> bool:
         for attempt in range(1, max_attempts + 1):
+            if check_wait > 0 and not self._wait(check_wait):
+                return False
             score = self._region_capture_match_score(name)
             if score is None:
                 self.log(f"  {name} reference unavailable -> skip check")
@@ -968,7 +984,7 @@ class Scanner:
             self.log(f"  {name} mismatch -> clicking")
             if not self._click_region_capture(name, label=name, delay=click_delay):
                 return False
-            if not self._wait(0.25):
+            if retry_wait > 0 and not self._wait(retry_wait):
                 return False
         self.log(f"  {name} did not reach threshold {threshold:.2f}")
         return False
@@ -987,16 +1003,35 @@ class Scanner:
 
     def _prepare_item_inventory(self, profile_id: str | None, *, ensure_sort_rule: bool) -> bool:
         self.log("  item filter menu open")
-        if not self._click_region_capture("filtermenu_button", label="filtermenu_button", delay=0.35):
+        if not self._click_region_capture(
+            "filtermenu_button",
+            label="filtermenu_button",
+            delay=INVENTORY_FILTER_MENU_SETTLE_WAIT,
+        ):
             return False
         if ensure_sort_rule:
-            if not self._click_region_capture("sort_tab", label="sort_tab", delay=0.2):
+            if not self._click_region_capture(
+                "sort_tab",
+                label="sort_tab",
+                delay=INVENTORY_FILTER_TAB_SETTLE_WAIT,
+            ):
                 return False
-            if not self._ensure_region_matches_reference("sort_rule_check"):
+            if not self._ensure_region_matches_reference(
+                "sort_rule_check",
+                threshold=ITEM_SORT_RULE_MATCH_THRESHOLD,
+            ):
                 return False
-        if not self._click_region_capture("filter_tab", label="filter_tab", delay=0.2):
+        if not self._click_region_capture(
+            "filter_tab",
+            label="filter_tab",
+            delay=INVENTORY_FILTER_TAB_SETTLE_WAIT,
+        ):
             return False
-        if not self._click_region_capture("filter_reset_button", label="filter_reset_button", delay=0.2):
+        if not self._click_region_capture(
+            "filter_reset_button",
+            label="filter_reset_button",
+            delay=INVENTORY_FILTER_TAB_SETTLE_WAIT,
+        ):
             return False
 
         filter_button_by_profile = {
@@ -1008,30 +1043,38 @@ class Scanner:
         }
         filter_button = filter_button_by_profile.get(profile_id or "")
         if filter_button:
-            if not self._click_region_capture(filter_button, label=filter_button, delay=0.15):
+            if not self._click_region_capture(
+                filter_button,
+                label=filter_button,
+                delay=INVENTORY_FILTER_TAB_SETTLE_WAIT,
+            ):
                 return False
 
         if not self._click_region_capture(
             "filter_confirm_button",
             label="filter_confirm_button",
-            delay=0.35,
+            delay=INVENTORY_FILTER_CONFIRM_WAIT,
         ):
             return False
-        return self._wait(0.25)
+        return self._wait(INVENTORY_FILTER_CONFIRM_WAIT)
 
     def _prepare_equipment_inventory(self) -> bool:
         self.log("  equipment filter menu open")
-        if not self._click_region_capture("eq_filtermenu_button", label="eq_filtermenu_button", delay=0.35):
+        if not self._click_region_capture(
+            "eq_filtermenu_button",
+            label="eq_filtermenu_button",
+            delay=INVENTORY_FILTER_MENU_SETTLE_WAIT,
+        ):
             return False
         if not self._ensure_region_matches_reference("eq_sort_rule_check"):
             return False
         if not self._click_region_capture(
             "eq_filter_confirm_button",
             label="eq_filter_confirm_button",
-            delay=0.35,
+            delay=INVENTORY_FILTER_CONFIRM_WAIT,
         ):
             return False
-        return self._wait(0.25)
+        return self._wait(INVENTORY_FILTER_CONFIRM_WAIT)
 
     def _reset_inventory_scan_state(self, source: str) -> None:
         self._inventory_icon_cache[source] = {}
@@ -2174,17 +2217,36 @@ class Scanner:
         }
         profile_hash_to_index: dict[str, int] = {}
         profile_cursor = 0
+        profile_max_unique_items = (
+            INVENTORY_PROFILE_MAX_UNIQUE_ITEMS.get(active_profile.profile_id)
+            if active_profile is not None
+            else None
+        )
         disable_first_match_realign = (
             source == "equipment"
             or (active_profile is not None and active_profile.profile_id == "equipment")
         )
 
+        def _unique_scanned_item_count() -> int:
+            return len(
+                {
+                    entry.item_id or entry.name
+                    for entry in items
+                    if entry.item_id or entry.name
+                }
+            )
+
         self.log(f"{icon} 그리드 스캔 시작 (슬롯 {len(slots)}개)")
         if active_profile is not None:
             expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
+            limit_suffix = (
+                f", max_unique={profile_max_unique_items}"
+                if profile_max_unique_items is not None
+                else ""
+            )
             self.log(
                 f"  inventory profile forced: {active_profile.profile_id} "
-                f"({expected_count} expected)"
+                f"({expected_count} expected{limit_suffix})"
             )
 
         for scroll_i in range(MAX_SCROLLS):
@@ -2237,6 +2299,7 @@ class Scanner:
                 active_profile is None
                 or prev_page_profile_indices is None
             )
+            profile_limit_reached = False
             for slot_idx, (slot, slot_snap) in enumerate(zip(slots, page.slots)):
                 if self._stop_requested():
                     break
@@ -2419,11 +2482,25 @@ class Scanner:
                                 current_page_profile_indices[slot_idx] = mapped_idx
                     new_this += 1
                     self.log(f"  {icon} [{len(items):>3}] {name}  x{count} ({detect_source})")
+                    if (
+                        profile_max_unique_items is not None
+                        and _unique_scanned_item_count() >= profile_max_unique_items
+                    ):
+                        self.log(
+                            f"  profile max unique items reached: "
+                            f"{active_profile.profile_id} "
+                            f"({_unique_scanned_item_count()}/{profile_max_unique_items})"
+                        )
+                        profile_limit_reached = True
+                        break
 
             if active_profile is None:
                 active_profile = infer_inventory_scan_profile(source, page_item_ids, page_raw_names)
                 if active_profile is not None:
                     expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
+                    profile_max_unique_items = INVENTORY_PROFILE_MAX_UNIQUE_ITEMS.get(
+                        active_profile.profile_id
+                    )
                     profile_ordered_names = list(active_profile.ordered_names)
                     profile_ordered_item_ids = list(inventory_profile_ordered_item_ids(active_profile))
                     profile_index_by_name = {name: idx for idx, name in enumerate(profile_ordered_names)}
@@ -2465,12 +2542,30 @@ class Scanner:
                         rebuilt_seen_keys.add(entry.key())
                     seen_keys = rebuilt_seen_keys
                     profile_seen_names = rebuilt_profile_names
+                    limit_suffix = (
+                        f", max_unique={profile_max_unique_items}"
+                        if profile_max_unique_items is not None
+                        else ""
+                    )
                     self.log(
                         f"  inventory profile detected: {active_profile.profile_id} "
-                        f"({expected_count} expected)"
+                        f"({expected_count} expected{limit_suffix})"
                     )
+                    if (
+                        profile_max_unique_items is not None
+                        and _unique_scanned_item_count() >= profile_max_unique_items
+                    ):
+                        self.log(
+                            f"  profile max unique items reached: "
+                            f"{active_profile.profile_id} "
+                            f"({_unique_scanned_item_count()}/{profile_max_unique_items})"
+                        )
+                        profile_limit_reached = True
 
             self.log(f"  scroll {scroll_i+1}: new {new_this} / total {len(items)}")
+
+            if profile_limit_reached:
+                break
 
             if active_profile is not None:
                 found_item_ids = {entry.item_id for entry in items if entry.item_id}

@@ -1,1 +1,398 @@
-[]
+[
+  {
+    "item": "Item_Icon_SkillBook_Abydos_0",
+    "item_id": "Item_Icon_SkillBook_Abydos_0",
+    "name": "기초 기술 노트 (아비도스)",
+    "old": null,
+    "new": "3340",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_1",
+    "item_id": "Item_Icon_SkillBook_Abydos_1",
+    "name": "일반 기술 노트 (아비도스)",
+    "old": null,
+    "new": "1520",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_2",
+    "item_id": "Item_Icon_SkillBook_Abydos_2",
+    "name": "상급 기술 노트 (아비도스)",
+    "old": null,
+    "new": "869",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Abydos_3",
+    "item_id": "Item_Icon_SkillBook_Abydos_3",
+    "name": "최상급 기술 노트 (아비도스)",
+    "old": null,
+    "new": "259",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_0",
+    "item_id": "Item_Icon_SkillBook_Arius_0",
+    "name": "기초 기술 노트 (아리우스)",
+    "old": null,
+    "new": "2425",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_1",
+    "item_id": "Item_Icon_SkillBook_Arius_1",
+    "name": "일반 기술 노트 (아리우스)",
+    "old": null,
+    "new": "1013",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_2",
+    "item_id": "Item_Icon_SkillBook_Arius_2",
+    "name": "상급 기술 노트 (아리우스)",
+    "old": null,
+    "new": "667",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Arius_3",
+    "item_id": "Item_Icon_SkillBook_Arius_3",
+    "name": "최상급 기술 노트 (아리우스)",
+    "old": null,
+    "new": "119",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_0",
+    "item_id": "Item_Icon_SkillBook_Gehenna_0",
+    "name": "기초 기술 노트 (게헨나)",
+    "old": null,
+    "new": "2122",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_1",
+    "item_id": "Item_Icon_SkillBook_Gehenna_1",
+    "name": "일반 기술 노트 (게헨나)",
+    "old": null,
+    "new": "858",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_2",
+    "item_id": "Item_Icon_SkillBook_Gehenna_2",
+    "name": "상급 기술 노트 (게헨나)",
+    "old": null,
+    "new": "636",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Gehenna_3",
+    "item_id": "Item_Icon_SkillBook_Gehenna_3",
+    "name": "최상급 기술 노트 (게헨나)",
+    "old": null,
+    "new": "219",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_0",
+    "item_id": "Item_Icon_SkillBook_Highlander_0",
+    "name": "기초 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "664",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_1",
+    "item_id": "Item_Icon_SkillBook_Highlander_1",
+    "name": "일반 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "267",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_2",
+    "item_id": "Item_Icon_SkillBook_Highlander_2",
+    "name": "상급 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "173",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Highlander_3",
+    "item_id": "Item_Icon_SkillBook_Highlander_3",
+    "name": "최상급 기술 노트 (하이랜더)",
+    "old": null,
+    "new": "55",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_0",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_0",
+    "name": "기초 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "2203",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_1",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_1",
+    "name": "일반 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "789",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_2",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_2",
+    "name": "상급 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "403",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Hyakkiyako_3",
+    "item_id": "Item_Icon_SkillBook_Hyakkiyako_3",
+    "name": "최상급 기술 노트 (백귀야행)",
+    "old": null,
+    "new": "17",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_0",
+    "item_id": "Item_Icon_SkillBook_Millennium_0",
+    "name": "기초 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "2794",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_1",
+    "item_id": "Item_Icon_SkillBook_Millennium_1",
+    "name": "일반 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "985",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_2",
+    "item_id": "Item_Icon_SkillBook_Millennium_2",
+    "name": "상급 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "735",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Millennium_3",
+    "item_id": "Item_Icon_SkillBook_Millennium_3",
+    "name": "최상급 기술 노트 (밀레니엄)",
+    "old": null,
+    "new": "220",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_0",
+    "item_id": "Item_Icon_SkillBook_RedWinter_0",
+    "name": "기초 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "3697",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_1",
+    "item_id": "Item_Icon_SkillBook_RedWinter_1",
+    "name": "일반 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "1699",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_2",
+    "item_id": "Item_Icon_SkillBook_RedWinter_2",
+    "name": "상급 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "1193",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_RedWinter_3",
+    "item_id": "Item_Icon_SkillBook_RedWinter_3",
+    "name": "최상급 기술 노트 (붉은겨울)",
+    "old": null,
+    "new": "361",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_0",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_0",
+    "name": "기초 기술 노트 (산해경)",
+    "old": null,
+    "new": "2662",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_1",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_1",
+    "name": "일반 기술 노트 (산해경)",
+    "old": null,
+    "new": "1006",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_2",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_2",
+    "name": "상급 기술 노트 (산해경)",
+    "old": null,
+    "new": "692",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Shanhaijing_3",
+    "item_id": "Item_Icon_SkillBook_Shanhaijing_3",
+    "name": "최상급 기술 노트 (산해경)",
+    "old": null,
+    "new": "177",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_0",
+    "item_id": "Item_Icon_SkillBook_Trinity_0",
+    "name": "기초 기술 노트 (트리니티)",
+    "old": null,
+    "new": "1488",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_1",
+    "item_id": "Item_Icon_SkillBook_Trinity_1",
+    "name": "일반 기술 노트 (트리니티)",
+    "old": null,
+    "new": "260",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_2",
+    "item_id": "Item_Icon_SkillBook_Trinity_2",
+    "name": "상급 기술 노트 (트리니티)",
+    "old": null,
+    "new": "257",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Trinity_3",
+    "item_id": "Item_Icon_SkillBook_Trinity_3",
+    "name": "최상급 기술 노트 (트리니티)",
+    "old": null,
+    "new": "4",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_0",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_0",
+    "name": "기초 기술 노트 (발키리)",
+    "old": null,
+    "new": "2524",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_1",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_1",
+    "name": "일반 기술 노트 (발키리)",
+    "old": null,
+    "new": "897",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_2",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_2",
+    "name": "상급 기술 노트 (발키리)",
+    "old": null,
+    "new": "417",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Valkyrie_3",
+    "item_id": "Item_Icon_SkillBook_Valkyrie_3",
+    "name": "최상급 기술 노트 (발키리)",
+    "old": null,
+    "new": "5",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_0",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_0",
+    "name": "기초 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "665",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_1",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_1",
+    "name": "일반 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "327",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_2",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_2",
+    "name": "상급 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "196",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_SkillBook_Wildhunt_3",
+    "item_id": "Item_Icon_SkillBook_Wildhunt_3",
+    "name": "최상급 기술 노트 (와일드헌트)",
+    "old": null,
+    "new": "56",
+    "changed_at": "2026-04-19T13:27:16+09:00",
+    "scan_id": "2026-04-19_132716"
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "scan_id": "2026-04-19_124220",
+    "scanned_at": "2026-04-19T12:42:20+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다",
+    "item_scan_filter_profile": "activity_reports",
+    "item_scan_filter_label": "활동 보고서"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 0,
+    "equipment_count": 0,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {
+    "credit": "91678548",
+    "pyroxene": "49260"
+  },
+  "students": [],
+  "items": [],
+  "equipment": [],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-19_124220",
+    "session_started_at": "2026-04-19T12:42:20.968225",
+    "session_finished_at": "2026-04-19T12:42:44.819926",
+    "duration_sec": 23.9,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 0,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-19T12:42:44.819926"
+}
