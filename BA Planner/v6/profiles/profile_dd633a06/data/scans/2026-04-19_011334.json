@@ -1,0 +1,239 @@
+{
+  "scan_id": "2026-04-19_011334",
+  "scanned_at": "2026-04-19T01:13:34+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [
+      {
+        "index": 0,
+        "item_id": "Equipment_Icon_Exp_3",
+        "name": "최상급 강화석",
+        "quantity": "207"
+      },
+      {
+        "index": 1,
+        "item_id": "Equipment_Icon_Exp_2",
+        "name": "상급 강화석",
+        "quantity": "19149"
+      },
+      {
+        "index": 2,
+        "item_id": "Equipment_Icon_Exp_1",
+        "name": "일반 강화석",
+        "quantity": "19976"
+      },
+      {
+        "index": 3,
+        "item_id": "Equipment_Icon_Exp_0",
+        "name": "하급 강화석",
+        "quantity": "19783"
+      },
+      {
+        "index": 4,
+        "item_id": "Equipment_Icon_Necklace_Tier10",
+        "name": "메모리 네클리스",
+        "quantity": "95"
+      },
+      {
+        "index": 5,
+        "item_id": "Equipment_Icon_Necklace_Tier9",
+        "name": "옥토퍼스 홀더",
+        "quantity": "33"
+      },
+      {
+        "index": 6,
+        "item_id": "Equipment_Icon_Necklace_Tier8",
+        "name": "그린리프 목걸이",
+        "quantity": "301"
+      },
+      {
+        "index": 7,
+        "item_id": "Equipment_Icon_Necklace_Tier7",
+        "name": "체인 목걸이",
+        "quantity": "247"
+      },
+      {
+        "index": 8,
+        "item_id": "Equipment_Icon_Necklace_Tier6",
+        "name": "펑크 초커",
+        "quantity": "683"
+      },
+      {
+        "index": 9,
+        "item_id": "Equipment_Icon_Necklace_Tier5",
+        "name": "도그택",
+        "quantity": "594"
+      },
+      {
+        "index": 10,
+        "item_id": "Equipment_Icon_Necklace_Tier4",
+        "name": "십자가 초커",
+        "quantity": "1801"
+      },
+      {
+        "index": 11,
+        "item_id": "Equipment_Icon_Necklace_Tier3",
+        "name": "니콜라이 로켓",
+        "quantity": "1801"
+      },
+      {
+        "index": 12,
+        "item_id": "Equipment_Icon_Necklace_Tier2",
+        "name": "눈꽃 펜던트",
+        "quantity": "2020"
+      },
+      {
+        "index": 85,
+        "item_id": "Equipment_Icon_Necklace_Tier1",
+        "name": "블루투스 목걸이",
+        "quantity": "223"
+      },
+      {
+        "index": 86,
+        "item_id": "Equipment_Icon_Watch_Tier1",
+        "name": "방수 디지털 시계",
+        "quantity": "771"
+      },
+      {
+        "index": 87,
+        "item_id": "Equipment_Icon_Charm_Tier1",
+        "name": "교통안전 부적",
+        "quantity": "664"
+      },
+      {
+        "index": 88,
+        "item_id": "Equipment_Icon_Hairpin_Tier1",
+        "name": "테니스 헤어밴드",
+        "quantity": "213"
+      },
+      {
+        "index": 89,
+        "item_id": "Equipment_Icon_Badge_Tier1",
+        "name": "서벌 금속 배지",
+        "quantity": "26"
+      },
+      {
+        "index": 90,
+        "item_id": "Equipment_Icon_Bag_Tier1",
+        "name": "방수 스포츠백",
+        "quantity": "540"
+      },
+      {
+        "index": 91,
+        "item_id": "Equipment_Icon_Shoes_Tier1",
+        "name": "핑크 스니커즈",
+        "quantity": "999"
+      },
+      {
+        "index": 92,
+        "item_id": "Equipment_Icon_Gloves_Tier1",
+        "name": "스포츠용 장갑",
+        "quantity": "616"
+      },
+      {
+        "index": 93,
+        "item_id": "Equipment_Icon_Hat_Tier1",
+        "name": "무지 캡모자",
+        "quantity": "1895"
+      },
+      {
+        "index": 94,
+        "item_id": "Equipment_Icon_WeaponExpGrowthZ_3",
+        "name": "공이 T4",
+        "quantity": "1856"
+      },
+      {
+        "index": 95,
+        "item_id": "Equipment_Icon_WeaponExpGrowthZ_2",
+        "name": "공이 T3",
+        "quantity": "380"
+      },
+      {
+        "index": 96,
+        "item_id": "Equipment_Icon_WeaponExpGrowthZ_1",
+        "name": "공이 T2",
+        "quantity": "519"
+      },
+      {
+        "index": 97,
+        "item_id": "Equipment_Icon_WeaponExpGrowthZ_0",
+        "name": "공이 T1",
+        "quantity": "239"
+      },
+      {
+        "index": 98,
+        "item_id": "Equipment_Icon_WeaponExpGrowthC_3",
+        "name": "총열 T4",
+        "quantity": "12"
+      },
+      {
+        "index": 99,
+        "item_id": "Equipment_Icon_WeaponExpGrowthC_2",
+        "name": "총열 T3",
+        "quantity": "296"
+      },
+      {
+        "index": 101,
+        "item_id": "Equipment_Icon_WeaponExpGrowthC_0",
+        "name": "총열 T1",
+        "quantity": "10430"
+      },
+      {
+        "index": 102,
+        "item_id": "Equipment_Icon_WeaponExpGrowthB_3",
+        "name": "해머 T4",
+        "quantity": "40"
+      },
+      {
+        "index": 103,
+        "item_id": "Equipment_Icon_WeaponExpGrowthB_2",
+        "name": "해머 T3",
+        "quantity": "235"
+      },
+      {
+        "index": 104,
+        "item_id": "Equipment_Icon_WeaponExpGrowthB_1",
+        "name": "해머 T2",
+        "quantity": "12"
+      },
+      {
+        "index": 105,
+        "item_id": "Equipment_Icon_WeaponExpGrowthB_0",
+        "name": "해머 T1",
+        "quantity": "296"
+      },
+      {
+        "index": 106,
+        "item_id": "Equipment_Icon_WeaponExpGrowthA_3",
+        "name": "스프링 T4",
+        "quantity": "10"
+      },
+      {
+        "index": 107,
+        "item_id": "Equipment_Icon_WeaponExpGrowthA_2",
+        "name": "스프링 T3",
+        "quantity": "11603"
+      },
+      {
+        "index": 108,
+        "item_id": "Equipment_Icon_WeaponExpGrowthA_1",
+        "name": "스프링 T2",
+        "quantity": "1"
+      },
+      {
+        "index": 109,
+        "item_id": "Equipment_Icon_WeaponExpGrowthA_0",
+        "name": "스프링 T1",
+        "quantity": "9"
+      }
+    ],
+    "students": []
+  }
+}

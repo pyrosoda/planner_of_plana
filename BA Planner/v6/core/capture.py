@@ -320,7 +320,6 @@ def _print_window(hwnd: int) -> Optional[Image.Image]:
             return None
 
         # 비트맵 → PIL Image
-        import ctypes
         class BITMAPINFOHEADER(ctypes.Structure):
             _fields_ = [
                 ("biSize",          wintypes.DWORD),

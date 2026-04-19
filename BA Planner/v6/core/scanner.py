@@ -122,7 +122,8 @@ UI_FLAG_MATCH_DELAY = 0.10
 STAT_PANEL_MATCH_DELAY = 0.22
 CAPTURED_CLICK_POINTS_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 REGION_CAPTURE_DIR = BASE_DIR / "debug" / "region_captures"
-INVENTORY_SORT_RULE_MATCH_THRESHOLD = 0.95
+INVENTORY_SORT_RULE_MATCH_THRESHOLD = 0.78
+INVENTORY_SORT_RULE_MAX_ATTEMPTS = 3
 
 # Retry policy
 RETRY_IDENTIFY   = 2      # max student identify retries
@@ -952,22 +953,25 @@ class Scanner:
         *,
         threshold: float = INVENTORY_SORT_RULE_MATCH_THRESHOLD,
         click_delay: float = DELAY_AFTER_CLICK,
+        max_attempts: int = INVENTORY_SORT_RULE_MAX_ATTEMPTS,
     ) -> bool:
-        score = self._region_capture_match_score(name)
-        if score is None:
-            self.log(f"  {name} reference unavailable -> skip check")
-            return False
-        self.log(f"  {name} match score={score:.3f}")
-        if score >= threshold:
-            return True
-        self.log(f"  {name} mismatch -> clicking")
-        if not self._click_region_capture(name, label=name, delay=click_delay):
-            return False
-        post_score = self._region_capture_match_score(name)
-        if post_score is not None:
-            self.log(f"  {name} post-click score={post_score:.3f}")
-            return post_score >= threshold
-        return True
+        for attempt in range(1, max_attempts + 1):
+            score = self._region_capture_match_score(name)
+            if score is None:
+                self.log(f"  {name} reference unavailable -> skip check")
+                return False
+            self.log(f"  {name} match score={score:.3f} (attempt {attempt}/{max_attempts})")
+            if score >= threshold:
+                return True
+            if attempt >= max_attempts:
+                break
+            self.log(f"  {name} mismatch -> clicking")
+            if not self._click_region_capture(name, label=name, delay=click_delay):
+                return False
+            if not self._wait(0.25):
+                return False
+        self.log(f"  {name} did not reach threshold {threshold:.2f}")
+        return False
 
     def _item_scan_profiles(
         self,
@@ -988,7 +992,8 @@ class Scanner:
         if ensure_sort_rule:
             if not self._click_region_capture("sort_tab", label="sort_tab", delay=0.2):
                 return False
-            self._ensure_region_matches_reference("sort_rule_check")
+            if not self._ensure_region_matches_reference("sort_rule_check"):
+                return False
         if not self._click_region_capture("filter_tab", label="filter_tab", delay=0.2):
             return False
         if not self._click_region_capture("filter_reset_button", label="filter_reset_button", delay=0.2):
@@ -1006,26 +1011,58 @@ class Scanner:
             if not self._click_region_capture(filter_button, label=filter_button, delay=0.15):
                 return False
 
-        self._esc(delay=0.3)
-        return self._wait(0.2)
+        if not self._click_region_capture(
+            "filter_confirm_button",
+            label="filter_confirm_button",
+            delay=0.35,
+        ):
+            return False
+        return self._wait(0.25)
 
     def _prepare_equipment_inventory(self) -> bool:
         self.log("  equipment filter menu open")
         if not self._click_region_capture("eq_filtermenu_button", label="eq_filtermenu_button", delay=0.35):
             return False
-        self._ensure_region_matches_reference("eq_sort_rule_check")
-        self._esc(delay=0.3)
+        if not self._ensure_region_matches_reference("eq_sort_rule_check"):
+            return False
+        if not self._click_region_capture(
+            "eq_filter_confirm_button",
+            label="eq_filter_confirm_button",
+            delay=0.35,
+        ):
+            return False
+        return self._wait(0.25)
+
+    def _reset_inventory_scan_state(self, source: str) -> None:
+        self._inventory_icon_cache[source] = {}
+        self._inventory_failed_hashes[source] = set()
+
+    def _close_inventory_menu(self) -> bool:
+        menu_back = self.r.get("menu", {}).get("backbutton")
+        if not menu_back:
+            self.log("warning: missing menu backbutton")
+            return False
+        if not self._click_r(menu_back, "menu_backbutton"):
+            return False
         return self._wait(0.2)
 
+    def _go_home_from_inventory(self) -> bool:
+        return self._click_region_capture("home", label="home", delay=0.35)
+
     def _exit_inventory_to_menu(self) -> bool:
-        self._esc(delay=0.35)
-        return self._wait(0.25)
+        if not self._close_inventory_menu():
+            return False
+        if not self._go_home_from_inventory():
+            return False
+        if not self._open_menu():
+            return False
+        return self._wait(1.0)
 
     def _return_inventory_to_lobby(self) -> None:
         self.log("로비 복귀...")
-        for _ in range(3):
-            self._esc(delay=0.35)
-            self._wait(0.2)
+        if not self._close_inventory_menu():
+            return
+        self._go_home_from_inventory()
 
     def _close_student_panel(
         self,
@@ -1900,7 +1937,7 @@ class Scanner:
         best_item_id: str | None = None
         best_score = 0.0
         for item_id, path in _inventory_template_catalog(source):
-            score = match_score_resized(icon_crop, path, focus_center=True)
+            score = match_score_resized(icon_crop, path)
             if score > best_score:
                 best_score = score
                 best_item_id = item_id
@@ -1923,7 +1960,7 @@ class Scanner:
         best_score = 0.0
         second_best = 0.0
         for item_id, path in _inventory_detail_template_catalog(profile_id):
-            score = match_score_resized(crop, path, focus_center=True)
+            score = match_score_resized(crop, path)
             if score > best_score:
                 second_best = best_score
                 best_score = score
@@ -2200,263 +2237,145 @@ class Scanner:
                 active_profile is None
                 or prev_page_profile_indices is None
             )
-            pending_alignment_entries: list[tuple[int, str, str]] = []
             for slot_idx, (slot, slot_snap) in enumerate(zip(slots, page.slots)):
                 if self._stop_requested():
                     break
                 if slot_idx < page_skip_until:
                     continue
 
-                aligned_profile_idx: int | None = None
-                if active_profile is not None:
-                    aligned_profile_idx = profile_hash_to_index.get(slot_snap.icon_hash)
-                    if aligned_profile_idx is not None:
-                        if aligned_profile_idx < profile_cursor:
-                            self.log(
-                                f"  aligned duplicate skip: slot={slot_idx} "
-                                f"profile_idx={aligned_profile_idx} cursor={profile_cursor}"
-                            )
-                            continue
-                        if aligned_profile_idx > profile_cursor:
-                            self.log(
-                                f"  profile cursor realigned: {profile_cursor} -> {aligned_profile_idx}"
-                            )
-                            self._append_profile_gap_entries(
-                                items,
-                                seen_keys,
-                                profile_seen_names,
-                                active_profile,
-                                profile_ordered_names,
-                                profile_ordered_item_ids,
-                                source,
-                                profile_cursor,
-                                aligned_profile_idx,
-                            )
-                            profile_cursor = aligned_profile_idx
+                icon_crop = crop_region(img, _slot_icon_region(slot))
+                icon_template_item_id, icon_template_score = self._match_inventory_icon(icon_crop, source)
+                icon_template_matched = icon_template_item_id is not None
+                detail_template_item_id: str | None = None
+                detail_template_score = 0.0
+                assigned_profile_idx: int | None = None
+                matched_profile_name: str | None = None
 
-                cached = icon_cache.get(slot_snap.icon_hash)
-                if cached is not None:
-                    name, count, item_id = cached
-                    detect_source = "icon_cache"
-                elif slot_snap.icon_hash in failed_hashes:
+                verified = self._verify_inventory_slot(
+                    rect,
+                    slot,
+                    name_r,
+                    count_r,
+                    source,
+                    profile_id=active_profile.profile_id if active_profile is not None else None,
+                )
+                if not verified:
                     continue
-                else:
-                    icon_crop = crop_region(img, _slot_icon_region(slot))
-                    icon_template_item_id, icon_template_score = self._match_inventory_icon(icon_crop, source)
-                    icon_template_matched = icon_template_item_id is not None
-                    detail_template_item_id: str | None = None
-                    detail_template_score = 0.0
-                    assigned_profile_idx: int | None = aligned_profile_idx
-                    verified = self._verify_inventory_slot(
-                        rect,
-                        slot,
-                        name_r,
-                        count_r,
-                        source,
-                        profile_id=active_profile.profile_id if active_profile is not None else None,
-                    )
-                    if not verified:
-                        failed_hashes.add(slot_snap.icon_hash)
-                        continue
-                    name = verified.name
-                    count = verified.count
-                    if verified.item_id:
-                        detail_template_item_id = verified.item_id
-                        detail_template_score = verified.match_score
-                    item_id = detail_template_item_id or icon_template_item_id
-                    if active_profile is not None:
-                        matched_profile_name = inventory_item_display_name(item_id)
-                        if not matched_profile_name and item_id in profile_index_by_name:
-                            matched_profile_name = item_id
-                        if assigned_profile_idx is None and item_id:
-                            assigned_profile_idx = profile_index_by_item_id.get(item_id)
-                        if assigned_profile_idx is None and matched_profile_name:
-                            assigned_profile_idx = profile_index_by_name.get(matched_profile_name)
-                        if not page_alignment_locked:
-                            if item_id is None or assigned_profile_idx is None:
-                                pending_alignment_entries.append(
-                                    (slot_idx, slot_snap.icon_hash, count)
-                                )
+                name = verified.name
+                count = verified.count
+                if verified.item_id:
+                    detail_template_item_id = verified.item_id
+                    detail_template_score = verified.match_score
+                item_id = detail_template_item_id or icon_template_item_id
+                if not item_id:
+                    self.log(f"  template unresolved skip: slot={slot_idx}")
+                    continue
+
+                if active_profile is not None:
+                    matched_profile_name = inventory_item_display_name(item_id)
+                    if not matched_profile_name and item_id in profile_index_by_name:
+                        matched_profile_name = item_id
+                    assigned_profile_idx = profile_index_by_item_id.get(item_id)
+                    if assigned_profile_idx is None and matched_profile_name:
+                        assigned_profile_idx = profile_index_by_name.get(matched_profile_name)
+
+                    if (
+                        prev_page_profile_indices is not None
+                        and assigned_profile_idx is not None
+                    ):
+                        prev_match_pos = next(
+                            (
+                                idx
+                                for idx, prev_idx in enumerate(prev_page_profile_indices)
+                                if prev_idx == assigned_profile_idx
+                            ),
+                            None,
+                        )
+                        if prev_match_pos is not None:
+                            if disable_first_match_realign:
                                 self.log(
-                                    f"  alignment waiting: slot={slot_idx} "
-                                    f"(no explicit template match)"
+                                    f"  page first-match realign ignored: "
+                                    f"slot={slot_idx} prev_slot={prev_match_pos} "
+                                    f"profile_idx={assigned_profile_idx}"
                                 )
-                                continue
-                        if (
-                            prev_page_profile_indices is not None
-                            and assigned_profile_idx is not None
-                        ):
-                            prev_match_pos = next(
-                                (
-                                    idx
-                                    for idx, prev_idx in enumerate(prev_page_profile_indices)
-                                    if prev_idx == assigned_profile_idx
-                                ),
-                                None,
-                            )
-                            if prev_match_pos is not None:
-                                if disable_first_match_realign:
-                                    self.log(
-                                        f"  page first-match realign ignored: "
-                                        f"slot={slot_idx} prev_slot={prev_match_pos} "
-                                        f"profile_idx={assigned_profile_idx}"
-                                    )
-                                else:
-                                    shift = prev_match_pos - slot_idx
-                                    if 0 <= shift < len(slots):
-                                        inferred_skip = len(slots) - shift
-                                        if inferred_skip > page_skip_until:
-                                            page_skip_until = inferred_skip
-                                            for fill_idx in range(min(inferred_skip, len(slots))):
-                                                src_idx = fill_idx + shift
-                                                if 0 <= src_idx < len(prev_page_profile_indices):
-                                                    current_page_profile_indices[fill_idx] = prev_page_profile_indices[src_idx]
-                                            self.log(
-                                                f"  page realigned by first match: "
-                                                f"slot={slot_idx} prev_slot={prev_match_pos} "
-                                                f"profile_idx={assigned_profile_idx} skip_slots={page_skip_until}"
-                                            )
-                                            page_alignment_locked = True
-                                    if slot_idx < page_skip_until:
-                                        current_page_profile_indices[slot_idx] = assigned_profile_idx
-                                        profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                                        icon_cache[slot_snap.icon_hash] = (
-                                            matched_profile_name or name or item_id,
-                                            count,
-                                            item_id,
-                                        )
-                                        continue
-                            elif not page_alignment_locked:
-                                page_alignment_locked = True
-                        elif not page_alignment_locked and item_id is not None:
-                            page_alignment_locked = True
-                        if pending_alignment_entries and assigned_profile_idx is not None:
-                            needed = max(0, assigned_profile_idx - profile_cursor)
-                            if needed <= 0:
-                                self.log(
-                                    f"  alignment pending dropped: +{len(pending_alignment_entries)} "
-                                    f"duplicate slots"
-                                )
-                                pending_alignment_entries.clear()
                             else:
-                                buffered_entries = pending_alignment_entries
-                                if len(buffered_entries) > needed:
-                                    drop_count = len(buffered_entries) - needed
-                                    self.log(
-                                        f"  alignment pending trimmed: drop_slots={drop_count}"
-                                    )
-                                    buffered_entries = buffered_entries[-needed:]
-                                fill_start_idx = assigned_profile_idx - len(buffered_entries)
-                                if fill_start_idx > profile_cursor:
-                                    self._append_profile_gap_entries(
-                                        items,
-                                        seen_keys,
-                                        profile_seen_names,
-                                        active_profile,
-                                        profile_ordered_names,
-                                        profile_ordered_item_ids,
-                                        source,
-                                        profile_cursor,
-                                        fill_start_idx,
-                                    )
-                                for offset, (pending_slot_idx, pending_hash, pending_count) in enumerate(buffered_entries):
-                                    mapped_idx = fill_start_idx + offset
-                                    if mapped_idx < 0 or mapped_idx >= len(profile_ordered_names):
-                                        continue
-                                    pending_name = profile_ordered_names[mapped_idx]
-                                    pending_item_id = (
-                                        profile_ordered_item_ids[mapped_idx]
-                                        if mapped_idx < len(profile_ordered_item_ids)
-                                        else None
-                                    )
-                                    pending_entry = ItemEntry(
-                                        name=pending_name,
-                                        quantity=pending_count,
-                                        item_id=pending_item_id,
-                                        source=source,
-                                        index=len(items),
-                                    )
-                                    pending_key = pending_entry.key()
-                                    current_page_profile_indices[pending_slot_idx] = mapped_idx
-                                    profile_hash_to_index[pending_hash] = mapped_idx
-                                    icon_cache[pending_hash] = (
-                                        pending_name,
-                                        pending_count,
-                                        pending_item_id,
-                                    )
-                                    if pending_item_id:
-                                        page_item_ids.append(pending_item_id)
-                                    page_raw_names.append(pending_name)
-                                    if pending_key in seen_keys:
-                                        continue
-                                    seen_keys.add(pending_key)
-                                    items.append(pending_entry)
-                                    profile_seen_names.add(pending_name)
-                                    new_this += 1
-                                    self.log(
-                                        f"  buffered alignment fill: slot={pending_slot_idx} "
-                                        f"{icon} [{len(items):>3}] {pending_name}  "
-                                        f"x{pending_count} (buffered_profile_order)"
-                                    )
-                                profile_cursor = max(
-                                    profile_cursor,
-                                    fill_start_idx + len(buffered_entries),
-                                )
-                                pending_alignment_entries.clear()
-                        if assigned_profile_idx is not None and assigned_profile_idx < profile_cursor:
-                            profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                            cached_name = (
-                                profile_ordered_names[assigned_profile_idx]
-                                if assigned_profile_idx < len(profile_ordered_names)
-                                else matched_profile_name
-                            )
-                            icon_cache[slot_snap.icon_hash] = (cached_name, count, item_id)
+                                shift = prev_match_pos - slot_idx
+                                if 0 <= shift < len(slots):
+                                    inferred_skip = len(slots) - shift
+                                    if inferred_skip > page_skip_until:
+                                        page_skip_until = inferred_skip
+                                        for fill_idx in range(min(inferred_skip, len(slots))):
+                                            src_idx = fill_idx + shift
+                                            if 0 <= src_idx < len(prev_page_profile_indices):
+                                                current_page_profile_indices[fill_idx] = prev_page_profile_indices[src_idx]
+                                        self.log(
+                                            f"  page realigned by first match: "
+                                            f"slot={slot_idx} prev_slot={prev_match_pos} "
+                                            f"profile_idx={assigned_profile_idx} skip_slots={page_skip_until}"
+                                        )
+                                        page_alignment_locked = True
+                                if slot_idx < page_skip_until:
+                                    current_page_profile_indices[slot_idx] = assigned_profile_idx
+                                    profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
+                                    continue
+                        elif not page_alignment_locked:
+                            page_alignment_locked = True
+                    elif not page_alignment_locked and item_id is not None:
+                        page_alignment_locked = True
+
+                    if assigned_profile_idx is None:
+                        self.log(
+                            f"  explicit template outside profile skip: "
+                            f"slot={slot_idx} item_id={item_id}"
+                        )
+                        continue
+
+                    if assigned_profile_idx < profile_cursor:
+                        inferred_skip = profile_cursor - assigned_profile_idx
+                        skip_until = min(len(slots), slot_idx + inferred_skip)
+                        if skip_until > page_skip_until:
+                            page_skip_until = skip_until
                             self.log(
-                                f"  aligned duplicate skip: slot={slot_idx} "
-                                f"profile_idx={assigned_profile_idx} cursor={profile_cursor}"
+                                f"  profile skip window: slot={slot_idx} "
+                                f"profile_idx={assigned_profile_idx} cursor={profile_cursor} "
+                                f"skip_until={page_skip_until}"
                             )
-                            continue
-                        if assigned_profile_idx is None and active_profile is not None:
-                            assigned_profile_idx = profile_cursor if profile_cursor < len(profile_ordered_names) else None
-                        name = matched_profile_name
-                        if assigned_profile_idx is not None:
-                            current_page_profile_indices[slot_idx] = assigned_profile_idx
-                            if assigned_profile_idx > profile_cursor:
-                                self._append_profile_gap_entries(
-                                    items,
-                                    seen_keys,
-                                    profile_seen_names,
-                                    active_profile,
-                                    profile_ordered_names,
-                                    profile_ordered_item_ids,
-                                    source,
-                                    profile_cursor,
-                                    assigned_profile_idx,
-                                )
-                            profile_cursor = max(profile_cursor, assigned_profile_idx)
-                            if assigned_profile_idx < len(profile_ordered_names):
-                                name = profile_ordered_names[assigned_profile_idx]
-                            if assigned_profile_idx < len(profile_ordered_item_ids) and profile_ordered_item_ids[assigned_profile_idx]:
-                                item_id = profile_ordered_item_ids[assigned_profile_idx]
-                            profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                        else:
-                            name = matched_profile_name
-                        if not name and active_profile is not None:
-                            name = next_inventory_profile_name(active_profile, profile_seen_names)
-                        if not name and item_id:
-                            name = item_id
-                        if not name:
-                            failed_hashes.add(slot_snap.icon_hash)
-                            continue
-                    icon_cache[slot_snap.icon_hash] = (name, count, item_id)
-                    if detail_template_item_id is not None:
-                        detect_source = f"detail_image_template+detail({detail_template_score:.2f})"
-                    elif icon_template_matched:
-                        detect_source = f"icon_template+detail({icon_template_score:.2f})"
-                    elif active_profile is not None and assigned_profile_idx is not None:
-                        detect_source = f"profile_order+detail({icon_template_score:.2f})"
+                        current_page_profile_indices[slot_idx] = assigned_profile_idx
+                        profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
+                        self.log(
+                            f"  aligned duplicate skip: slot={slot_idx} "
+                            f"profile_idx={assigned_profile_idx} cursor={profile_cursor}"
+                        )
+                        continue
+
+                    if assigned_profile_idx > profile_cursor:
+                        self.log(
+                            f"  profile cursor jump: {profile_cursor} -> {assigned_profile_idx}"
+                        )
+                    current_page_profile_indices[slot_idx] = assigned_profile_idx
+                    if assigned_profile_idx < len(profile_ordered_names):
+                        name = profile_ordered_names[assigned_profile_idx]
                     else:
-                        detect_source = "detail_template"
+                        name = matched_profile_name
+                    if (
+                        assigned_profile_idx < len(profile_ordered_item_ids)
+                        and profile_ordered_item_ids[assigned_profile_idx]
+                    ):
+                        item_id = profile_ordered_item_ids[assigned_profile_idx]
+                    profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
+
+                if not name and item_id:
+                    name = inventory_item_display_name(item_id) or item_id
+                if not name:
+                    continue
+
+                icon_cache[slot_snap.icon_hash] = (name, count, item_id)
+                if detail_template_item_id is not None:
+                    detect_source = f"detail_image_template+detail({detail_template_score:.2f})"
+                elif icon_template_matched:
+                    detect_source = f"icon_template+detail({icon_template_score:.2f})"
+                else:
+                    detect_source = "detail_template"
 
                 canonical_name = inventory_item_display_name(item_id)
                 if canonical_name:
@@ -2620,6 +2539,7 @@ class Scanner:
                 if not self._prepare_item_inventory(profile_id, ensure_sort_rule=not sort_rule_checked):
                     return all_items
                 sort_rule_checked = True
+                self._reset_inventory_scan_state("item")
                 result = self._scan_grid("item", "item", ITEM_INVENTORY_DRAG, ITEM_INVENTORY_DRAG.delta_px)
                 all_items.extend(result)
                 self.log(f"[scan] item pass done: {len(result)} entries")
@@ -2649,6 +2569,7 @@ class Scanner:
                 return []
             if not self._prepare_equipment_inventory():
                 return []
+            self._reset_inventory_scan_state("equipment")
             result = self._scan_grid(
                 "equipment",
                 "equipment",

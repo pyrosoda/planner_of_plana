@@ -20,7 +20,9 @@ if str(BASE_DIR) not in sys.path:
 import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.db import init_db
+from core.equipment_items import EQUIPMENT_EXP_ITEMS, EQUIPMENT_SERIES, WEAPON_PART_ITEMS
 from core.inventory_profiles import inventory_item_display_name
+from core.oparts import OPART_ORDERED_ITEM_IDS, OPART_WB_ITEMS
 from core.planning import (
     MAX_TARGET_EQUIP_LEVEL,
     MAX_TARGET_EQUIP_TIER,
@@ -75,10 +77,35 @@ UI_FONT_PATH = BASE_DIR / "gui" / "font" / "경기천년제목_Medium.ttf"
 POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
 SCHOOL_LOGO_DIR = BASE_DIR / "templates" / "icons" / "school_logo"
 EQUIPMENT_ICON_DIR = BASE_DIR / "templates" / "icons" / "equipment"
+INVENTORY_DETAIL_DIR = BASE_DIR / "templates" / "inventory_detail"
 CARD_BUTTON_ASSET = POLI_BG_DIR / "square.png"
 MAIN_UI_PALETTE_PATH = BASE_DIR / "gui" / "main_ui_color_palete.txt"
 THUMB_STYLE_VERSION = "v5-parallelogram-card-fit"
 DETAIL_SLANT = 0.22
+
+_REPORT_NAME_TO_ICON = {
+    "초급활동보고서": "report_0",
+    "소급활동보고서": "report_0",
+    "일반활동보고서": "report_1",
+    "상급활동보고서": "report_2",
+    "최상급활동보고서": "report_3",
+}
+_REPORT_ORDER = ("report_3", "report_2", "report_1", "report_0")
+_WB_ITEM_IDS = tuple(item_id for item_id, _name in OPART_WB_ITEMS)
+_OPART_ITEM_IDS = tuple(item_id for item_id in OPART_ORDERED_ITEM_IDS if item_id not in _WB_ITEM_IDS)
+_SCHOOL_SEQUENCE = (
+    "Hyakkiyako",
+    "RedWinter",
+    "Trinity",
+    "Gehenna",
+    "Abydos",
+    "Millennium",
+    "Arius",
+    "Shanhaijing",
+    "Valkyrie",
+    "Highlander",
+    "Wildhunt",
+)
 
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -1030,6 +1057,69 @@ def _equipment_icon_path(student_id: str, slot_index: int, tier: str | None) -> 
     return path if path.exists() else None
 
 
+def _inventory_name_token(value: str | None) -> str:
+    return "".join(str(value or "").split()).lower()
+
+
+def _report_icon_token(name: str | None) -> str | None:
+    return _REPORT_NAME_TO_ICON.get(_inventory_name_token(name))
+
+
+def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
+    if item_id:
+        if item_id.startswith("Item_Icon_SkillBook_"):
+            path = INVENTORY_DETAIL_DIR / "tech_notes" / f"{item_id}.png"
+            if path.exists():
+                return path
+        if item_id.startswith("Item_Icon_Material_ExSkill_"):
+            path = INVENTORY_DETAIL_DIR / "tactical_bd" / f"{item_id}.png"
+            if path.exists():
+                return path
+        if item_id in _OPART_ITEM_IDS or item_id in _WB_ITEM_IDS:
+            path = INVENTORY_DETAIL_DIR / "ooparts" / f"{item_id}.png"
+            if path.exists():
+                return path
+        if item_id.startswith("Equipment_Icon_") and "_Tier" in item_id:
+            path = INVENTORY_DETAIL_DIR / "equipment" / f"{item_id}.png"
+            if path.exists():
+                return path
+        if item_id.startswith("Equipment_Icon_Exp_") or item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+            path = POLI_BG_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
+
+    report_icon = _report_icon_token(name)
+    if report_icon:
+        path = POLI_BG_DIR / f"{report_icon}.png"
+        if path.exists():
+            return path
+
+    if name:
+        path = INVENTORY_DETAIL_DIR / "ooparts" / f"{name}.png"
+        if path.exists():
+            return path
+        path = INVENTORY_DETAIL_DIR / "activity_reports" / f"{name}.png"
+        if path.exists():
+            return path
+
+    return None
+
+
+def _inventory_quantity_value(raw_quantity: object) -> int | None:
+    try:
+        if raw_quantity in (None, ""):
+            return None
+        return int(str(raw_quantity).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _inventory_display_label(item_key: str, payload: dict) -> str:
+    item_id = payload.get("item_id")
+    display_name = inventory_item_display_name(str(item_id)) if item_id else None
+    return str(display_name or payload.get("name") or item_key)
+
+
 def _load_ui_font_family() -> str | None:
     if not UI_FONT_PATH.exists():
         return None
@@ -1518,6 +1608,60 @@ class ResourceStudentListItem(QWidget):
         self._cost.setText(cost)
 
 
+class InventoryListItem(QFrame):
+    def __init__(self, *, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self.setObjectName("planBand")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._icon = QLabel()
+        self._icon.setFixedSize(scale_px(44, self._ui_scale), scale_px(44, self._ui_scale))
+        self._icon.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._icon, 0, Qt.AlignVCenter)
+
+        text_wrap = QVBoxLayout()
+        text_wrap.setContentsMargins(0, 0, 0, 0)
+        text_wrap.setSpacing(scale_px(2, self._ui_scale))
+
+        self._name = QLabel("-")
+        self._name.setObjectName("sectionTitle")
+        self._name.setWordWrap(True)
+        text_wrap.addWidget(self._name)
+
+        self._meta = QLabel("")
+        self._meta.setObjectName("detailMiniSub")
+        self._meta.setWordWrap(True)
+        text_wrap.addWidget(self._meta)
+        layout.addLayout(text_wrap, 1)
+
+        self._quantity = QLabel("-")
+        self._quantity.setObjectName("detailMiniValue")
+        self._quantity.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.addWidget(self._quantity, 0, Qt.AlignVCenter)
+
+    def setData(self, *, icon_path: Path | None, name: str, quantity: str, meta: str = "") -> None:
+        self._name.setText(name)
+        self._quantity.setText(quantity)
+        self._meta.setText(meta)
+
+        if icon_path is not None and icon_path.exists():
+            pixmap = QPixmap(str(icon_path))
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self._icon.setPixmap(scaled)
+                return
+        self._icon.setPixmap(QPixmap())
+
+
 
 
 class StudentViewerWindow(QMainWindow):
@@ -1675,6 +1819,10 @@ class StudentViewerWindow(QMainWindow):
         resource_tab = QWidget()
         tabs.addTab(resource_tab, "Resources")
         self._build_resource_tab(resource_tab)
+
+        inventory_tab = QWidget()
+        tabs.addTab(inventory_tab, "Inventory")
+        self._build_inventory_tab(inventory_tab)
 
         stats_tab = QWidget()
         tabs.addTab(stats_tab, "Statistics")
@@ -2486,32 +2634,6 @@ class StudentViewerWindow(QMainWindow):
         aggregate_layout.addWidget(self._resource_aggregate_output, 1)
         self._resource_mode_tabs.addTab(aggregate_tab, "Aggregate")
 
-        inventory_tab = QWidget()
-        inventory_layout = QVBoxLayout(inventory_tab)
-        inventory_layout.setContentsMargins(0, 0, 0, 0)
-        inventory_layout.setSpacing(scale_px(10, self._ui_scale))
-        inventory_options = QFrame()
-        inventory_options.setObjectName("planSectionPanel")
-        inventory_options_layout = QVBoxLayout(inventory_options)
-        inventory_options_layout.setContentsMargins(
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-        )
-        inventory_options_layout.setSpacing(scale_px(8, self._ui_scale))
-        inventory_title = QLabel("Inventory debug")
-        inventory_title.setObjectName("sectionTitle")
-        inventory_options_layout.addWidget(inventory_title)
-        self._resource_inventory_summary = QLabel("Current scanned inventory snapshot.")
-        self._resource_inventory_summary.setObjectName("detailSub")
-        self._resource_inventory_summary.setWordWrap(True)
-        inventory_options_layout.addWidget(self._resource_inventory_summary)
-        inventory_layout.addWidget(inventory_options, 0)
-        self._resource_inventory_output = QListWidget()
-        inventory_layout.addWidget(self._resource_inventory_output, 1)
-        self._resource_mode_tabs.addTab(inventory_tab, "Inventory")
-
         self._resource_mode_tabs.currentChanged.connect(self._refresh_resource_view)
         right_layout.addWidget(self._resource_mode_tabs, 1)
 
@@ -2524,6 +2646,135 @@ class StudentViewerWindow(QMainWindow):
         self._sync_resource_controls_from_students()
         self._refresh_resource_students_list()
         self._refresh_resource_view()
+
+    def _build_inventory_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
+
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(18, self._ui_scale),
+        )
+        header_layout.setSpacing(scale_px(4, self._ui_scale))
+
+        title = QLabel("Inventory")
+        title.setObjectName("title")
+        header_layout.addWidget(title)
+
+        subtitle = QLabel("Review the latest scanned inventory with icons, grouped by equipment slot and item type.")
+        subtitle.setObjectName("count")
+        subtitle.setWordWrap(True)
+        header_layout.addWidget(subtitle)
+
+        self._inventory_summary = QLabel("No scanned inventory is available yet.")
+        self._inventory_summary.setObjectName("filterSummary")
+        self._inventory_summary.setWordWrap(True)
+        header_layout.addWidget(self._inventory_summary)
+        layout.addWidget(header)
+
+        self._inventory_root_tabs = QTabWidget()
+        self._inventory_equipment_lists: dict[str, QListWidget] = {}
+        self._inventory_equipment_summaries: dict[str, QLabel] = {}
+        self._inventory_item_lists: dict[str, QListWidget] = {}
+        self._inventory_item_summaries: dict[str, QLabel] = {}
+
+        equipment_root = QWidget()
+        equipment_layout = QVBoxLayout(equipment_root)
+        equipment_layout.setContentsMargins(0, 0, 0, 0)
+        equipment_layout.setSpacing(scale_px(10, self._ui_scale))
+        self._inventory_equipment_tabs = QTabWidget()
+
+        for series in EQUIPMENT_SERIES:
+            tab = QWidget()
+            tab_layout = QVBoxLayout(tab)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(scale_px(10, self._ui_scale))
+
+            panel = QFrame()
+            panel.setObjectName("planSectionPanel")
+            panel_layout = QVBoxLayout(panel)
+            panel_layout.setContentsMargins(
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+            )
+            panel_layout.setSpacing(scale_px(8, self._ui_scale))
+            section_title = QLabel(f"{series.icon_key} equipment")
+            section_title.setObjectName("sectionTitle")
+            panel_layout.addWidget(section_title)
+            summary = QLabel("No scanned items in this category yet.")
+            summary.setObjectName("detailSub")
+            summary.setWordWrap(True)
+            panel_layout.addWidget(summary)
+            tab_layout.addWidget(panel, 0)
+
+            item_list = QListWidget()
+            tab_layout.addWidget(item_list, 1)
+            self._inventory_equipment_tabs.addTab(tab, series.icon_key)
+            self._inventory_equipment_lists[series.icon_key] = item_list
+            self._inventory_equipment_summaries[series.icon_key] = summary
+
+        equipment_layout.addWidget(self._inventory_equipment_tabs, 1)
+        self._inventory_root_tabs.addTab(equipment_root, "Equipment")
+
+        item_root = QWidget()
+        item_layout = QVBoxLayout(item_root)
+        item_layout.setContentsMargins(0, 0, 0, 0)
+        item_layout.setSpacing(scale_px(10, self._ui_scale))
+        self._inventory_item_tabs = QTabWidget()
+
+        for key, label in (
+            ("ooparts", "Ooparts"),
+            ("wb", "WB"),
+            ("stones", "Stones"),
+            ("reports", "Reports"),
+            ("weapon_parts", "Weapon Parts"),
+            ("tech_notes", "Tech Notes"),
+            ("bd", "BD"),
+            ("other", "Other"),
+        ):
+            tab = QWidget()
+            tab_layout = QVBoxLayout(tab)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(scale_px(10, self._ui_scale))
+
+            panel = QFrame()
+            panel.setObjectName("planSectionPanel")
+            panel_layout = QVBoxLayout(panel)
+            panel_layout.setContentsMargins(
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+                scale_px(14, self._ui_scale),
+            )
+            panel_layout.setSpacing(scale_px(8, self._ui_scale))
+            section_title = QLabel(label)
+            section_title.setObjectName("sectionTitle")
+            panel_layout.addWidget(section_title)
+            summary = QLabel("No scanned items in this category yet.")
+            summary.setObjectName("detailSub")
+            summary.setWordWrap(True)
+            panel_layout.addWidget(summary)
+            tab_layout.addWidget(panel, 0)
+
+            item_list = QListWidget()
+            tab_layout.addWidget(item_list, 1)
+            self._inventory_item_tabs.addTab(tab, label)
+            self._inventory_item_lists[key] = item_list
+            self._inventory_item_summaries[key] = summary
+
+        item_layout.addWidget(self._inventory_item_tabs, 1)
+        self._inventory_root_tabs.addTab(item_root, "Items")
+
+        layout.addWidget(self._inventory_root_tabs, 1)
+        self._refresh_inventory_tab()
 
     def _sync_resource_controls_from_students(self) -> None:
         if not hasattr(self, "_resource_search"):
@@ -2731,7 +2982,6 @@ class StudentViewerWindow(QMainWindow):
             return
         self._refresh_resource_single_view()
         self._refresh_resource_aggregate_view()
-        self._refresh_resource_inventory_view()
 
     def _refresh_resource_single_view(self) -> None:
         student_id = self._resource_current_student_id or self._resource_current_student()
@@ -2776,6 +3026,8 @@ class StudentViewerWindow(QMainWindow):
         self._set_output_from_summary(self._resource_aggregate_output, summary)
 
     def _refresh_resource_inventory_view(self) -> None:
+        self._refresh_inventory_tab()
+        return
         if not hasattr(self, "_resource_inventory_output"):
             return
         self._resource_inventory_output.clear()
@@ -2810,6 +3062,182 @@ class StudentViewerWindow(QMainWindow):
             name = str(payload.get("name") or key)
             quantity = payload.get("quantity") or "?"
             self._resource_inventory_output.addItem(f"{name}: {quantity}")
+
+    def _inventory_classify_item(self, item_key: str, payload: dict) -> str:
+        item_id = str(payload.get("item_id") or "")
+        name = _inventory_display_label(item_key, payload)
+        if item_id in _OPART_ITEM_IDS:
+            return "ooparts"
+        if item_id in _WB_ITEM_IDS:
+            return "wb"
+        if item_id.startswith("Equipment_Icon_Exp_"):
+            return "stones"
+        if item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+            return "weapon_parts"
+        if item_id.startswith("Item_Icon_SkillBook_"):
+            return "tech_notes"
+        if item_id.startswith("Item_Icon_Material_ExSkill_"):
+            return "bd"
+        if _report_icon_token(name):
+            return "reports"
+        return "other"
+
+    def _set_inventory_list_items(self, target: QListWidget, summary: QLabel, entries: list[tuple[str, dict]]) -> None:
+        target.clear()
+        if not entries:
+            summary.setText("No scanned items in this category yet.")
+            target.addItem("Run an item or equipment scan to populate this category.")
+            return
+
+        total_quantity = sum(
+            quantity
+            for _item_key, payload in entries
+            if (quantity := _inventory_quantity_value(payload.get("quantity"))) is not None
+        )
+        summary.setText(f"{len(entries)} items 쨌 total quantity {total_quantity:,}")
+
+        for item_key, payload in entries:
+            item_id = payload.get("item_id")
+            name = _inventory_display_label(item_key, payload)
+            quantity_value = _inventory_quantity_value(payload.get("quantity"))
+            quantity = f"{quantity_value:,}" if quantity_value is not None else str(payload.get("quantity") or "?")
+            widget = InventoryListItem(ui_scale=self._ui_scale)
+            widget.setData(
+                icon_path=_inventory_icon_path(str(item_id) if item_id else None, name),
+                name=name,
+                quantity=quantity,
+                meta="",
+            )
+            item = QListWidgetItem()
+            item.setFlags(Qt.ItemIsEnabled)
+            item.setSizeHint(QSize(scale_px(320, self._ui_scale), scale_px(72, self._ui_scale)))
+            target.addItem(item)
+            target.setItemWidget(item, widget)
+
+    def _refresh_inventory_tab(self) -> None:
+        if not hasattr(self, "_inventory_root_tabs"):
+            return
+
+        inventory = self._inventory_snapshot or {}
+        if not inventory:
+            self._inventory_summary.setText("No scanned inventory is available yet. Run an item or equipment scan to populate this tab.")
+            for key, widget in self._inventory_equipment_lists.items():
+                self._set_inventory_list_items(widget, self._inventory_equipment_summaries[key], [])
+            for key, widget in self._inventory_item_lists.items():
+                self._set_inventory_list_items(widget, self._inventory_item_summaries[key], [])
+            return
+
+        total_quantity = sum(
+            quantity
+            for payload in inventory.values()
+            if (quantity := _inventory_quantity_value(payload.get("quantity"))) is not None
+        )
+        latest_seen = max((str(payload.get("last_seen_at") or "") for payload in inventory.values()), default="")
+        latest_suffix = f" 쨌 last updated {latest_seen}" if latest_seen else ""
+        self._inventory_summary.setText(
+            f"{len(inventory)} scanned entries 쨌 total quantity {total_quantity:,}{latest_suffix}"
+        )
+
+        equipment_groups: dict[str, list[tuple[str, dict]]] = {series.icon_key: [] for series in EQUIPMENT_SERIES}
+        item_groups: dict[str, list[tuple[str, dict]]] = {
+            "ooparts": [],
+            "wb": [],
+            "stones": [],
+            "reports": [],
+            "weapon_parts": [],
+            "tech_notes": [],
+            "bd": [],
+            "other": [],
+        }
+
+        for item_key, payload in inventory.items():
+            item_id = str(payload.get("item_id") or "")
+            if item_id.startswith("Equipment_Icon_") and "_Tier" in item_id:
+                series_key = item_id.removeprefix("Equipment_Icon_").split("_Tier", 1)[0]
+                if series_key in equipment_groups:
+                    equipment_groups[series_key].append((item_key, payload))
+                    continue
+            item_groups[self._inventory_classify_item(item_key, payload)].append((item_key, payload))
+
+        opart_order = {item_id: index for index, item_id in enumerate(_OPART_ITEM_IDS)}
+        wb_order = {item_id: index for index, item_id in enumerate(_WB_ITEM_IDS)}
+        stone_order = {item_id: index for index, (item_id, _name) in enumerate(EQUIPMENT_EXP_ITEMS)}
+        report_order = {token: index for index, token in enumerate(_REPORT_ORDER)}
+        weapon_order = {
+            item_id: index
+            for index, item_id in enumerate(
+                [
+                    f"Equipment_Icon_WeaponExpGrowth{part_key}_{tier}"
+                    for part_key, _label in WEAPON_PART_ITEMS
+                    for tier in range(3, -1, -1)
+                ]
+            )
+        }
+        tech_order = {
+            item_id: index
+            for index, item_id in enumerate(
+                [
+                    f"Item_Icon_SkillBook_{school}_{tier}"
+                    for school in _SCHOOL_SEQUENCE
+                    for tier in ("0", "1", "2", "3")
+                ]
+                + ["Item_Icon_SkillBook_Ultimate_Piece"]
+            )
+        }
+        bd_order = {
+            item_id: index
+            for index, item_id in enumerate(
+                [
+                    f"Item_Icon_Material_ExSkill_{school}_{tier}"
+                    for school in _SCHOOL_SEQUENCE
+                    for tier in ("0", "1", "2", "3")
+                ]
+            )
+        }
+
+        def equipment_sort_key(entry: tuple[str, dict]) -> tuple[int, str]:
+            item_id = str(entry[1].get("item_id") or "")
+            try:
+                tier_number = int(item_id.rsplit("_Tier", 1)[-1])
+            except ValueError:
+                tier_number = -1
+            return (-tier_number, _inventory_display_label(entry[0], entry[1]).lower())
+
+        def ordered_sort_key(order_map: dict[str, int], entry: tuple[str, dict]) -> tuple[int, str]:
+            item_id = str(entry[1].get("item_id") or "")
+            return (order_map.get(item_id, 9999), _inventory_display_label(entry[0], entry[1]).lower())
+
+        for series in EQUIPMENT_SERIES:
+            entries = sorted(equipment_groups[series.icon_key], key=equipment_sort_key)
+            self._set_inventory_list_items(
+                self._inventory_equipment_lists[series.icon_key],
+                self._inventory_equipment_summaries[series.icon_key],
+                entries,
+            )
+
+        ordered_items = {
+            "ooparts": sorted(item_groups["ooparts"], key=lambda entry: ordered_sort_key(opart_order, entry)),
+            "wb": sorted(item_groups["wb"], key=lambda entry: ordered_sort_key(wb_order, entry)),
+            "stones": sorted(item_groups["stones"], key=lambda entry: ordered_sort_key(stone_order, entry)),
+            "reports": sorted(
+                item_groups["reports"],
+                key=lambda entry: (
+                    report_order.get(_report_icon_token(_inventory_display_label(entry[0], entry[1])) or "", 9999),
+                    _inventory_display_label(entry[0], entry[1]).lower(),
+                ),
+            ),
+            "weapon_parts": sorted(item_groups["weapon_parts"], key=lambda entry: ordered_sort_key(weapon_order, entry)),
+            "tech_notes": sorted(item_groups["tech_notes"], key=lambda entry: ordered_sort_key(tech_order, entry)),
+            "bd": sorted(item_groups["bd"], key=lambda entry: ordered_sort_key(bd_order, entry)),
+            "other": sorted(item_groups["other"], key=lambda entry: _inventory_display_label(entry[0], entry[1]).lower()),
+        }
+
+        for category, entries in ordered_items.items():
+            self._set_inventory_list_items(
+                self._inventory_item_lists[category],
+                self._inventory_item_summaries[category],
+                entries,
+            )
 
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -3952,6 +4380,7 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_plan_lists()
         self._refresh_plan_totals()
         self._refresh_stats_tab()
+        self._refresh_inventory_tab()
 
     def _apply_filters(self) -> None:
         query = self._search.text().strip().lower()

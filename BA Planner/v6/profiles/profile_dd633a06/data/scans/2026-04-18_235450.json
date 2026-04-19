@@ -1,0 +1,44 @@
+{
+  "scan_id": "2026-04-18_235450",
+  "scanned_at": "2026-04-18T23:54:50+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {
+      "credit": "89723242",
+      "pyroxene": "49240"
+    },
+    "items": [
+      {
+        "index": 0,
+        "item_id": null,
+        "name": "초급 활동 보고서",
+        "quantity": "157"
+      },
+      {
+        "index": 1,
+        "item_id": null,
+        "name": "일반 활동 보고서",
+        "quantity": "425"
+      },
+      {
+        "index": 2,
+        "item_id": null,
+        "name": "상급 활동 보고서",
+        "quantity": "3750"
+      },
+      {
+        "index": 3,
+        "item_id": null,
+        "name": "최상급 활동 보고서",
+        "quantity": "78"
+      }
+    ],
+    "equipment": [],
+    "students": []
+  }
+}

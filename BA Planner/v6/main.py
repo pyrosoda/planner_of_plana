@@ -140,6 +140,12 @@ _ITEM_SCAN_FILTER_OPTIONS: list[tuple[str, str]] = [
     ("coins", "코인"),
     ("activity_reports", "활동 보고서"),
 ]
+_FULL_SCAN_ITEM_FILTERS: tuple[str, ...] = (
+    "ooparts",
+    "tactical_bd",
+    "tech_notes",
+    "activity_reports",
+)
 
 
 class App(tk.Tk):
@@ -621,11 +627,13 @@ class App(tk.Tk):
             )
             return
         item_scan_filter: str | list[str] | None = None
-        if mode in ("items", "all"):
+        if mode == "items":
             item_scan_filter = self._choose_item_scan_filter()
             if item_scan_filter is None:
                 self._overlay.add_log("아이템 스캔 필터 선택이 취소되었습니다.")
                 return
+        elif mode == "all":
+            item_scan_filter = list(_FULL_SCAN_ITEM_FILTERS)
         student_scan_options: dict | None = None
         if mode in ("students", "all"):
             student_scan_options = self._choose_student_scan_strategy(mode)

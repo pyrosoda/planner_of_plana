@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "scan_id": "2026-04-19_001336",
+    "scanned_at": "2026-04-19T00:13:36+09:00",
+    "app_version": "v5.1",
+    "window_size": [
+      2560,
+      1440
+    ],
+    "profile_name": "거모이는존재한다"
+  },
+  "scan_summary": {
+    "student_count": 0,
+    "item_count": 0,
+    "equipment_count": 16,
+    "state_counts": {},
+    "uncertain_ids": [],
+    "partial_ids": []
+  },
+  "resources": {},
+  "students": [],
+  "items": [],
+  "equipment": [
+    {
+      "item_id": "Equipment_Icon_Exp_3",
+      "name": "최상급 강화석",
+      "quantity": "1",
+      "source": "equipment",
+      "index": 0
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_2",
+      "name": "상급 강화석",
+      "quantity": "19149",
+      "source": "equipment",
+      "index": 1
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_1",
+      "name": "일반 강화석",
+      "quantity": "19976",
+      "source": "equipment",
+      "index": 2
+    },
+    {
+      "item_id": "Equipment_Icon_Exp_0",
+      "name": "하급 강화석",
+      "quantity": "19783",
+      "source": "equipment",
+      "index": 3
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier10",
+      "name": "메모리 네클리스",
+      "quantity": "1",
+      "source": "equipment",
+      "index": 4
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier9",
+      "name": "옥토퍼스 홀더",
+      "quantity": "2020",
+      "source": "equipment",
+      "index": 5
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier8",
+      "name": "그린리프 목걸이",
+      "quantity": "26",
+      "source": "equipment",
+      "index": 6
+    },
+    {
+      "item_id": "Equipment_Icon_Necklace_Tier7",
+      "name": "체인 목걸이",
+      "quantity": "594",
+      "source": "equipment",
+      "index": 7
+    },
+    {
+      "item_id": "Equipment_Icon_Shoes_Tier1",
+      "name": "핑크 스니커즈",
+      "quantity": "418",
+      "source": "equipment",
+      "index": 91
+    },
+    {
+      "item_id": "Equipment_Icon_Gloves_Tier1",
+      "name": "스포츠용 장갑",
+      "quantity": "60",
+      "source": "equipment",
+      "index": 92
+    },
+    {
+      "item_id": "Equipment_Icon_Hat_Tier1",
+      "name": "무지 캡모자",
+      "quantity": "55",
+      "source": "equipment",
+      "index": 93
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_3",
+      "name": "공이 T4",
+      "quantity": "171",
+      "source": "equipment",
+      "index": 94
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_2",
+      "name": "공이 T3",
+      "quantity": "301",
+      "source": "equipment",
+      "index": 95
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_1",
+      "name": "공이 T2",
+      "quantity": "213",
+      "source": "equipment",
+      "index": 96
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthZ_0",
+      "name": "공이 T1",
+      "quantity": "540",
+      "source": "equipment",
+      "index": 97
+    },
+    {
+      "item_id": "Equipment_Icon_WeaponExpGrowthA_0",
+      "name": "스프링 T1",
+      "quantity": "9",
+      "source": "equipment",
+      "index": 109
+    }
+  ],
+  "errors": [],
+  "session": {
+    "scan_id": "2026-04-19_001336",
+    "session_started_at": "2026-04-19T00:13:37.001145",
+    "session_finished_at": "2026-04-19T00:13:54.809098",
+    "duration_sec": 17.8,
+    "students_total": 0,
+    "students_committed": 0,
+    "students_partial": 0,
+    "students_skipped": 0,
+    "students_failed": 0,
+    "items_total": 0,
+    "equipment_total": 16,
+    "errors_by_step": {},
+    "uncertain_by_field": {},
+    "avg_confidence": 0.0,
+    "low_confidence_ids": [],
+    "autosave_flushes": 0,
+    "save_failures": 0,
+    "finished_normally": true
+  },
+  "_partial": false,
+  "_saved_at": "2026-04-19T00:13:54.809098"
+}
