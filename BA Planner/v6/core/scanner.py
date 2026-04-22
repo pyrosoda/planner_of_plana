@@ -5,6 +5,8 @@ This module coordinates student navigation, recognition, and data collection.
 Broken legacy comments and UI strings were cleaned up for readability.
 """
 
+import ctypes
+import sys
 import time
 import json
 import hashlib
@@ -135,7 +137,12 @@ INVENTORY_PROFILE_MAX_UNIQUE_ITEMS = {
     "tech_notes": 45,
     "tactical_bd": 44,
     "ooparts": 83,
+    "equipment": 110,
 }
+PROFILE_DIRECT_MATCH_THRESHOLD = 0.82
+PROFILE_SEARCH_MATCH_THRESHOLD = 0.88
+VK_SPACE = 0x20
+_USER32 = ctypes.windll.user32 if sys.platform == "win32" else None
 
 # Retry policy
 RETRY_IDENTIFY   = 2      # max student identify retries
@@ -573,10 +580,30 @@ class InventoryVerification:
     count: str
     item_id: Optional[str] = None
     match_score: float = 0.0
+    detail_crop: Optional[Image.Image] = None
+
+
+@dataclass
+class InventoryDetailCandidate:
+    sequence: int
+    slot_index: int
+    count: str
+    detail_crop: Image.Image
+    detected_item_id: Optional[str] = None
+    detected_score: float = 0.0
 
 
 
 # Utility helpers
+
+
+def _space_key_down() -> bool:
+    if _USER32 is None:
+        return False
+    try:
+        return bool(_USER32.GetAsyncKeyState(VK_SPACE) & 0x8000)
+    except Exception:
+        return False
 
 
 def _img_hash(img: Image.Image) -> str:
@@ -851,6 +878,7 @@ class Scanner:
         self._on_progress  = on_progress
         self._on_progress_state = on_progress_state
         self._stop         = False
+        self._space_stop_latched = False
         self._maxed_ids    = frozenset(maxed_ids or [])
         self._maxed_saved_data: dict[str, dict] = maxed_saved_data or {}
         self._student_saved_data: dict[str, dict] = student_saved_data or {}
@@ -884,8 +912,15 @@ class Scanner:
 
     def clear_stop(self) -> None:
         self._stop = False
+        self._space_stop_latched = False
 
     def _stop_requested(self) -> bool:
+        if not self._stop and _space_key_down():
+            self._stop = True
+            if not self._space_stop_latched:
+                self._space_stop_latched = True
+                self._info("[stop] Spacebar emergency stop requested")
+                _log.info("spacebar emergency stop requested")
         return self._stop
 
     def _wait(self, seconds: float, step: float = 0.05) -> bool:
@@ -1956,8 +1991,9 @@ class Scanner:
                 return None
             matched_item_id = None
             matched_score = 0.0
+            detail_crop = self._inventory_detail_crop(img2, profile_id) if profile_id else None
             if profile_id:
-                matched_item_id, matched_score = self._match_inventory_detail_template(img2, profile_id)
+                matched_item_id, matched_score = self._match_inventory_detail_crop(detail_crop, profile_id)
                 if matched_item_id:
                     self.log(
                         f"    detail template matched: {matched_item_id} "
@@ -1968,6 +2004,7 @@ class Scanner:
                 count=count,
                 item_id=matched_item_id,
                 match_score=matched_score,
+                detail_crop=detail_crop,
             )
         self.log("    detail template fallback disabled: profile/template match required")
         return None
@@ -1989,16 +2026,23 @@ class Scanner:
             return None, best_score
         return best_item_id, best_score
 
-    def _match_inventory_detail_template(
+    def _inventory_detail_crop(
         self,
         image: Image.Image,
         profile_id: str | None,
-    ) -> tuple[str | None, float]:
+    ) -> Image.Image | None:
         region = _inventory_detail_template_region(profile_id)
         if region is None:
-            return None, 0.0
+            return None
+        return crop_region(image, region)
 
-        crop = crop_region(image, region)
+    def _match_inventory_detail_crop(
+        self,
+        crop: Image.Image | None,
+        profile_id: str | None,
+    ) -> tuple[str | None, float]:
+        if crop is None:
+            return None, 0.0
         best_item_id: str | None = None
         best_score = 0.0
         second_best = 0.0
@@ -2014,6 +2058,16 @@ class Scanner:
         if best_score < 0.88 or (best_score - second_best) < 0.015:
             return None, best_score
         return best_item_id, best_score
+
+    def _match_inventory_detail_template(
+        self,
+        image: Image.Image,
+        profile_id: str | None,
+    ) -> tuple[str | None, float]:
+        return self._match_inventory_detail_crop(
+            self._inventory_detail_crop(image, profile_id),
+            profile_id,
+        )
 
     def _fill_missing_profile_entries(
         self,
@@ -2076,6 +2130,155 @@ class Scanner:
         for idx, entry in enumerate(tail, start=len(rebuilt)):
             entry.index = idx
         return rebuilt + tail
+
+    def _recover_profile_gaps_from_candidates(
+        self,
+        items: list[ItemEntry],
+        candidates: list[InventoryDetailCandidate],
+        profile,
+        source: str,
+    ) -> list[ItemEntry]:
+        ordered_names = list(profile.ordered_names)
+        ordered_item_ids = list(inventory_profile_ordered_item_ids(profile))
+        if not ordered_names or not candidates:
+            return items
+
+        template_catalog = dict(_inventory_detail_template_catalog(profile.profile_id))
+        if not template_catalog:
+            return items
+
+        def _template_path_for(idx: int) -> str | None:
+            if idx >= len(ordered_names):
+                return None
+            expected_id = ordered_item_ids[idx] if idx < len(ordered_item_ids) else None
+            expected_name = ordered_names[idx]
+            if expected_id and expected_id in template_catalog:
+                return template_catalog[expected_id]
+            if expected_name and expected_name in template_catalog:
+                return template_catalog[expected_name]
+            return None
+
+        def _entry_index(entry: ItemEntry) -> int | None:
+            if entry.item_id:
+                for idx, expected_id in enumerate(ordered_item_ids):
+                    if expected_id == entry.item_id:
+                        return idx
+            if entry.name:
+                for idx, expected_name in enumerate(ordered_names):
+                    if expected_name == entry.name:
+                        return idx
+            return None
+
+        def _candidate_detected_index(candidate: InventoryDetailCandidate) -> int | None:
+            if not candidate.detected_item_id:
+                return None
+            for idx, expected_id in enumerate(ordered_item_ids):
+                if expected_id == candidate.detected_item_id:
+                    return idx
+            for idx, expected_name in enumerate(ordered_names):
+                if expected_name == candidate.detected_item_id:
+                    return idx
+            return None
+
+        def _entry_key_for(idx: int) -> str:
+            expected_id = ordered_item_ids[idx] if idx < len(ordered_item_ids) else None
+            return expected_id or ordered_names[idx]
+
+        def _score(candidate: InventoryDetailCandidate, idx: int) -> float:
+            template_path = _template_path_for(idx)
+            if not template_path:
+                return 0.0
+            return match_score_resized(candidate.detail_crop, template_path)
+
+        existing_indices: set[int] = set()
+        seen_keys = {entry.key() for entry in items}
+        for entry in items:
+            idx = _entry_index(entry)
+            if idx is not None:
+                existing_indices.add(idx)
+
+        recovered: list[ItemEntry] = []
+        cursor = 0
+        recovered_nonzero = 0
+        recovered_zero = 0
+
+        for candidate in candidates:
+            while cursor < len(ordered_names) and cursor in existing_indices:
+                cursor += 1
+            if self._stop_requested() or cursor >= len(ordered_names):
+                break
+
+            matched_idx: int | None = None
+            matched_score = 0.0
+            detected_idx = _candidate_detected_index(candidate)
+            if detected_idx is not None and detected_idx >= cursor:
+                matched_idx = detected_idx
+                matched_score = candidate.detected_score
+            else:
+                direct_score = _score(candidate, cursor)
+                matched_score = direct_score
+                if direct_score >= PROFILE_DIRECT_MATCH_THRESHOLD:
+                    matched_idx = cursor
+                else:
+                    for idx in range(cursor + 1, len(ordered_names)):
+                        score = _score(candidate, idx)
+                        if score > matched_score:
+                            matched_score = score
+                        if score >= PROFILE_SEARCH_MATCH_THRESHOLD:
+                            matched_idx = idx
+                            matched_score = score
+                            break
+
+            if matched_idx is None:
+                if matched_score >= 0.70:
+                    self.log(
+                        f"  profile gap recovery unresolved: "
+                        f"slot={candidate.slot_index} cursor={cursor} "
+                        f"best={matched_score:.2f}"
+                    )
+                continue
+
+            for gap_idx in range(cursor, matched_idx):
+                if gap_idx in existing_indices:
+                    continue
+                key = _entry_key_for(gap_idx)
+                if key in seen_keys:
+                    continue
+                entry = ItemEntry(
+                    name=ordered_names[gap_idx],
+                    quantity="0",
+                    item_id=ordered_item_ids[gap_idx] if gap_idx < len(ordered_item_ids) else None,
+                    source=source,
+                    index=gap_idx,
+                )
+                recovered.append(entry)
+                existing_indices.add(gap_idx)
+                seen_keys.add(entry.key())
+                recovered_zero += 1
+
+            if matched_idx not in existing_indices:
+                entry = ItemEntry(
+                    name=ordered_names[matched_idx],
+                    quantity=candidate.count,
+                    item_id=ordered_item_ids[matched_idx] if matched_idx < len(ordered_item_ids) else None,
+                    source=source,
+                    index=matched_idx,
+                )
+                if entry.key() not in seen_keys:
+                    recovered.append(entry)
+                    seen_keys.add(entry.key())
+                    recovered_nonzero += 1
+                existing_indices.add(matched_idx)
+
+            cursor = matched_idx + 1
+
+        if recovered:
+            self.log(
+                f"  profile gap recovery: recovered={recovered_nonzero} "
+                f"zero_filled={recovered_zero}"
+            )
+            return items + recovered
+        return items
 
     def _append_profile_gap_entries(
         self,
@@ -2196,6 +2399,8 @@ class Scanner:
         items:       list[ItemEntry] = []
         seen_keys:   set[str]        = set()
         seen_hashes: list[str]       = []
+        detail_candidates: list[InventoryDetailCandidate] = []
+        detail_candidate_seq = 0
         page_slot_history: list[list[str]] = []
         icon_cache = self._inventory_icon_cache.setdefault(source, {})
         failed_hashes = self._inventory_failed_hashes.setdefault(source, set())
@@ -2329,6 +2534,18 @@ class Scanner:
                 if verified.item_id:
                     detail_template_item_id = verified.item_id
                     detail_template_score = verified.match_score
+                if active_profile is not None and verified.detail_crop is not None:
+                    detail_candidate_seq += 1
+                    detail_candidates.append(
+                        InventoryDetailCandidate(
+                            sequence=detail_candidate_seq,
+                            slot_index=slot_idx,
+                            count=count,
+                            detail_crop=verified.detail_crop,
+                            detected_item_id=detail_template_item_id,
+                            detected_score=detail_template_score,
+                        )
+                    )
                 item_id = detail_template_item_id or icon_template_item_id
                 if not item_id:
                     self.log(f"  template unresolved skip: slot={slot_idx}")
@@ -2607,6 +2824,22 @@ class Scanner:
                 self.log(f"  no new items: total {len(items)}")
                 break
         if active_profile is not None:
+            expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
+            found_item_ids = {entry.item_id for entry in items if entry.item_id}
+            found_names = {entry.name for entry in items if entry.name}
+            complete = is_inventory_profile_complete(active_profile, found_item_ids, found_names)
+            if not complete and len(items) < expected_count:
+                self.log(
+                    f"  profile gap recovery start: "
+                    f"{active_profile.profile_id} "
+                    f"({len(items)}/{expected_count}, candidates={len(detail_candidates)})"
+                )
+                items = self._recover_profile_gaps_from_candidates(
+                    items,
+                    detail_candidates,
+                    active_profile,
+                    source,
+                )
             items = self._fill_missing_profile_entries(items, active_profile, source)
         return items
 

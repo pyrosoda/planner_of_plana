@@ -58,6 +58,8 @@ _TIER_LABELS = {
 
 _OOPART_GROUPS = OPART_TIER_GROUPS
 
+# Keep docs/inventory_sorting.md in sync when profile ordering changes.
+
 _ALIASES = {
     "붉은겨올": "붉은겨울",
     "붉으겨올": "붉은겨울",

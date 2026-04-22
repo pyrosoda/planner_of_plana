@@ -12,3 +12,12 @@ log.txt
 *.log
 *.out
 *.err
+
+# Runtime profile data and scan outputs.
+profiles/*/ba_planner.db
+profiles/*/ba_planner.db-*
+profiles/*/scans/
+profiles/*/data/scans/
+profiles/*/data/backups/
+profiles/*/data/history/
+profiles/*/data/current/

@@ -27,6 +27,12 @@ def get_connection(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_db(path: Path | None = None) -> None:
     path = path or get_db_path()
     conn = get_connection(path)
@@ -52,16 +58,20 @@ def init_db(path: Path | None = None) -> None:
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             scan_id      TEXT NOT NULL REFERENCES scans(scan_id),
             item_index   INTEGER NOT NULL,
+            item_id      TEXT,
             name         TEXT,
-            quantity     TEXT
+            quantity     TEXT,
+            item_source  TEXT
         );
 
         CREATE TABLE IF NOT EXISTS equipment_items (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             scan_id      TEXT NOT NULL REFERENCES scans(scan_id),
             item_index   INTEGER NOT NULL,
+            item_id      TEXT,
             name         TEXT,
-            quantity     TEXT
+            quantity     TEXT,
+            item_source  TEXT
         );
 
         CREATE TABLE IF NOT EXISTS students (
@@ -136,5 +146,11 @@ def init_db(path: Path | None = None) -> None:
             ON inventory_history(scan_id);
         """
         )
+        _ensure_column(conn, "items", "item_id", "TEXT")
+        _ensure_column(conn, "items", "item_source", "TEXT")
+        _ensure_column(conn, "equipment_items", "item_id", "TEXT")
+        _ensure_column(conn, "equipment_items", "item_source", "TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_items_item_id ON items(item_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_equip_items_item_id ON equipment_items(item_id)")
     conn.close()
     print(f"[DB] initialized: {path}")

@@ -1297,18 +1297,48 @@ def load_inventory_snapshot() -> dict[str, dict]:
             return {}
         payload = raw_payload
 
+    def _looks_like_inventory_id(value: object) -> bool:
+        return isinstance(value, str) and ("_Icon_" in value or value.startswith("Item_"))
+
+    def _entry_rank(entry: dict) -> tuple[int, int, int, int]:
+        quantity = str(entry.get("quantity") or "").strip()
+        return (
+            int(quantity not in ("", "0")),
+            int(bool(entry.get("item_id"))),
+            int(bool(entry.get("last_seen_at"))),
+            len(quantity),
+        )
+
     normalized: dict[str, dict] = {}
     changed = False
     for key, raw_value in payload.items():
         if not isinstance(raw_value, dict):
             continue
         entry = dict(raw_value)
-        item_id = entry.get("item_id") or (key if isinstance(key, str) and ("_Icon_" in key or key.startswith("Item_")) else None)
+        key_text = str(key)
+        item_id = entry.get("item_id") or (key_text if _looks_like_inventory_id(key_text) else None)
+        if item_id and entry.get("item_id") != item_id:
+            entry["item_id"] = item_id
+            changed = True
         display_name = inventory_item_display_name(str(item_id)) if item_id else None
         if display_name and entry.get("name") != display_name:
             entry["name"] = display_name
             changed = True
-        normalized[str(key)] = entry
+        canonical_key = str(item_id or entry.get("name") or key_text)
+        if canonical_key != key_text:
+            changed = True
+        current = normalized.get(canonical_key)
+        if current is None or _entry_rank(entry) > _entry_rank(current):
+            primary, secondary = entry, current
+        else:
+            primary, secondary = current, entry
+        if secondary:
+            primary = dict(primary)
+            for merge_key in ("item_id", "name", "quantity", "index", "item_source", "last_seen_at", "last_scan_id"):
+                if primary.get(merge_key) in (None, "") and secondary.get(merge_key) not in (None, ""):
+                    primary[merge_key] = secondary.get(merge_key)
+                    changed = True
+        normalized[canonical_key] = primary
 
     if changed:
         try:

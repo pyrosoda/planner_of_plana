@@ -217,6 +217,8 @@ class App(tk.Tk):
             on_view_students=lambda: open_student_viewer(self),
         )
         self._input_test_overlay = InputTestOverlay(self)
+        self.bind_all("<space>", self._on_spacebar_stop, add="+")
+        self.bind_all("<KeyPress-space>", self._on_spacebar_stop, add="+")
 
         clear_target()
         self._transition_to(AppState.IDLE, reason="startup_ready")
@@ -776,6 +778,12 @@ class App(tk.Tk):
             return
         self._overlay.add_log("스캔 중지 요청...")
         self._transition_to(AppState.STOPPING, reason="user_stop_requested")
+
+    def _on_spacebar_stop(self, _event=None):
+        if self.state not in (AppState.SCANNING, AppState.PAUSED):
+            return None
+        self._stop_scan()
+        return "break"
 
     def _auto_save(self, result: ScanResult, meta: dict) -> None:
         from core.serializer import make_status_report, save_scan_json

@@ -119,6 +119,16 @@ def _looks_like_item_id(value: object) -> bool:
     return "_Icon_" in value or value.startswith("Item_")
 
 
+def _canonical_inventory_key(item_key: str, entry: dict[str, Any]) -> str:
+    item_id = entry.get("item_id") or (item_key if _looks_like_item_id(item_key) else None)
+    if item_id:
+        return str(item_id)
+    name = entry.get("name")
+    if name:
+        return str(name)
+    return item_key
+
+
 def _normalize_inventory_entry(item_key: str, raw_entry: dict[str, Any]) -> dict[str, Any]:
     entry = dict(raw_entry)
     item_id = entry.get("item_id") or (item_key if _looks_like_item_id(item_key) else None)
@@ -129,7 +139,31 @@ def _normalize_inventory_entry(item_key: str, raw_entry: dict[str, Any]) -> dict
         "quantity": entry.get("quantity"),
         "index": entry.get("index"),
         "item_source": entry.get("item_source") or entry.get("source"),
+        "last_seen_at": entry.get("last_seen_at"),
+        "last_scan_id": entry.get("last_scan_id"),
     }
+
+
+def _inventory_entry_rank(entry: dict[str, Any]) -> tuple[int, int, int, int]:
+    quantity = str(entry.get("quantity") or "").strip()
+    has_nonzero_quantity = int(quantity not in ("", "0"))
+    has_item_id = int(bool(entry.get("item_id")))
+    has_seen_at = int(bool(entry.get("last_seen_at")))
+    quantity_len = len(quantity)
+    return (has_nonzero_quantity, has_item_id, has_seen_at, quantity_len)
+
+
+def _merge_inventory_entry(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    if _inventory_entry_rank(incoming) > _inventory_entry_rank(existing):
+        primary, secondary = incoming, existing
+    else:
+        primary, secondary = existing, incoming
+
+    merged = dict(primary)
+    for key in ("item_id", "name", "quantity", "index", "item_source", "last_seen_at", "last_scan_id"):
+        if merged.get(key) in (None, "") and secondary.get(key) not in (None, ""):
+            merged[key] = secondary.get(key)
+    return merged
 
 
 def _normalize_inventory_snapshot(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -138,7 +172,10 @@ def _normalize_inventory_snapshot(snapshot: dict[str, Any]) -> dict[str, dict[st
         if not isinstance(raw_entry, dict):
             continue
         item_key = str(raw_key)
-        normalized[item_key] = _normalize_inventory_entry(item_key, raw_entry)
+        entry = _normalize_inventory_entry(item_key, raw_entry)
+        canonical_key = _canonical_inventory_key(item_key, entry)
+        current = normalized.get(canonical_key)
+        normalized[canonical_key] = entry if current is None else _merge_inventory_entry(current, entry)
     return normalized
 
 
@@ -196,7 +233,7 @@ class ScanRepository:
             finally:
                 conn.close()
             if rows:
-                return {
+                snapshot = {
                     str(row["item_key"]): {
                         "item_id": row["item_id"],
                         "name": row["name"],
@@ -208,6 +245,10 @@ class ScanRepository:
                     }
                     for row in rows
                 }
+                normalized = _normalize_inventory_snapshot(snapshot)
+                if set(normalized) != set(snapshot):
+                    self._replace_inventory_db_snapshot(normalized)
+                return normalized
         except Exception:
             pass
 
@@ -364,6 +405,7 @@ class ScanRepository:
                         "item_id": item.item_id,
                         "name": item.name,
                         "quantity": item.quantity,
+                        "item_source": item.source,
                     }
                     for item in (result.items or [])
                 ],
@@ -373,6 +415,7 @@ class ScanRepository:
                         "item_id": item.item_id,
                         "name": item.name,
                         "quantity": item.quantity,
+                        "item_source": item.source,
                     }
                     for item in (result.equipment or [])
                 ],
@@ -554,6 +597,7 @@ class ScanRepository:
                 conn.execute("DELETE FROM inventory_current")
                 for item_key, row in inventory.items():
                     data = _normalize_inventory_entry(item_key, row)
+                    canonical_key = _canonical_inventory_key(str(item_key), data)
                     conn.execute(
                         """
                         INSERT INTO inventory_current (
@@ -565,7 +609,7 @@ class ScanRepository:
                         )
                         """,
                         {
-                            "item_key": item_key,
+                            "item_key": canonical_key,
                             "item_id": data.get("item_id"),
                             "name": data.get("name"),
                             "quantity": data.get("quantity"),

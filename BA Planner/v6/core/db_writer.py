@@ -259,16 +259,16 @@ def save_scan(
             # ── items ────────────────────────────────────
             for item in (result.items or []):
                 conn.execute("""
-                    INSERT INTO items (scan_id, item_index, name, quantity)
-                    VALUES (?, ?, ?, ?)
-                """, (scan_id, item.index, item.name, item.quantity))
+                    INSERT INTO items (scan_id, item_index, item_id, name, quantity, item_source)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (scan_id, item.index, item.item_id, item.name, item.quantity, item.source))
 
             # ── equipment_items ──────────────────────────
             for item in (result.equipment or []):
                 conn.execute("""
-                    INSERT INTO equipment_items (scan_id, item_index, name, quantity)
-                    VALUES (?, ?, ?, ?)
-                """, (scan_id, item.index, item.name, item.quantity))
+                    INSERT INTO equipment_items (scan_id, item_index, item_id, name, quantity, item_source)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (scan_id, item.index, item.item_id, item.name, item.quantity, item.source))
 
             # ── students (upsert + history) ──────────────
             all_changes: list[dict] = []
