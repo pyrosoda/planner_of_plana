@@ -75,6 +75,7 @@ FILTER_FIELD_LABELS: dict[str, str] = {
 }
 
 META_FILTER_KEYS: tuple[str, ...] = tuple(key for key in FILTER_FIELD_ORDER if key not in {"student_star", "weapon_state"})
+SCHOOL_FILTER_EXCLUDED_VALUES: frozenset[str] = frozenset({"Sakugawa", "Tokiwadai"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +160,7 @@ def build_filter_options(students: Iterable[Any]) -> dict[str, list[FilterOption
     for student in students:
         for key in FILTER_FIELD_ORDER:
             option_values[key].update(get_student_values(student, key))
+    option_values["school"].difference_update(SCHOOL_FILTER_EXCLUDED_VALUES)
 
     return {key: _sorted_options(key, values) for key, values in option_values.items()}
 

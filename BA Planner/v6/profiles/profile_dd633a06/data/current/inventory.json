@@ -395,14 +395,50 @@
     "last_seen_at": null,
     "last_scan_id": null
   },
+  "초급 활동 보고서": {
+    "item_id": null,
+    "name": "초급 활동 보고서",
+    "quantity": "4941",
+    "index": 0,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:18+09:00",
+    "last_scan_id": "2026-04-23_002818"
+  },
+  "일반 활동 보고서": {
+    "item_id": null,
+    "name": "일반 활동 보고서",
+    "quantity": "645",
+    "index": 1,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:18+09:00",
+    "last_scan_id": "2026-04-23_002818"
+  },
+  "상급 활동 보고서": {
+    "item_id": null,
+    "name": "상급 활동 보고서",
+    "quantity": "249",
+    "index": 2,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:18+09:00",
+    "last_scan_id": "2026-04-23_002818"
+  },
+  "최상급 활동 보고서": {
+    "item_id": null,
+    "name": "최상급 활동 보고서",
+    "quantity": "133",
+    "index": 3,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:18+09:00",
+    "last_scan_id": "2026-04-23_002818"
+  },
   "Item_Icon_Material_Nebra_0": {
     "item_id": "Item_Icon_Material_Nebra_0",
     "name": "네브라 디스크 조각",
-    "quantity": "2175",
+    "quantity": "2176",
     "index": 0,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nebra_1": {
     "item_id": "Item_Icon_Material_Nebra_1",
@@ -410,8 +446,17 @@
     "quantity": "841",
     "index": 1,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Nebra_2": {
+    "item_id": "Item_Icon_Material_Nebra_2",
+    "name": "마모된 네브라 디스크",
+    "quantity": "782",
+    "index": 2,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nebra_3": {
     "item_id": "Item_Icon_Material_Nebra_3",
@@ -419,17 +464,89 @@
     "quantity": "85",
     "index": 3,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Phaistos_0": {
+    "item_id": "Item_Icon_Material_Phaistos_0",
+    "name": "파에스토스 원반 조각",
+    "quantity": "0",
+    "index": 4,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Phaistos_1": {
+    "item_id": "Item_Icon_Material_Phaistos_1",
+    "name": "파손된 파에스토스 원반",
+    "quantity": "0",
+    "index": 5,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Phaistos_2": {
+    "item_id": "Item_Icon_Material_Phaistos_2",
+    "name": "마모된 파에스토스 원반",
+    "quantity": "0",
+    "index": 6,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Phaistos_3": {
+    "item_id": "Item_Icon_Material_Phaistos_3",
+    "name": "온전한 파에스토스 원반",
+    "quantity": "0",
+    "index": 7,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Wolfsegg_0": {
+    "item_id": "Item_Icon_Material_Wolfsegg_0",
+    "name": "볼프세크 철광석",
+    "quantity": "4307",
+    "index": 8,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Wolfsegg_1": {
+    "item_id": "Item_Icon_Material_Wolfsegg_1",
+    "name": "볼프세크 철조각",
+    "quantity": "1390",
+    "index": 9,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Wolfsegg_2": {
+    "item_id": "Item_Icon_Material_Wolfsegg_2",
+    "name": "저순도 볼프세크 강철",
+    "quantity": "1254",
+    "index": 10,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Wolfsegg_3": {
+    "item_id": "Item_Icon_Material_Wolfsegg_3",
+    "name": "고순도 볼프세크 강철",
+    "quantity": "157",
+    "index": 11,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nimrud_0": {
     "item_id": "Item_Icon_Material_Nimrud_0",
     "name": "님루드 렌즈 조각",
-    "quantity": "3755",
+    "quantity": "3756",
     "index": 12,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nimrud_1": {
     "item_id": "Item_Icon_Material_Nimrud_1",
@@ -437,8 +554,8 @@
     "quantity": "1530",
     "index": 13,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nimrud_2": {
     "item_id": "Item_Icon_Material_Nimrud_2",
@@ -446,8 +563,8 @@
     "quantity": "718",
     "index": 14,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Nimrud_3": {
     "item_id": "Item_Icon_Material_Nimrud_3",
@@ -455,44 +572,116 @@
     "quantity": "186",
     "index": 15,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Mandragora_0": {
+    "item_id": "Item_Icon_Material_Mandragora_0",
+    "name": "만드라고라 씨앗",
+    "quantity": "4004",
+    "index": 16,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Mandragora_1": {
+    "item_id": "Item_Icon_Material_Mandragora_1",
+    "name": "만드라고라 새싹",
+    "quantity": "1949",
+    "index": 17,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Mandragora_2": {
+    "item_id": "Item_Icon_Material_Mandragora_2",
+    "name": "만드라고라 주스",
+    "quantity": "609",
+    "index": 18,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Mandragora_3": {
+    "item_id": "Item_Icon_Material_Mandragora_3",
+    "name": "만드라고라 농축액",
+    "quantity": "87",
+    "index": 19,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Rohonc_0": {
+    "item_id": "Item_Icon_Material_Rohonc_0",
+    "name": "로혼치 사본 페이지",
+    "quantity": "5031",
+    "index": 20,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Rohonc_1": {
+    "item_id": "Item_Icon_Material_Rohonc_1",
+    "name": "훼손된 로혼치 사본",
+    "quantity": "2551",
+    "index": 21,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Rohonc_2": {
+    "item_id": "Item_Icon_Material_Rohonc_2",
+    "name": "편집된 로혼치 사본",
+    "quantity": "1303",
+    "index": 22,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Rohonc_3": {
+    "item_id": "Item_Icon_Material_Rohonc_3",
+    "name": "온전한 로혼치 사본",
+    "quantity": "450",
+    "index": 23,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Ether_0": {
     "item_id": "Item_Icon_Material_Ether_0",
     "name": "에테르 가루",
-    "quantity": "2928",
+    "quantity": "2930",
     "index": 24,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Ether_1": {
     "item_id": "Item_Icon_Material_Ether_1",
     "name": "에테르 조각",
-    "quantity": "2037",
+    "quantity": "2049",
     "index": 25,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Ether_2": {
     "item_id": "Item_Icon_Material_Ether_2",
     "name": "에테르 결정",
-    "quantity": "1161",
+    "quantity": "1166",
     "index": 26,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Ether_3": {
     "item_id": "Item_Icon_Material_Ether_3",
     "name": "에테르 정수",
-    "quantity": "175",
+    "quantity": "177",
     "index": 27,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Antikythera_0": {
     "item_id": "Item_Icon_Material_Antikythera_0",
@@ -500,17 +689,26 @@
     "quantity": "2868",
     "index": 28,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Antikythera_1": {
     "item_id": "Item_Icon_Material_Antikythera_1",
     "name": "파손된 안티키테라 장치",
-    "quantity": "1070",
+    "quantity": "1071",
     "index": 29,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Antikythera_2": {
+    "item_id": "Item_Icon_Material_Antikythera_2",
+    "name": "마모된 안티키테라 장치",
+    "quantity": "271",
+    "index": 30,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Antikythera_3": {
     "item_id": "Item_Icon_Material_Antikythera_3",
@@ -518,26 +716,71 @@
     "quantity": "166",
     "index": 31,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Voynich_0": {
+    "item_id": "Item_Icon_Material_Voynich_0",
+    "name": "보이니치 사본 페이지",
+    "quantity": "5026",
+    "index": 32,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Voynich_1": {
+    "item_id": "Item_Icon_Material_Voynich_1",
+    "name": "훼손된 보이니치 사본",
+    "quantity": "1869",
+    "index": 33,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Voynich_2": {
+    "item_id": "Item_Icon_Material_Voynich_2",
+    "name": "편집된 보이니치 사본",
+    "quantity": "1119",
+    "index": 34,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Voynich_3": {
     "item_id": "Item_Icon_Material_Voynich_3",
     "name": "온전한 보이니치 사본",
-    "quantity": "170",
+    "quantity": "171",
     "index": 35,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_CrystalHaniwa_0": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_0",
+    "name": "수정 하니와 파편",
+    "quantity": "3338",
+    "index": 36,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_CrystalHaniwa_1": {
     "item_id": "Item_Icon_Material_CrystalHaniwa_1",
     "name": "파손된 수정 하니와",
-    "quantity": "2203",
+    "quantity": "2205",
     "index": 37,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_CrystalHaniwa_2": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_2",
+    "name": "수리된 수정 하니와",
+    "quantity": "842",
+    "index": 38,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_CrystalHaniwa_3": {
     "item_id": "Item_Icon_Material_CrystalHaniwa_3",
@@ -545,8 +788,8 @@
     "quantity": "238",
     "index": 39,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_TotemPole_0": {
     "item_id": "Item_Icon_Material_TotemPole_0",
@@ -554,35 +797,44 @@
     "quantity": "2119",
     "index": 40,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_TotemPole_1": {
     "item_id": "Item_Icon_Material_TotemPole_1",
     "name": "파손된 토템폴",
-    "quantity": "995",
+    "quantity": "1000",
     "index": 41,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_TotemPole_2": {
+    "item_id": "Item_Icon_Material_TotemPole_2",
+    "name": "수리된 토템폴",
+    "quantity": "575",
+    "index": 42,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_TotemPole_3": {
     "item_id": "Item_Icon_Material_TotemPole_3",
     "name": "온전한 토템폴",
-    "quantity": "175",
+    "quantity": "176",
     "index": 43,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Baghdad_0": {
     "item_id": "Item_Icon_Material_Baghdad_0",
     "name": "고대 전지 조각",
-    "quantity": "940",
+    "quantity": "941",
     "index": 44,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Baghdad_1": {
     "item_id": "Item_Icon_Material_Baghdad_1",
@@ -590,8 +842,8 @@
     "quantity": "1910",
     "index": 45,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Baghdad_2": {
     "item_id": "Item_Icon_Material_Baghdad_2",
@@ -599,8 +851,8 @@
     "quantity": "974",
     "index": 46,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Baghdad_3": {
     "item_id": "Item_Icon_Material_Baghdad_3",
@@ -608,8 +860,44 @@
     "quantity": "199",
     "index": 47,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_GoldenFleece_0": {
+    "item_id": "Item_Icon_Material_GoldenFleece_0",
+    "name": "황금 양털",
+    "quantity": "1711",
+    "index": 48,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_GoldenFleece_1": {
+    "item_id": "Item_Icon_Material_GoldenFleece_1",
+    "name": "황금 털실",
+    "quantity": "584",
+    "index": 49,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_GoldenFleece_2": {
+    "item_id": "Item_Icon_Material_GoldenFleece_2",
+    "name": "황금 양모",
+    "quantity": "278",
+    "index": 50,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_GoldenFleece_3": {
+    "item_id": "Item_Icon_Material_GoldenFleece_3",
+    "name": "황금 드레스",
+    "quantity": "96",
+    "index": 51,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Kikuko_0": {
     "item_id": "Item_Icon_Material_Kikuko_0",
@@ -617,8 +905,8 @@
     "quantity": "1993",
     "index": 52,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Kikuko_1": {
     "item_id": "Item_Icon_Material_Kikuko_1",
@@ -626,8 +914,17 @@
     "quantity": "745",
     "index": 53,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Kikuko_2": {
+    "item_id": "Item_Icon_Material_Kikuko_2",
+    "name": "수리된 머리가 자라는 인형",
+    "quantity": "352",
+    "index": 54,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Kikuko_3": {
     "item_id": "Item_Icon_Material_Kikuko_3",
@@ -635,17 +932,17 @@
     "quantity": "128",
     "index": 55,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_DiscoColgante_0": {
     "item_id": "Item_Icon_Material_DiscoColgante_0",
     "name": "디스코 콜간테 조각",
-    "quantity": "1390",
+    "quantity": "1391",
     "index": 56,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_DiscoColgante_1": {
     "item_id": "Item_Icon_Material_DiscoColgante_1",
@@ -653,8 +950,26 @@
     "quantity": "701",
     "index": 57,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_DiscoColgante_2": {
+    "item_id": "Item_Icon_Material_DiscoColgante_2",
+    "name": "수리된 디스코 콜간테",
+    "quantity": "303",
+    "index": 58,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_DiscoColgante_3": {
+    "item_id": "Item_Icon_Material_DiscoColgante_3",
+    "name": "온전한 디스코 콜간테",
+    "quantity": "73",
+    "index": 59,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_AtlantisMedal_0": {
     "item_id": "Item_Icon_Material_AtlantisMedal_0",
@@ -662,8 +977,8 @@
     "quantity": "882",
     "index": 60,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_AtlantisMedal_1": {
     "item_id": "Item_Icon_Material_AtlantisMedal_1",
@@ -671,8 +986,8 @@
     "quantity": "250",
     "index": 61,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_AtlantisMedal_2": {
     "item_id": "Item_Icon_Material_AtlantisMedal_2",
@@ -680,8 +995,8 @@
     "quantity": "161",
     "index": 62,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_AtlantisMedal_3": {
     "item_id": "Item_Icon_Material_AtlantisMedal_3",
@@ -689,8 +1004,8 @@
     "quantity": "89",
     "index": 63,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_RomanDice_0": {
     "item_id": "Item_Icon_Material_RomanDice_0",
@@ -698,8 +1013,8 @@
     "quantity": "1069",
     "index": 64,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_RomanDice_1": {
     "item_id": "Item_Icon_Material_RomanDice_1",
@@ -707,8 +1022,17 @@
     "quantity": "184",
     "index": 65,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_RomanDice_2": {
+    "item_id": "Item_Icon_Material_RomanDice_2",
+    "name": "수리된 로마 12면체",
+    "quantity": "341",
+    "index": 66,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_RomanDice_3": {
     "item_id": "Item_Icon_Material_RomanDice_3",
@@ -716,8 +1040,8 @@
     "quantity": "57",
     "index": 67,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Quimbaya_0": {
     "item_id": "Item_Icon_Material_Quimbaya_0",
@@ -725,8 +1049,8 @@
     "quantity": "995",
     "index": 68,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Quimbaya_1": {
     "item_id": "Item_Icon_Material_Quimbaya_1",
@@ -734,8 +1058,17 @@
     "quantity": "252",
     "index": 69,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Quimbaya_2": {
+    "item_id": "Item_Icon_Material_Quimbaya_2",
+    "name": "수리된 킴바야 유물",
+    "quantity": "243",
+    "index": 70,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Quimbaya_3": {
     "item_id": "Item_Icon_Material_Quimbaya_3",
@@ -743,8 +1076,8 @@
     "quantity": "43",
     "index": 71,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Rocket_0": {
     "item_id": "Item_Icon_Material_Rocket_0",
@@ -752,8 +1085,8 @@
     "quantity": "662",
     "index": 72,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Rocket_1": {
     "item_id": "Item_Icon_Material_Rocket_1",
@@ -761,8 +1094,17 @@
     "quantity": "194",
     "index": 73,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_Rocket_2": {
+    "item_id": "Item_Icon_Material_Rocket_2",
+    "name": "수리된 이스탄불 로켓",
+    "quantity": "395",
+    "index": 74,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_Rocket_3": {
     "item_id": "Item_Icon_Material_Rocket_3",
@@ -770,17 +1112,17 @@
     "quantity": "97",
     "index": 75,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_WinniStone_0": {
     "item_id": "Item_Icon_Material_WinniStone_0",
     "name": "위니페소키 스톤 조각",
-    "quantity": "1602",
+    "quantity": "1603",
     "index": 76,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_WinniStone_1": {
     "item_id": "Item_Icon_Material_WinniStone_1",
@@ -788,8 +1130,8 @@
     "quantity": "327",
     "index": 77,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_WinniStone_2": {
     "item_id": "Item_Icon_Material_WinniStone_2",
@@ -797,8 +1139,8 @@
     "quantity": "135",
     "index": 78,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
   },
   "Item_Icon_Material_WinniStone_3": {
     "item_id": "Item_Icon_Material_WinniStone_3",
@@ -806,7 +1148,367 @@
     "quantity": "81",
     "index": 79,
     "item_source": "item",
-    "last_seen_at": "2026-04-22T00:56:56+09:00",
-    "last_scan_id": "2026-04-22_005656"
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "교양 체육 WB": {
+    "item_id": "교양 체육 WB",
+    "name": "교양 체육 WB",
+    "quantity": "196",
+    "index": 80,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "교양 사격 WB": {
+    "item_id": "교양 사격 WB",
+    "name": "교양 사격 WB",
+    "quantity": "309",
+    "index": 81,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "교양 위생 WB": {
+    "item_id": "교양 위생 WB",
+    "name": "교양 위생 WB",
+    "quantity": "325",
+    "index": 82,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:28:40+09:00",
+    "last_scan_id": "2026-04-23_002840"
+  },
+  "Item_Icon_Material_ExSkill_Hyakkiyako_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_0",
+    "name": "기초 전술 교육 BD (백귀야행)",
+    "quantity": "834",
+    "index": 0,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Hyakkiyako_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_1",
+    "name": "일반 전술 교육 BD (백귀야행)",
+    "quantity": "179",
+    "index": 1,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Hyakkiyako_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_2",
+    "name": "상급 전술 교육 BD (백귀야행)",
+    "quantity": "112",
+    "index": 2,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Hyakkiyako_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Hyakkiyako_3",
+    "name": "최상급 전술 교육 BD (백귀야행)",
+    "quantity": "28",
+    "index": 3,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_RedWinter_0": {
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_0",
+    "name": "기초 전술 교육 BD (붉은겨울)",
+    "quantity": "1483",
+    "index": 4,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_RedWinter_2": {
+    "item_id": "Item_Icon_Material_ExSkill_RedWinter_2",
+    "name": "상급 전술 교육 BD (붉은겨울)",
+    "quantity": "444",
+    "index": 6,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Trinity_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_0",
+    "name": "기초 전술 교육 BD (트리니티)",
+    "quantity": "584",
+    "index": 8,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Trinity_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_1",
+    "name": "일반 전술 교육 BD (트리니티)",
+    "quantity": "28",
+    "index": 9,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Trinity_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_2",
+    "name": "상급 전술 교육 BD (트리니티)",
+    "quantity": "139",
+    "index": 10,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Trinity_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Trinity_3",
+    "name": "최상급 전술 교육 BD (트리니티)",
+    "quantity": "35",
+    "index": 11,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Gehenna_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_0",
+    "name": "기초 전술 교육 BD (게헨나)",
+    "quantity": "848",
+    "index": 12,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Gehenna_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_1",
+    "name": "일반 전술 교육 BD (게헨나)",
+    "quantity": "236",
+    "index": 13,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Gehenna_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Gehenna_2",
+    "name": "상급 전술 교육 BD (게헨나)",
+    "quantity": "151",
+    "index": 14,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Abydos_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_0",
+    "name": "기초 전술 교육 BD (아비도스)",
+    "quantity": "1316",
+    "index": 16,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Abydos_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_2",
+    "name": "상급 전술 교육 BD (아비도스)",
+    "quantity": "207",
+    "index": 18,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Abydos_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Abydos_3",
+    "name": "최상급 전술 교육 BD (아비도스)",
+    "quantity": "76",
+    "index": 19,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Millennium_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_0",
+    "name": "기초 전술 교육 BD (밀레니엄)",
+    "quantity": "1061",
+    "index": 20,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Millennium_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_1",
+    "name": "일반 전술 교육 BD (밀레니엄)",
+    "quantity": "222",
+    "index": 21,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Millennium_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_2",
+    "name": "상급 전술 교육 BD (밀레니엄)",
+    "quantity": "179",
+    "index": 22,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Millennium_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Millennium_3",
+    "name": "최상급 전술 교육 BD (밀레니엄)",
+    "quantity": "45",
+    "index": 23,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Arius_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Arius_0",
+    "name": "기초 전술 교육 BD (아리우스)",
+    "quantity": "909",
+    "index": 24,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Arius_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Arius_1",
+    "name": "일반 전술 교육 BD (아리우스)",
+    "quantity": "279",
+    "index": 25,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Arius_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Arius_2",
+    "name": "상급 전술 교육 BD (아리우스)",
+    "quantity": "205",
+    "index": 26,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Arius_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Arius_3",
+    "name": "최상급 전술 교육 BD (아리우스)",
+    "quantity": "40",
+    "index": 27,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Shanhaijing_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_0",
+    "name": "기초 전술 교육 BD (산해경)",
+    "quantity": "975",
+    "index": 28,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Shanhaijing_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Shanhaijing_3",
+    "name": "최상급 전술 교육 BD (산해경)",
+    "quantity": "49",
+    "index": 31,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Valkyrie_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_0",
+    "name": "기초 전술 교육 BD (발키리)",
+    "quantity": "952",
+    "index": 32,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Valkyrie_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_1",
+    "name": "일반 전술 교육 BD (발키리)",
+    "quantity": "230",
+    "index": 33,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Valkyrie_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_2",
+    "name": "상급 전술 교육 BD (발키리)",
+    "quantity": "154",
+    "index": 34,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Valkyrie_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Valkyrie_3",
+    "name": "최상급 전술 교육 BD (발키리)",
+    "quantity": "19",
+    "index": 35,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Highlander_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_0",
+    "name": "기초 전술 교육 BD (하이랜더)",
+    "quantity": "268",
+    "index": 36,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Highlander_1": {
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_1",
+    "name": "일반 전술 교육 BD (하이랜더)",
+    "quantity": "82",
+    "index": 37,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Highlander_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_2",
+    "name": "상급 전술 교육 BD (하이랜더)",
+    "quantity": "104",
+    "index": 38,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Highlander_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Highlander_3",
+    "name": "최상급 전술 교육 BD (하이랜더)",
+    "quantity": "17",
+    "index": 39,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Wildhunt_0": {
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_0",
+    "name": "기초 전술 교육 BD (와일드헌트)",
+    "quantity": "298",
+    "index": 40,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Wildhunt_2": {
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_2",
+    "name": "상급 전술 교육 BD (와일드헌트)",
+    "quantity": "73",
+    "index": 42,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
+  },
+  "Item_Icon_Material_ExSkill_Wildhunt_3": {
+    "item_id": "Item_Icon_Material_ExSkill_Wildhunt_3",
+    "name": "최상급 전술 교육 BD (와일드헌트)",
+    "quantity": "10",
+    "index": 43,
+    "item_source": "item",
+    "last_seen_at": "2026-04-23T00:34:43+09:00",
+    "last_scan_id": "2026-04-23_003443"
   }
 }

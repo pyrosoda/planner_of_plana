@@ -139,6 +139,9 @@ INVENTORY_PROFILE_MAX_UNIQUE_ITEMS = {
     "ooparts": 83,
     "equipment": 110,
 }
+INVENTORY_PROFILE_MAX_DETAIL_CANDIDATES = {
+    "activity_reports": 4,
+}
 PROFILE_DIRECT_MATCH_THRESHOLD = 0.82
 PROFILE_SEARCH_MATCH_THRESHOLD = 0.88
 VK_SPACE = 0x20
@@ -2427,6 +2430,11 @@ class Scanner:
             if active_profile is not None
             else None
         )
+        profile_max_detail_candidates = (
+            INVENTORY_PROFILE_MAX_DETAIL_CANDIDATES.get(active_profile.profile_id)
+            if active_profile is not None
+            else None
+        )
         disable_first_match_realign = (
             source == "equipment"
             or (active_profile is not None and active_profile.profile_id == "equipment")
@@ -2505,6 +2513,7 @@ class Scanner:
                 or prev_page_profile_indices is None
             )
             profile_limit_reached = False
+            candidate_limit_reached = False
             for slot_idx, (slot, slot_snap) in enumerate(zip(slots, page.slots)):
                 if self._stop_requested():
                     break
@@ -2546,9 +2555,22 @@ class Scanner:
                             detected_score=detail_template_score,
                         )
                     )
+                    if (
+                        profile_max_detail_candidates is not None
+                        and len(detail_candidates) >= profile_max_detail_candidates
+                    ):
+                        candidate_limit_reached = True
                 item_id = detail_template_item_id or icon_template_item_id
                 if not item_id:
                     self.log(f"  template unresolved skip: slot={slot_idx}")
+                    if candidate_limit_reached:
+                        self.log(
+                            f"  profile detail candidate limit reached: "
+                            f"{active_profile.profile_id} "
+                            f"({len(detail_candidates)}/{profile_max_detail_candidates})"
+                        )
+                        profile_limit_reached = True
+                        break
                     continue
 
                 if active_profile is not None:
@@ -2710,12 +2732,23 @@ class Scanner:
                         )
                         profile_limit_reached = True
                         break
+                if candidate_limit_reached:
+                    self.log(
+                        f"  profile detail candidate limit reached: "
+                        f"{active_profile.profile_id} "
+                        f"({len(detail_candidates)}/{profile_max_detail_candidates})"
+                    )
+                    profile_limit_reached = True
+                    break
 
             if active_profile is None:
                 active_profile = infer_inventory_scan_profile(source, page_item_ids, page_raw_names)
                 if active_profile is not None:
                     expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
                     profile_max_unique_items = INVENTORY_PROFILE_MAX_UNIQUE_ITEMS.get(
+                        active_profile.profile_id
+                    )
+                    profile_max_detail_candidates = INVENTORY_PROFILE_MAX_DETAIL_CANDIDATES.get(
                         active_profile.profile_id
                     )
                     profile_ordered_names = list(active_profile.ordered_names)

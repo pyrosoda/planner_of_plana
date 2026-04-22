@@ -13,6 +13,8 @@ from tools.student_meta_options import FIELD_OPTIONS
 
 STUDENTS_URL = "https://schaledb.com/data/en/students.min.json"
 ITEMS_URL = "https://schaledb.com/data/en/items.min.json"
+SITE_URL = "https://schaledb.com/student"
+BASE_URL = "https://schaledb.com"
 SCALAR_FIELDS: tuple[str, ...] = (
     "search_tags",
     "school",
@@ -170,6 +172,18 @@ def _fetch_json(url: str) -> dict[str, dict[str, Any]]:
         return json.load(response)
 
 
+def _fetch_text(url: str) -> str:
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/javascript,text/plain,*/*",
+        },
+    )
+    with urlopen(request) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
 @lru_cache(maxsize=1)
 def fetch_students() -> dict[str, dict[str, Any]]:
     return _fetch_json(STUDENTS_URL)
@@ -183,6 +197,69 @@ def fetch_items() -> dict[str, dict[str, Any]]:
 def clear_cache() -> None:
     fetch_students.cache_clear()
     fetch_items.cache_clear()
+
+
+def _camel_to_snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def _planner_field_for_schale_filter(name: str) -> str:
+    if name == "PassiveStat":
+        return "passive_stat"
+    if name == "WeaponPassiveStat":
+        return "weapon_passive_stat"
+    if name == "ExtraPassiveStat":
+        return "extra_passive_stat"
+    if name == "SkillCC":
+        return "skill_cc"
+    if name.startswith("Skill"):
+        return f"skill_{_camel_to_snake(name[5:])}"
+    return _camel_to_snake(name)
+
+
+def _find_student_list_filter_asset(index_html: str) -> str | None:
+    matches = re.findall(r'assets/StudentListFilters-[^"\']+\.js', index_html)
+    return matches[-1] if matches else None
+
+
+def _find_index_asset(index_html: str) -> str | None:
+    match = re.search(r'src="/(?P<asset>assets/index-[^"]+\.js)"', index_html)
+    return match.group("asset") if match else None
+
+
+def _extract_schaledb_skill_filter_names(script: str) -> tuple[str, ...]:
+    names = set(re.findall(r"case\"(Skill[A-Za-z0-9_]+)\"", script))
+    names.update(re.findall(r"\b(PassiveStat|WeaponPassiveStat|ExtraPassiveStat)\b", script))
+    config_match = re.search(r"studentListFilters:\{(?P<body>.*?)ExcludeAlts:", script)
+    if config_match:
+        names.update(re.findall(r"([A-Za-z][A-Za-z0-9_]*):(?:\[\]|!1|\{)", config_match.group("body")))
+    return tuple(sorted(name for name in names if name.startswith("Skill") or name.endswith("PassiveStat")))
+
+
+def check_schaledb_filter_schema() -> dict[str, Any]:
+    index_html = _fetch_text(SITE_URL)
+    asset_path = _find_student_list_filter_asset(index_html)
+    if asset_path is None:
+        index_asset = _find_index_asset(index_html)
+        if index_asset is not None:
+            index_script = _fetch_text(f"{BASE_URL}/{index_asset}")
+            asset_path = _find_student_list_filter_asset(index_script)
+    if asset_path is None:
+        raise RuntimeError("Could not find the SchaleDB StudentListFilters asset.")
+
+    script = _fetch_text(f"{BASE_URL}/{asset_path}")
+    schale_filters = _extract_schaledb_skill_filter_names(script)
+    mapped_fields = tuple(_planner_field_for_schale_filter(name) for name in schale_filters)
+    known_fields = set(SKILL_FIELDS)
+    missing_fields = tuple(field for field in mapped_fields if field not in known_fields)
+    stale_fields = tuple(field for field in SKILL_FIELDS if field not in set(mapped_fields))
+    return {
+        "asset": asset_path,
+        "schale_filters": schale_filters,
+        "mapped_fields": mapped_fields,
+        "missing_fields": missing_fields,
+        "stale_fields": stale_fields,
+    }
 
 
 def _normalize_key(text: str) -> str:

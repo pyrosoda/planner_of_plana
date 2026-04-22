@@ -10,7 +10,13 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-from tools.schaledb_sync import SCALAR_FIELDS, SKILL_FIELDS, SYNC_FIELDS, apply_sync_fields
+from tools.schaledb_sync import (
+    SCALAR_FIELDS,
+    SKILL_FIELDS,
+    SYNC_FIELDS,
+    apply_sync_fields,
+    check_schaledb_filter_schema,
+)
 from tools.student_meta_tool import _write_students, get_students
 
 
@@ -21,6 +27,28 @@ def _print_fields() -> None:
     print("skill filter fields:")
     for field_name in SKILL_FIELDS:
         print(f"  - {field_name}")
+
+
+def _print_schema_check() -> int:
+    report = check_schaledb_filter_schema()
+    print(f"asset: {report['asset']}")
+    print("schaledb skill filters:")
+    for filter_name, field_name in zip(report["schale_filters"], report["mapped_fields"]):
+        status = "known" if field_name in SKILL_FIELDS else "missing"
+        print(f"  - {filter_name} -> {field_name} ({status})")
+
+    missing = report["missing_fields"]
+    stale = report["stale_fields"]
+    if missing:
+        print("missing planner fields:")
+        for field_name in missing:
+            print(f"  - {field_name}")
+    if stale:
+        print("planner-only fields:")
+        for field_name in stale:
+            print(f"  - {field_name}")
+    print("schema_check: " + ("needs_update" if missing else "ok"))
+    return 1 if missing else 0
 
 
 def main() -> int:
@@ -34,11 +62,14 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Show the sync summary without writing changes.")
     parser.add_argument("--force-refresh", action="store_true", help="Ignore cached SchaleDB data and fetch again.")
     parser.add_argument("--list-fields", action="store_true", help="Print every SchaleDB-derived metadata field this tool syncs.")
+    parser.add_argument("--check-filter-schema", action="store_true", help="Compare SchaleDB skill filter keys with planner SKILL_FIELDS.")
     args = parser.parse_args()
 
     if args.list_fields:
         _print_fields()
         return 0
+    if args.check_filter_schema:
+        return _print_schema_check()
 
     local_students = get_students()
     updated_count, missing = apply_sync_fields(
