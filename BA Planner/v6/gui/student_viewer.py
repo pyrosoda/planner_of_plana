@@ -70,7 +70,7 @@ C = {
     "t10": "#f0f0ff",
 }
 
-SEARCH_PLACEHOLDER = "이름 또는 ID 검색"
+SEARCH_PLACEHOLDER = "이름, ID 또는 태그 검색"
 FILTER_DEBOUNCE_MS = 180
 VISIBLE_ROW_BUFFER = 2
 
@@ -806,8 +806,11 @@ class StudentViewer(tk.Toplevel):
         if weapon != "all":
             arr = [s for s in arr if s.get("weapon_state") == weapon]
         if query:
-            q = query.lower()
-            arr = [s for s in arr if q in (s.get("display_name") or "").lower() or q in (s.get("student_id") or "").lower()]
+            q = query.casefold()
+            arr = [
+                s for s in arr
+                if q in student_meta.search_blob(str(s.get("student_id") or ""), s.get("display_name") or "")
+            ]
         if self._hide_jp_only.get():
             arr = [s for s in arr if not student_meta.is_jp_only(str(s.get("student_id") or ""))]
 

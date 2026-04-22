@@ -246,8 +246,7 @@ class FastScanConfigDialog(tk.Toplevel):
     def _apply_filter(self) -> None:
         query = self._search.get().strip().casefold()
         for student_id, row in self._rows:
-            title = student_meta.display_name(student_id).casefold()
-            visible = not query or query in title or query in student_id.casefold()
+            visible = not query or query in student_meta.search_blob(student_id)
             if visible:
                 row.pack(fill="x", padx=scale_px(8, self._ui_scale), pady=(0, scale_px(2, self._ui_scale)))
             else:

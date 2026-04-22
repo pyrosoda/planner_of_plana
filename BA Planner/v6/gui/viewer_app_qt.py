@@ -2159,7 +2159,7 @@ class StudentViewerWindow(QMainWindow):
         toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search by student name or id")
+        self._search.setPlaceholderText("Search by student name, id, or tag")
         self._search.textChanged.connect(self._apply_filters)
         toolbar_layout.addWidget(self._search, 3)
 
@@ -3407,7 +3407,7 @@ class StudentViewerWindow(QMainWindow):
         title_add = QLabel("Quick Add")
         title_add.setObjectName("sectionTitle")
         quick_add_header.addWidget(title_add)
-        quick_add_note = QLabel("Search by student name or id only when needed.")
+        quick_add_note = QLabel("Search by student name, id, or tag only when needed.")
         quick_add_note.setObjectName("count")
         quick_add_note.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         quick_add_header.addWidget(quick_add_note, 1)
@@ -3417,7 +3417,7 @@ class StudentViewerWindow(QMainWindow):
         quick_add_row.setContentsMargins(0, 0, 0, 0)
         quick_add_row.setSpacing(scale_px(8, self._ui_scale))
         self._plan_search = QLineEdit()
-        self._plan_search.setPlaceholderText("Type student name or id")
+        self._plan_search.setPlaceholderText("Type student name, id, or tag")
         self._plan_search.textChanged.connect(self._refresh_plan_lists)
         quick_add_row.addWidget(self._plan_search, 1)
         self._plan_add_button = ParallelogramButton("Add", style=self._card_button_style)
@@ -3431,7 +3431,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_all_list.setVisible(False)
         quick_add_layout.addWidget(self._plan_all_list)
 
-        self._plan_search_state = QLabel("Type a student name or id to search.")
+        self._plan_search_state = QLabel("Type a student name, id, or tag to search.")
         self._plan_search_state.setObjectName("filterSummary")
         quick_add_layout.addWidget(self._plan_search_state)
 
@@ -4115,7 +4115,7 @@ class StudentViewerWindow(QMainWindow):
     def _refresh_plan_lists(self) -> None:
         if not hasattr(self, "_plan_all_list"):
             return
-        query = self._plan_search.text().strip().lower()
+        query = self._plan_search.text().strip().casefold()
         current_all = self._plan_current_all_student_id()
         current_plan = self._current_plan_grid_student_id() or self._selected_plan_student_id
         goal_map = self._plan_goal_map()
@@ -4124,7 +4124,7 @@ class StudentViewerWindow(QMainWindow):
         match_count = 0
         if query:
             for record in sorted(self._all_students, key=lambda item: item.title.lower()):
-                if query not in record.title.lower() and query not in record.student_id.lower():
+                if query not in student_meta.search_blob(record.student_id, record.title):
                     continue
                 status = "Planned" if record.student_id in goal_map else ("Owned" if record.owned else "Unowned")
                 item = QListWidgetItem(f"{record.title}\n{status}")
@@ -4136,7 +4136,7 @@ class StudentViewerWindow(QMainWindow):
 
         self._plan_all_list.setVisible(bool(query))
         if not query:
-            self._plan_search_state.setText("Type a student name or id to search.")
+            self._plan_search_state.setText("Type a student name, id, or tag to search.")
         elif match_count:
             self._plan_search_state.setText(f"{match_count} students found. Select one and add it to the plan.")
         else:
@@ -4458,7 +4458,7 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_inventory_tab()
 
     def _apply_filters(self) -> None:
-        query = self._search.text().strip().lower()
+        query = self._search.text().strip().casefold()
         sort_mode = self._sort_mode.currentData()
 
         items = [

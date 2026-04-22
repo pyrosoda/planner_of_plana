@@ -215,7 +215,6 @@ FIELD_OPTIONS: dict[str, tuple[str, ...]] = {
         "EnhanceSonicRate",
         "HealEffectivenessRate",
         "HealPower",
-        "IgnoreDelayCount",
         "MaxHP",
         "OppressionPower",
         "OppressionResist",

@@ -26,6 +26,21 @@ FILTER_FIELD_ORDER: tuple[str, ...] = (
     "weapon_type",
     "cover_type",
     "range_type",
+    "passive_stat",
+    "weapon_passive_stat",
+    "extra_passive_stat",
+    "skill_buff",
+    "skill_debuff",
+    "skill_cc",
+    "skill_special",
+    "skill_heal_targets",
+    "skill_dispel_targets",
+    "skill_reposition_targets",
+    "skill_summon_types",
+    "skill_ignore_cover",
+    "skill_is_area_damage",
+    "skill_buff_specials",
+    "skill_knockback",
 )
 
 FILTER_FIELD_LABELS: dict[str, str] = {
@@ -42,6 +57,21 @@ FILTER_FIELD_LABELS: dict[str, str] = {
     "weapon_type": "Weapon Type",
     "cover_type": "Cover",
     "range_type": "Range",
+    "passive_stat": "Passive Stat",
+    "weapon_passive_stat": "Weapon Passive",
+    "extra_passive_stat": "Extra Passive",
+    "skill_buff": "Buff Skill",
+    "skill_debuff": "Debuff Skill",
+    "skill_cc": "Crowd Control",
+    "skill_special": "Special Effect",
+    "skill_heal_targets": "Heal",
+    "skill_dispel_targets": "Dispel",
+    "skill_reposition_targets": "Move Skill",
+    "skill_summon_types": "Summon",
+    "skill_ignore_cover": "EX Ignore Cover",
+    "skill_is_area_damage": "EX Area Damage",
+    "skill_buff_specials": "Special Buff",
+    "skill_knockback": "Knockback / Pull",
 }
 
 META_FILTER_KEYS: tuple[str, ...] = tuple(key for key in FILTER_FIELD_ORDER if key not in {"student_star", "weapon_state"})
@@ -63,6 +93,11 @@ def enrich_student_row(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def get_student_value(student: Any, key: str) -> str:
+    values = get_student_values(student, key)
+    return values[0] if values else ""
+
+
+def get_student_values(student: Any, key: str) -> tuple[str, ...]:
     owned = True
     if isinstance(student, Mapping):
         owned = bool(student.get("owned", True))
@@ -75,14 +110,18 @@ def get_student_value(student: Any, key: str) -> str:
             value = getattr(student, key)
         elif key == "student_star" and hasattr(student, "star"):
             value = getattr(student, "star")
+        elif key in META_FILTER_KEYS:
+            value = student_meta.field(_student_id(student), key)
         else:
             value = None
 
     if not owned and key in {"student_star", "weapon_state"}:
-        return ""
+        return ()
     if value is None:
-        return ""
-    return str(value)
+        return ()
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item) for item in value if str(item))
+    return (str(value),)
 
 
 def _student_id(student: Any) -> str:
@@ -98,19 +137,19 @@ def matches_student_filters(
     *,
     hide_jp_only: bool = False,
 ) -> bool:
-    cleaned_query = query.strip().lower()
-    if hide_jp_only and student_meta.is_jp_only(_student_id(student)):
+    cleaned_query = query.strip().casefold()
+    student_id = _student_id(student)
+    if hide_jp_only and student_meta.is_jp_only(student_id):
         return False
     if cleaned_query:
-        display_name = get_student_value(student, "display_name").lower()
-        student_id = get_student_value(student, "student_id").lower()
-        if cleaned_query not in display_name and cleaned_query not in student_id:
+        display_name = get_student_value(student, "display_name")
+        if cleaned_query not in student_meta.search_blob(student_id, display_name):
             return False
 
     for key, selected_values in selected_filters.items():
         if not selected_values:
             continue
-        if get_student_value(student, key) not in selected_values:
+        if not set(get_student_values(student, key)) & selected_values:
             return False
     return True
 
@@ -119,9 +158,7 @@ def build_filter_options(students: Iterable[Any]) -> dict[str, list[FilterOption
     option_values: dict[str, set[str]] = {key: set() for key in FILTER_FIELD_ORDER}
     for student in students:
         for key in FILTER_FIELD_ORDER:
-            value = get_student_value(student, key)
-            if value:
-                option_values[key].add(value)
+            option_values[key].update(get_student_values(student, key))
 
     return {key: _sorted_options(key, values) for key, values in option_values.items()}
 

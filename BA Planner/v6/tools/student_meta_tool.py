@@ -17,7 +17,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from core.config import get_storage_paths
 from gui.ui_scale import get_ui_scale, scale_px
-from tools.schaledb_sync import build_student_meta_from_schale, local_id_to_schale_path, parse_student_source
+from tools.schaledb_sync import SYNC_FIELDS, build_student_meta_from_schale, local_id_to_schale_path, parse_student_source
 from tools.student_meta_options import FIELD_OPTIONS
 
 MODULE_NAME = "core.student_meta"
@@ -31,6 +31,7 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "template_name", "label": "Template File", "required": True},
     {"name": "group", "label": "Group", "required": True},
     {"name": "variant", "label": "Variant"},
+    {"name": "search_tags", "label": "Search Tags"},
     {"name": "school", "label": "School"},
     {"name": "rarity", "label": "Rarity"},
     {"name": "recruit_type", "label": "Recruit Type"},
@@ -95,12 +96,13 @@ LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
 LIST_FIELDS = {
     "growth_material_main_ex_levels", "growth_material_main_skill_levels",
     "growth_material_sub_ex_levels", "growth_material_sub_skill_levels",
+    "search_tags",
     "passive_stat", "weapon_passive_stat", "extra_passive_stat", "skill_buff", "skill_debuff",
     "skill_cc", "skill_special", "skill_heal_targets", "skill_dispel_targets",
     "skill_reposition_targets", "skill_summon_types", "skill_buff_specials",
 }
 ANALYTICS_FIELDS = (
-    "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
+    "search_tags", "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
     "growth_material_main", "growth_material_sub", "equipment_slot_1", "equipment_slot_2",
     "equipment_slot_3", "combat_class", "cover_type", "range_type", "role", "weapon_type",
     "position", "terrain_outdoor", "terrain_urban", "terrain_indoor", "weapon3_terrain_boost",
@@ -119,6 +121,7 @@ METADATA_TABLE_COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("server", "Server", 90),
     ("group", "Group", 140),
     ("variant", "Variant", 110),
+    ("search_tags", "Search Tags", 180),
     ("school", "School", 120),
     ("rarity", "Rarity", 60),
     ("attack_type", "Attack", 90),
@@ -133,6 +136,7 @@ DETAIL_FIELD_ORDER: tuple[str, ...] = (
     "template_name",
     "group",
     "variant",
+    "search_tags",
     "school",
     "rarity",
     "recruit_type",
@@ -219,6 +223,12 @@ def _display(field_name: str, value: object) -> str:
     if field_name in LIST_FIELDS:
         return ", ".join(_as_list(value))
     return "" if value is None else str(value)
+
+
+def _student_search_blob(student_id: str, meta: dict[str, object]) -> str:
+    terms = [student_id, str(meta.get("display_name") or "")]
+    terms.extend(_as_list(meta.get("search_tags")))
+    return " ".join(term for term in terms if term).casefold()
 
 
 def _form_value(field_name: str, raw: str) -> object | None:
@@ -463,7 +473,7 @@ def build_student_attribute_rows(students: dict[str, dict], field_name: str, sel
     query = search_query.strip().casefold()
     for sid, meta in students.items():
         name = str(meta.get("display_name", ""))
-        if query and query not in f"{sid} {name}".casefold():
+        if query and query not in _student_search_blob(sid, meta):
             continue
         raw = _resolved_field_value(sid, meta, field_name)
         values = _as_list(raw) if field_name in LIST_FIELDS else []
@@ -556,6 +566,7 @@ def build_metadata_table_rows(
             "server": _server_label(student_id),
             "group": str(meta.get("group", "") or ""),
             "variant": _display("variant", meta.get("variant")),
+            "search_tags": _display("search_tags", meta.get("search_tags")),
             "school": _display("school", meta.get("school")),
             "rarity": _display("rarity", meta.get("rarity")),
             "attack_type": _display("attack_type", meta.get("attack_type")),
@@ -936,7 +947,7 @@ class StudentMetaToolApp:
         self._list_ids: list[str] = []
         for sid in sorted(self.students):
             name = str(self.students[sid].get("display_name", ""))
-            if query and query not in f"{sid} {name}".lower():
+            if query and query not in _student_search_blob(sid, self.students[sid]):
                 continue
             self._list_ids.append(sid)
             self.student_list.insert(tk.END, f"{sid} | {name}")

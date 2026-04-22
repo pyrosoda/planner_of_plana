@@ -14,6 +14,7 @@ from tools.student_meta_options import FIELD_OPTIONS
 STUDENTS_URL = "https://schaledb.com/data/en/students.min.json"
 ITEMS_URL = "https://schaledb.com/data/en/items.min.json"
 SCALAR_FIELDS: tuple[str, ...] = (
+    "search_tags",
     "school",
     "rarity",
     "recruit_type",
@@ -57,6 +58,9 @@ SKILL_FIELDS: tuple[str, ...] = (
     "skill_knockback",
 )
 SYNC_FIELDS: tuple[str, ...] = SCALAR_FIELDS + SKILL_FIELDS
+EXCLUDED_SKILL_STATS: frozenset[str] = frozenset({
+    "IgnoreDelayCount",
+})
 
 ATTACK_TYPE_MAP: dict[str, str] = {
     "Explosion": "Explosive",
@@ -245,6 +249,35 @@ def _listify(value: Any) -> list[Any]:
     return [value]
 
 
+def _flatten_text_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        values: list[str] = []
+        for item in value.values():
+            values.extend(_flatten_text_values(item))
+        return values
+    if isinstance(value, (list, tuple, set)):
+        values: list[str] = []
+        for item in value:
+            values.extend(_flatten_text_values(item))
+        return values
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _unique_text_values(value: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for text in _flatten_text_values(value):
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
 def _flatten_numbers(value: Any) -> list[int]:
     if isinstance(value, list):
         result: list[int] = []
@@ -387,6 +420,7 @@ def scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> 
     equipment = list(student.get("Equipment") or [])
     growth_main, growth_sub = _growth_materials(student, items)
     result = {
+        "search_tags": _unique_text_values(student.get("SearchTags")),
         "school": SCHOOL_MAP.get(str(student.get("School")), student.get("School")),
         "rarity": str(student.get("StarGrade")) if student.get("StarGrade") is not None else None,
         "recruit_type": _recruit_type(student),
@@ -416,7 +450,24 @@ def _stat_prefix(effect: dict[str, Any]) -> str | None:
     stat = effect.get("Stat")
     if not isinstance(stat, str) or "_" not in stat:
         return None
-    return stat.split("_", 1)[0]
+    prefix = stat.split("_", 1)[0]
+    return None if prefix in EXCLUDED_SKILL_STATS else prefix
+
+
+def _last_effect_value(effect: dict[str, Any]) -> int | float | None:
+    value = effect.get("Value")
+    while isinstance(value, list) and value:
+        value = value[-1]
+    return value if isinstance(value, (int, float)) else None
+
+
+def _has_positive_value(effect: dict[str, Any]) -> bool:
+    value = _last_effect_value(effect)
+    return value is not None and value > 0
+
+
+def _effect_targets(effect: dict[str, Any]) -> list[str]:
+    return [str(target) for target in _listify(effect.get("Target"))]
 
 
 def _flatten_skill_pool(student: dict[str, Any], schale_students: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -424,16 +475,23 @@ def _flatten_skill_pool(student: dict[str, Any], schale_students: dict[str, dict
     skills = student.get("Skills") or {}
     gear_released = ((student.get("Gear") or {}).get("Released") or [False, False, False])[0]
 
+    def add_skill(skill: Any) -> None:
+        if not isinstance(skill, dict):
+            return
+        pool.append(skill)
+        for extra_skill in skill.get("ExtraSkills") or []:
+            add_skill(extra_skill)
+
     for skill_name, skill in skills.items():
         if skill_name == "GearPublic" and not gear_released:
             continue
-        pool.append(skill)
-        pool.extend(skill.get("ExtraSkills") or [])
+        add_skill(skill)
 
     for summon in student.get("Summons") or []:
         summon_id = str(summon.get("Id"))
         summon_student = schale_students.get(summon_id) or {}
-        pool.extend((summon_student.get("Skills") or {}).values())
+        for skill in (summon_student.get("Skills") or {}).values():
+            add_skill(skill)
 
     return pool
 
@@ -466,8 +524,9 @@ def skill_values(student: dict[str, Any], schale_students: dict[str, dict[str, A
         for effect in skill.get("Effects") or []:
             if (
                 effect.get("Type") == "Buff"
-                and "Self" in _listify(effect.get("Target"))
+                and "Self" in _effect_targets(effect)
                 and not effect.get("Duration")
+                and _has_positive_value(effect)
             ):
                 stat = _stat_prefix(effect)
                 if stat:
@@ -486,13 +545,14 @@ def skill_values(student: dict[str, Any], schale_students: dict[str, dict[str, A
     for skill in skill_pool:
         for effect in skill.get("Effects") or []:
             effect_type = effect.get("Type")
-            targets = _listify(effect.get("Target"))
+            targets = _effect_targets(effect)
             stat = _stat_prefix(effect)
 
             if (
                 effect_type == "Buff"
                 and any(str(target).startswith("Ally") for target in targets)
                 and stat
+                and _has_positive_value(effect)
             ):
                 result["skill_buff"].append(stat)
 
@@ -509,6 +569,7 @@ def skill_values(student: dict[str, Any], schale_students: dict[str, dict[str, A
                 effect_type == "Buff"
                 and any(str(target).startswith("Enemy") for target in targets)
                 and stat
+                and _has_positive_value(effect)
             ):
                 result["skill_debuff"].append(stat)
 
@@ -544,6 +605,8 @@ def skill_values(student: dict[str, Any], schale_students: dict[str, dict[str, A
                 effect_type == "Buff"
                 and "AllySupport" in targets
                 and stat
+                and student.get("SquadType") == "Main"
+                and _has_positive_value(effect)
             ):
                 result["skill_buff_specials"].append(stat)
 
