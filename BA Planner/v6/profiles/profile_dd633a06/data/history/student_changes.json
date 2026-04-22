@@ -26598,5 +26598,93 @@
     "new": "1",
     "changed_at": "2026-04-12T14:52:31+09:00",
     "scan_id": "2026-04-12_145231"
+  },
+  {
+    "student_id": "nagisa",
+    "field": "weapon_state",
+    "old": "weapon_equipped",
+    "new": "weapon_unlocked_not_equipped",
+    "changed_at": "2026-04-22T00:06:48+09:00",
+    "scan_id": "2026-04-22_000648"
+  },
+  {
+    "student_id": "nagisa_swimsuit",
+    "field": "weapon_state",
+    "old": "weapon_equipped",
+    "new": "weapon_unlocked_not_equipped",
+    "changed_at": "2026-04-22T00:06:48+09:00",
+    "scan_id": "2026-04-22_000648"
+  },
+  {
+    "student_id": "mine_idol",
+    "field": "student_star",
+    "old": "4",
+    "new": "5",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "mine_idol",
+    "field": "weapon_state",
+    "old": "no_weapon_system",
+    "new": "weapon_unlocked_not_equipped",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "mine_idol",
+    "field": "stat_hp",
+    "old": null,
+    "new": "0",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "mine_idol",
+    "field": "stat_atk",
+    "old": null,
+    "new": "0",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "mine_idol",
+    "field": "stat_heal",
+    "old": null,
+    "new": "0",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "sakurako",
+    "field": "level",
+    "old": "1",
+    "new": "38",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "suzumi",
+    "field": "equip2_level",
+    "old": "1",
+    "new": "4",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "yuzu_maid",
+    "field": "weapon_star",
+    "old": "3",
+    "new": "4",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
+  },
+  {
+    "student_id": "chinatsu",
+    "field": "equip2_level",
+    "old": "1",
+    "new": "4",
+    "changed_at": "2026-04-22T00:08:03+09:00",
+    "scan_id": "2026-04-22_000803"
   }
 ]

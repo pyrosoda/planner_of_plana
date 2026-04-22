@@ -190,11 +190,9 @@ JP_ONLY_STUDENT_IDS: frozenset[str] = frozenset(('akane_school_uniform',
  'kei',
  'konoka',
  'koyuki_pajama',
- 'michiru_dress',
  'rena',
  'rio_battle',
  'toki_battle',
- 'tsukuyo_dress',
  'yuzu_battle'))
 
 

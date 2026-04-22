@@ -394,5 +394,419 @@
     "new": "56",
     "changed_at": "2026-04-19T13:27:16+09:00",
     "scan_id": "2026-04-19_132716"
+  },
+  {
+    "item": "Item_Icon_Material_Antikythera_0",
+    "item_id": "Item_Icon_Material_Antikythera_0",
+    "name": "안티키테라 장치 조각",
+    "old": null,
+    "new": "2868",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Antikythera_1",
+    "item_id": "Item_Icon_Material_Antikythera_1",
+    "name": "파손된 안티키테라 장치",
+    "old": null,
+    "new": "1070",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Antikythera_3",
+    "item_id": "Item_Icon_Material_Antikythera_3",
+    "name": "온전한 안티키테라 장치",
+    "old": null,
+    "new": "166",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_AtlantisMedal_0",
+    "item_id": "Item_Icon_Material_AtlantisMedal_0",
+    "name": "아틀란티스 메달 조각",
+    "old": null,
+    "new": "882",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_AtlantisMedal_1",
+    "item_id": "Item_Icon_Material_AtlantisMedal_1",
+    "name": "파손된 아틀란티스 메달",
+    "old": null,
+    "new": "250",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_AtlantisMedal_2",
+    "item_id": "Item_Icon_Material_AtlantisMedal_2",
+    "name": "마모된 아틀란티스 메달",
+    "old": null,
+    "new": "161",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_AtlantisMedal_3",
+    "item_id": "Item_Icon_Material_AtlantisMedal_3",
+    "name": "온전한 아틀란티스 메달",
+    "old": null,
+    "new": "89",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Baghdad_0",
+    "item_id": "Item_Icon_Material_Baghdad_0",
+    "name": "고대 전지 조각",
+    "old": null,
+    "new": "940",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Baghdad_1",
+    "item_id": "Item_Icon_Material_Baghdad_1",
+    "name": "파손된 고대 전지",
+    "old": null,
+    "new": "1910",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Baghdad_2",
+    "item_id": "Item_Icon_Material_Baghdad_2",
+    "name": "마모된 고대 전지",
+    "old": null,
+    "new": "974",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Baghdad_3",
+    "item_id": "Item_Icon_Material_Baghdad_3",
+    "name": "온전한 고대 전지",
+    "old": null,
+    "new": "199",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_CrystalHaniwa_1",
+    "item_id": "Item_Icon_Material_CrystalHaniwa_1",
+    "name": "파손된 수정 하니와",
+    "old": null,
+    "new": "2203",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_CrystalHaniwa_3",
+    "item_id": "Item_Icon_Material_CrystalHaniwa_3",
+    "name": "온전한 수정 하니와",
+    "old": null,
+    "new": "238",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_DiscoColgante_0",
+    "item_id": "Item_Icon_Material_DiscoColgante_0",
+    "name": "디스코 콜간테 조각",
+    "old": null,
+    "new": "1390",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_DiscoColgante_1",
+    "item_id": "Item_Icon_Material_DiscoColgante_1",
+    "name": "파손된 디스코 콜간테",
+    "old": null,
+    "new": "701",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Ether_0",
+    "item_id": "Item_Icon_Material_Ether_0",
+    "name": "에테르 가루",
+    "old": null,
+    "new": "2928",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Ether_1",
+    "item_id": "Item_Icon_Material_Ether_1",
+    "name": "에테르 조각",
+    "old": null,
+    "new": "2037",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Ether_2",
+    "item_id": "Item_Icon_Material_Ether_2",
+    "name": "에테르 결정",
+    "old": null,
+    "new": "1161",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Ether_3",
+    "item_id": "Item_Icon_Material_Ether_3",
+    "name": "에테르 정수",
+    "old": null,
+    "new": "175",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Kikuko_0",
+    "item_id": "Item_Icon_Material_Kikuko_0",
+    "name": "머리가 자라는 인형 조각",
+    "old": null,
+    "new": "1993",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Kikuko_1",
+    "item_id": "Item_Icon_Material_Kikuko_1",
+    "name": "파손된 머리가 자라는 인형",
+    "old": null,
+    "new": "745",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Kikuko_3",
+    "item_id": "Item_Icon_Material_Kikuko_3",
+    "name": "온전한 머리가 자라는 인형",
+    "old": null,
+    "new": "128",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nebra_0",
+    "item_id": "Item_Icon_Material_Nebra_0",
+    "name": "네브라 디스크 조각",
+    "old": null,
+    "new": "2175",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nebra_1",
+    "item_id": "Item_Icon_Material_Nebra_1",
+    "name": "파손된 네브라 디스크",
+    "old": null,
+    "new": "841",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nebra_3",
+    "item_id": "Item_Icon_Material_Nebra_3",
+    "name": "온전한 네브라 디스크",
+    "old": null,
+    "new": "85",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nimrud_0",
+    "item_id": "Item_Icon_Material_Nimrud_0",
+    "name": "님루드 렌즈 조각",
+    "old": null,
+    "new": "3755",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nimrud_1",
+    "item_id": "Item_Icon_Material_Nimrud_1",
+    "name": "파손된 님루드 렌즈",
+    "old": null,
+    "new": "1530",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nimrud_2",
+    "item_id": "Item_Icon_Material_Nimrud_2",
+    "name": "마모된 님루드 렌즈",
+    "old": null,
+    "new": "718",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Nimrud_3",
+    "item_id": "Item_Icon_Material_Nimrud_3",
+    "name": "온전한 님루드 렌즈",
+    "old": null,
+    "new": "186",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Quimbaya_0",
+    "item_id": "Item_Icon_Material_Quimbaya_0",
+    "name": "킴바야 유물 조각",
+    "old": null,
+    "new": "995",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Quimbaya_1",
+    "item_id": "Item_Icon_Material_Quimbaya_1",
+    "name": "파손된 킴바야 유물",
+    "old": null,
+    "new": "252",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Quimbaya_3",
+    "item_id": "Item_Icon_Material_Quimbaya_3",
+    "name": "온전한 킴바야 유물",
+    "old": null,
+    "new": "43",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Rocket_0",
+    "item_id": "Item_Icon_Material_Rocket_0",
+    "name": "이스탄불 로켓 조각",
+    "old": null,
+    "new": "662",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Rocket_1",
+    "item_id": "Item_Icon_Material_Rocket_1",
+    "name": "파손된 이스탄불 로켓",
+    "old": null,
+    "new": "194",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Rocket_3",
+    "item_id": "Item_Icon_Material_Rocket_3",
+    "name": "온전한 이스탄불 로켓",
+    "old": null,
+    "new": "97",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_RomanDice_0",
+    "item_id": "Item_Icon_Material_RomanDice_0",
+    "name": "로마 12면체 조각",
+    "old": null,
+    "new": "1069",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_RomanDice_1",
+    "item_id": "Item_Icon_Material_RomanDice_1",
+    "name": "파손된 로마 12면체",
+    "old": null,
+    "new": "184",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_RomanDice_3",
+    "item_id": "Item_Icon_Material_RomanDice_3",
+    "name": "온전한 로마 12면체",
+    "old": null,
+    "new": "57",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_TotemPole_0",
+    "item_id": "Item_Icon_Material_TotemPole_0",
+    "name": "토템폴 조각",
+    "old": null,
+    "new": "2119",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_TotemPole_1",
+    "item_id": "Item_Icon_Material_TotemPole_1",
+    "name": "파손된 토템폴",
+    "old": null,
+    "new": "995",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_TotemPole_3",
+    "item_id": "Item_Icon_Material_TotemPole_3",
+    "name": "온전한 토템폴",
+    "old": null,
+    "new": "175",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_Voynich_3",
+    "item_id": "Item_Icon_Material_Voynich_3",
+    "name": "온전한 보이니치 사본",
+    "old": null,
+    "new": "170",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_WinniStone_0",
+    "item_id": "Item_Icon_Material_WinniStone_0",
+    "name": "위니페소키 스톤 조각",
+    "old": null,
+    "new": "1602",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_WinniStone_1",
+    "item_id": "Item_Icon_Material_WinniStone_1",
+    "name": "파손된 위니페소키 스톤",
+    "old": null,
+    "new": "327",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_WinniStone_2",
+    "item_id": "Item_Icon_Material_WinniStone_2",
+    "name": "마모된 위니페소키 스톤",
+    "old": null,
+    "new": "135",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
+  },
+  {
+    "item": "Item_Icon_Material_WinniStone_3",
+    "item_id": "Item_Icon_Material_WinniStone_3",
+    "name": "온전한 위니페소키 스톤",
+    "old": null,
+    "new": "81",
+    "changed_at": "2026-04-22T00:56:56+09:00",
+    "scan_id": "2026-04-22_005656"
   }
 ]

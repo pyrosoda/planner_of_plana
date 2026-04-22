@@ -1,0 +1,63 @@
+{
+  "scan_id": "2026-04-22_000648",
+  "scanned_at": "2026-04-22T00:06:48+09:00",
+  "app_version": "v5.1",
+  "window_size": [
+    2560,
+    1440
+  ],
+  "profile_name": "거모이는존재한다",
+  "result": {
+    "resources": {},
+    "items": [],
+    "equipment": [],
+    "students": [
+      {
+        "student_id": "nagisa",
+        "display_name": "나기사",
+        "level": 90,
+        "student_star": 5,
+        "weapon_state": "weapon_unlocked_not_equipped",
+        "weapon_star": null,
+        "weapon_level": null,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 10,
+        "skill3": 10,
+        "equip1": "T10",
+        "equip2": "T10",
+        "equip3": "T10",
+        "equip4": null,
+        "equip1_level": 70,
+        "equip2_level": 70,
+        "equip3_level": 70,
+        "stat_hp": null,
+        "stat_atk": null,
+        "stat_heal": null
+      },
+      {
+        "student_id": "nagisa_swimsuit",
+        "display_name": "나기사(수영복)",
+        "level": 90,
+        "student_star": 5,
+        "weapon_state": "weapon_unlocked_not_equipped",
+        "weapon_star": null,
+        "weapon_level": null,
+        "ex_skill": 5,
+        "skill1": 10,
+        "skill2": 10,
+        "skill3": 10,
+        "equip1": "T10",
+        "equip2": "T10",
+        "equip3": "T10",
+        "equip4": null,
+        "equip1_level": 70,
+        "equip2_level": 70,
+        "equip3_level": 70,
+        "stat_hp": null,
+        "stat_atk": null,
+        "stat_heal": null
+      }
+    ]
+  }
+}

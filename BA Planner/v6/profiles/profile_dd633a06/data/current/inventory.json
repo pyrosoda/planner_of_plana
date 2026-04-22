@@ -5,8 +5,8 @@
     "quantity": "2203",
     "index": 0,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Hyakkiyako_1": {
     "item_id": "Item_Icon_SkillBook_Hyakkiyako_1",
@@ -14,8 +14,8 @@
     "quantity": "789",
     "index": 1,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Hyakkiyako_2": {
     "item_id": "Item_Icon_SkillBook_Hyakkiyako_2",
@@ -23,8 +23,8 @@
     "quantity": "403",
     "index": 2,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Hyakkiyako_3": {
     "item_id": "Item_Icon_SkillBook_Hyakkiyako_3",
@@ -32,8 +32,8 @@
     "quantity": "17",
     "index": 3,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_RedWinter_0": {
     "item_id": "Item_Icon_SkillBook_RedWinter_0",
@@ -41,8 +41,8 @@
     "quantity": "3697",
     "index": 4,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_RedWinter_1": {
     "item_id": "Item_Icon_SkillBook_RedWinter_1",
@@ -50,8 +50,8 @@
     "quantity": "1699",
     "index": 5,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_RedWinter_2": {
     "item_id": "Item_Icon_SkillBook_RedWinter_2",
@@ -59,8 +59,8 @@
     "quantity": "1193",
     "index": 6,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_RedWinter_3": {
     "item_id": "Item_Icon_SkillBook_RedWinter_3",
@@ -68,8 +68,8 @@
     "quantity": "361",
     "index": 7,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Trinity_0": {
     "item_id": "Item_Icon_SkillBook_Trinity_0",
@@ -77,8 +77,8 @@
     "quantity": "1488",
     "index": 8,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Trinity_1": {
     "item_id": "Item_Icon_SkillBook_Trinity_1",
@@ -86,8 +86,8 @@
     "quantity": "260",
     "index": 9,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Trinity_2": {
     "item_id": "Item_Icon_SkillBook_Trinity_2",
@@ -95,8 +95,8 @@
     "quantity": "257",
     "index": 10,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Trinity_3": {
     "item_id": "Item_Icon_SkillBook_Trinity_3",
@@ -104,8 +104,8 @@
     "quantity": "4",
     "index": 11,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Gehenna_0": {
     "item_id": "Item_Icon_SkillBook_Gehenna_0",
@@ -113,8 +113,8 @@
     "quantity": "2122",
     "index": 12,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Gehenna_1": {
     "item_id": "Item_Icon_SkillBook_Gehenna_1",
@@ -122,8 +122,8 @@
     "quantity": "858",
     "index": 13,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Gehenna_2": {
     "item_id": "Item_Icon_SkillBook_Gehenna_2",
@@ -131,8 +131,8 @@
     "quantity": "636",
     "index": 14,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Gehenna_3": {
     "item_id": "Item_Icon_SkillBook_Gehenna_3",
@@ -140,8 +140,8 @@
     "quantity": "219",
     "index": 15,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Abydos_0": {
     "item_id": "Item_Icon_SkillBook_Abydos_0",
@@ -149,8 +149,8 @@
     "quantity": "3340",
     "index": 16,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Abydos_1": {
     "item_id": "Item_Icon_SkillBook_Abydos_1",
@@ -158,8 +158,8 @@
     "quantity": "1520",
     "index": 17,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Abydos_2": {
     "item_id": "Item_Icon_SkillBook_Abydos_2",
@@ -167,8 +167,8 @@
     "quantity": "869",
     "index": 18,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Abydos_3": {
     "item_id": "Item_Icon_SkillBook_Abydos_3",
@@ -176,8 +176,8 @@
     "quantity": "259",
     "index": 19,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Millennium_0": {
     "item_id": "Item_Icon_SkillBook_Millennium_0",
@@ -185,8 +185,8 @@
     "quantity": "2794",
     "index": 20,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Millennium_1": {
     "item_id": "Item_Icon_SkillBook_Millennium_1",
@@ -194,8 +194,8 @@
     "quantity": "985",
     "index": 21,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Millennium_2": {
     "item_id": "Item_Icon_SkillBook_Millennium_2",
@@ -203,8 +203,8 @@
     "quantity": "735",
     "index": 22,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Millennium_3": {
     "item_id": "Item_Icon_SkillBook_Millennium_3",
@@ -212,8 +212,8 @@
     "quantity": "220",
     "index": 23,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Arius_0": {
     "item_id": "Item_Icon_SkillBook_Arius_0",
@@ -221,8 +221,8 @@
     "quantity": "2425",
     "index": 24,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Arius_1": {
     "item_id": "Item_Icon_SkillBook_Arius_1",
@@ -230,8 +230,8 @@
     "quantity": "1013",
     "index": 25,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Arius_2": {
     "item_id": "Item_Icon_SkillBook_Arius_2",
@@ -239,8 +239,8 @@
     "quantity": "667",
     "index": 26,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Arius_3": {
     "item_id": "Item_Icon_SkillBook_Arius_3",
@@ -248,8 +248,8 @@
     "quantity": "119",
     "index": 27,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Shanhaijing_0": {
     "item_id": "Item_Icon_SkillBook_Shanhaijing_0",
@@ -257,8 +257,8 @@
     "quantity": "2662",
     "index": 28,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Shanhaijing_1": {
     "item_id": "Item_Icon_SkillBook_Shanhaijing_1",
@@ -266,8 +266,8 @@
     "quantity": "1006",
     "index": 29,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Shanhaijing_2": {
     "item_id": "Item_Icon_SkillBook_Shanhaijing_2",
@@ -275,8 +275,8 @@
     "quantity": "692",
     "index": 30,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Shanhaijing_3": {
     "item_id": "Item_Icon_SkillBook_Shanhaijing_3",
@@ -284,8 +284,8 @@
     "quantity": "177",
     "index": 31,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Valkyrie_0": {
     "item_id": "Item_Icon_SkillBook_Valkyrie_0",
@@ -293,8 +293,8 @@
     "quantity": "2524",
     "index": 32,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Valkyrie_1": {
     "item_id": "Item_Icon_SkillBook_Valkyrie_1",
@@ -302,8 +302,8 @@
     "quantity": "897",
     "index": 33,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Valkyrie_2": {
     "item_id": "Item_Icon_SkillBook_Valkyrie_2",
@@ -311,8 +311,8 @@
     "quantity": "417",
     "index": 34,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Valkyrie_3": {
     "item_id": "Item_Icon_SkillBook_Valkyrie_3",
@@ -320,8 +320,8 @@
     "quantity": "5",
     "index": 35,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Highlander_0": {
     "item_id": "Item_Icon_SkillBook_Highlander_0",
@@ -329,8 +329,8 @@
     "quantity": "664",
     "index": 36,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Highlander_1": {
     "item_id": "Item_Icon_SkillBook_Highlander_1",
@@ -338,8 +338,8 @@
     "quantity": "267",
     "index": 37,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Highlander_2": {
     "item_id": "Item_Icon_SkillBook_Highlander_2",
@@ -347,8 +347,8 @@
     "quantity": "173",
     "index": 38,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Highlander_3": {
     "item_id": "Item_Icon_SkillBook_Highlander_3",
@@ -356,8 +356,8 @@
     "quantity": "55",
     "index": 39,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Wildhunt_0": {
     "item_id": "Item_Icon_SkillBook_Wildhunt_0",
@@ -365,8 +365,8 @@
     "quantity": "665",
     "index": 40,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Wildhunt_1": {
     "item_id": "Item_Icon_SkillBook_Wildhunt_1",
@@ -374,8 +374,8 @@
     "quantity": "327",
     "index": 41,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Wildhunt_2": {
     "item_id": "Item_Icon_SkillBook_Wildhunt_2",
@@ -383,8 +383,8 @@
     "quantity": "196",
     "index": 42,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
   },
   "Item_Icon_SkillBook_Wildhunt_3": {
     "item_id": "Item_Icon_SkillBook_Wildhunt_3",
@@ -392,7 +392,421 @@
     "quantity": "56",
     "index": 43,
     "item_source": "item",
-    "last_seen_at": "2026-04-19T13:27:16+09:00",
-    "last_scan_id": "2026-04-19_132716"
+    "last_seen_at": null,
+    "last_scan_id": null
+  },
+  "Item_Icon_Material_Nebra_0": {
+    "item_id": "Item_Icon_Material_Nebra_0",
+    "name": "네브라 디스크 조각",
+    "quantity": "2175",
+    "index": 0,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nebra_1": {
+    "item_id": "Item_Icon_Material_Nebra_1",
+    "name": "파손된 네브라 디스크",
+    "quantity": "841",
+    "index": 1,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nebra_3": {
+    "item_id": "Item_Icon_Material_Nebra_3",
+    "name": "온전한 네브라 디스크",
+    "quantity": "85",
+    "index": 3,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nimrud_0": {
+    "item_id": "Item_Icon_Material_Nimrud_0",
+    "name": "님루드 렌즈 조각",
+    "quantity": "3755",
+    "index": 12,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nimrud_1": {
+    "item_id": "Item_Icon_Material_Nimrud_1",
+    "name": "파손된 님루드 렌즈",
+    "quantity": "1530",
+    "index": 13,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nimrud_2": {
+    "item_id": "Item_Icon_Material_Nimrud_2",
+    "name": "마모된 님루드 렌즈",
+    "quantity": "718",
+    "index": 14,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Nimrud_3": {
+    "item_id": "Item_Icon_Material_Nimrud_3",
+    "name": "온전한 님루드 렌즈",
+    "quantity": "186",
+    "index": 15,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Ether_0": {
+    "item_id": "Item_Icon_Material_Ether_0",
+    "name": "에테르 가루",
+    "quantity": "2928",
+    "index": 24,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Ether_1": {
+    "item_id": "Item_Icon_Material_Ether_1",
+    "name": "에테르 조각",
+    "quantity": "2037",
+    "index": 25,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Ether_2": {
+    "item_id": "Item_Icon_Material_Ether_2",
+    "name": "에테르 결정",
+    "quantity": "1161",
+    "index": 26,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Ether_3": {
+    "item_id": "Item_Icon_Material_Ether_3",
+    "name": "에테르 정수",
+    "quantity": "175",
+    "index": 27,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Antikythera_0": {
+    "item_id": "Item_Icon_Material_Antikythera_0",
+    "name": "안티키테라 장치 조각",
+    "quantity": "2868",
+    "index": 28,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Antikythera_1": {
+    "item_id": "Item_Icon_Material_Antikythera_1",
+    "name": "파손된 안티키테라 장치",
+    "quantity": "1070",
+    "index": 29,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Antikythera_3": {
+    "item_id": "Item_Icon_Material_Antikythera_3",
+    "name": "온전한 안티키테라 장치",
+    "quantity": "166",
+    "index": 31,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Voynich_3": {
+    "item_id": "Item_Icon_Material_Voynich_3",
+    "name": "온전한 보이니치 사본",
+    "quantity": "170",
+    "index": 35,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_CrystalHaniwa_1": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_1",
+    "name": "파손된 수정 하니와",
+    "quantity": "2203",
+    "index": 37,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_CrystalHaniwa_3": {
+    "item_id": "Item_Icon_Material_CrystalHaniwa_3",
+    "name": "온전한 수정 하니와",
+    "quantity": "238",
+    "index": 39,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_TotemPole_0": {
+    "item_id": "Item_Icon_Material_TotemPole_0",
+    "name": "토템폴 조각",
+    "quantity": "2119",
+    "index": 40,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_TotemPole_1": {
+    "item_id": "Item_Icon_Material_TotemPole_1",
+    "name": "파손된 토템폴",
+    "quantity": "995",
+    "index": 41,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_TotemPole_3": {
+    "item_id": "Item_Icon_Material_TotemPole_3",
+    "name": "온전한 토템폴",
+    "quantity": "175",
+    "index": 43,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Baghdad_0": {
+    "item_id": "Item_Icon_Material_Baghdad_0",
+    "name": "고대 전지 조각",
+    "quantity": "940",
+    "index": 44,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Baghdad_1": {
+    "item_id": "Item_Icon_Material_Baghdad_1",
+    "name": "파손된 고대 전지",
+    "quantity": "1910",
+    "index": 45,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Baghdad_2": {
+    "item_id": "Item_Icon_Material_Baghdad_2",
+    "name": "마모된 고대 전지",
+    "quantity": "974",
+    "index": 46,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Baghdad_3": {
+    "item_id": "Item_Icon_Material_Baghdad_3",
+    "name": "온전한 고대 전지",
+    "quantity": "199",
+    "index": 47,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Kikuko_0": {
+    "item_id": "Item_Icon_Material_Kikuko_0",
+    "name": "머리가 자라는 인형 조각",
+    "quantity": "1993",
+    "index": 52,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Kikuko_1": {
+    "item_id": "Item_Icon_Material_Kikuko_1",
+    "name": "파손된 머리가 자라는 인형",
+    "quantity": "745",
+    "index": 53,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Kikuko_3": {
+    "item_id": "Item_Icon_Material_Kikuko_3",
+    "name": "온전한 머리가 자라는 인형",
+    "quantity": "128",
+    "index": 55,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_DiscoColgante_0": {
+    "item_id": "Item_Icon_Material_DiscoColgante_0",
+    "name": "디스코 콜간테 조각",
+    "quantity": "1390",
+    "index": 56,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_DiscoColgante_1": {
+    "item_id": "Item_Icon_Material_DiscoColgante_1",
+    "name": "파손된 디스코 콜간테",
+    "quantity": "701",
+    "index": 57,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_AtlantisMedal_0": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_0",
+    "name": "아틀란티스 메달 조각",
+    "quantity": "882",
+    "index": 60,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_AtlantisMedal_1": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_1",
+    "name": "파손된 아틀란티스 메달",
+    "quantity": "250",
+    "index": 61,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_AtlantisMedal_2": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_2",
+    "name": "마모된 아틀란티스 메달",
+    "quantity": "161",
+    "index": 62,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_AtlantisMedal_3": {
+    "item_id": "Item_Icon_Material_AtlantisMedal_3",
+    "name": "온전한 아틀란티스 메달",
+    "quantity": "89",
+    "index": 63,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_RomanDice_0": {
+    "item_id": "Item_Icon_Material_RomanDice_0",
+    "name": "로마 12면체 조각",
+    "quantity": "1069",
+    "index": 64,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_RomanDice_1": {
+    "item_id": "Item_Icon_Material_RomanDice_1",
+    "name": "파손된 로마 12면체",
+    "quantity": "184",
+    "index": 65,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_RomanDice_3": {
+    "item_id": "Item_Icon_Material_RomanDice_3",
+    "name": "온전한 로마 12면체",
+    "quantity": "57",
+    "index": 67,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Quimbaya_0": {
+    "item_id": "Item_Icon_Material_Quimbaya_0",
+    "name": "킴바야 유물 조각",
+    "quantity": "995",
+    "index": 68,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Quimbaya_1": {
+    "item_id": "Item_Icon_Material_Quimbaya_1",
+    "name": "파손된 킴바야 유물",
+    "quantity": "252",
+    "index": 69,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Quimbaya_3": {
+    "item_id": "Item_Icon_Material_Quimbaya_3",
+    "name": "온전한 킴바야 유물",
+    "quantity": "43",
+    "index": 71,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Rocket_0": {
+    "item_id": "Item_Icon_Material_Rocket_0",
+    "name": "이스탄불 로켓 조각",
+    "quantity": "662",
+    "index": 72,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Rocket_1": {
+    "item_id": "Item_Icon_Material_Rocket_1",
+    "name": "파손된 이스탄불 로켓",
+    "quantity": "194",
+    "index": 73,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_Rocket_3": {
+    "item_id": "Item_Icon_Material_Rocket_3",
+    "name": "온전한 이스탄불 로켓",
+    "quantity": "97",
+    "index": 75,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_WinniStone_0": {
+    "item_id": "Item_Icon_Material_WinniStone_0",
+    "name": "위니페소키 스톤 조각",
+    "quantity": "1602",
+    "index": 76,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_WinniStone_1": {
+    "item_id": "Item_Icon_Material_WinniStone_1",
+    "name": "파손된 위니페소키 스톤",
+    "quantity": "327",
+    "index": 77,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_WinniStone_2": {
+    "item_id": "Item_Icon_Material_WinniStone_2",
+    "name": "마모된 위니페소키 스톤",
+    "quantity": "135",
+    "index": 78,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
+  },
+  "Item_Icon_Material_WinniStone_3": {
+    "item_id": "Item_Icon_Material_WinniStone_3",
+    "name": "온전한 위니페소키 스톤",
+    "quantity": "81",
+    "index": 79,
+    "item_source": "item",
+    "last_seen_at": "2026-04-22T00:56:56+09:00",
+    "last_scan_id": "2026-04-22_005656"
   }
 }
