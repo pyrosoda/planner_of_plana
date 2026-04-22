@@ -212,6 +212,11 @@ def _sorted_options(key: str, values: set[str]) -> list[FilterOption]:
             "no_weapon_system": 2,
         }
         ordered = sorted(values, key=lambda value: (priority.get(value, 99), value))
+    elif key == "school":
+        ordered = sorted(
+            values,
+            key=lambda value: (value.strip().casefold() == "etc", format_filter_value(key, value)),
+        )
     else:
         ordered = sorted(values, key=lambda value: format_filter_value(key, value))
     return [FilterOption(value=value, label=format_filter_value(key, value)) for value in ordered]

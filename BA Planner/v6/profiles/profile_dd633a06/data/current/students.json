@@ -2325,7 +2325,7 @@
     "student_id": "kotama"
   },
   "hibiki_cheerleader": {
-    "display_name": "히비키(치어리더)",
+    "display_name": "히비키(응원단)",
     "level": 90,
     "student_star": 5,
     "weapon_state": "weapon_equipped",
@@ -3750,7 +3750,7 @@
     "student_id": "haruka_new_year"
   },
   "utaha_cheerleader": {
-    "display_name": "우타하(치어리더)",
+    "display_name": "우타하(응원단)",
     "level": 90,
     "student_star": 3,
     "weapon_state": "no_weapon_system",
@@ -4000,7 +4000,7 @@
     "student_id": "aru_dress"
   },
   "kotori_cheerleader": {
-    "display_name": "코토리(치어리더)",
+    "display_name": "코토리(응원단)",
     "level": 90,
     "student_star": 3,
     "weapon_state": "no_weapon_system",

@@ -12,6 +12,7 @@ from typing import Any
 
 from core.config import get_storage_paths
 from core.db import get_connection, init_db
+from core import student_meta
 from core.merge import (
     FieldDiff,
     compute_inventory_diff,
@@ -25,6 +26,14 @@ from core.inventory_profiles import (
     normalize_inventory_profile_ids,
 )
 from core.scanner import ItemEntry, ScanResult, StudentEntry
+
+
+def _canonical_student_display_name(student_id: object, fallback: object = None) -> object:
+    if student_id:
+        canonical = student_meta.field(str(student_id), "display_name")
+        if canonical:
+            return canonical
+    return fallback
 
 
 def _read_json(path: Path, default: Any = None) -> Any:
@@ -47,7 +56,7 @@ def _write_json(path: Path, data: Any) -> None:
 def _student_entry_to_dict(entry: StudentEntry) -> dict:
     return {
         "student_id": entry.student_id,
-        "display_name": entry.display_name,
+        "display_name": _canonical_student_display_name(entry.student_id, entry.display_name),
         "level": entry.level,
         "student_star": entry.student_star,
         "weapon_state": entry.weapon_state.value if entry.weapon_state else None,
@@ -561,7 +570,7 @@ class ScanRepository:
                         """,
                         {
                             "student_id": student_id,
-                            "display_name": data.get("display_name"),
+                            "display_name": _canonical_student_display_name(student_id, data.get("display_name")),
                             "level": data.get("level"),
                             "student_star": data.get("student_star"),
                             "weapon_state": data.get("weapon_state"),

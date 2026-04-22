@@ -17,6 +17,7 @@ from typing import Any
 
 from core.config import get_active_profile_name
 from core.db import get_connection, get_db_path, init_db, APP_VERSION
+from core import student_meta
 from core.scanner import ScanResult, StudentEntry, ItemEntry
 from core.matcher import WeaponState
 from core.capture import get_window_rect
@@ -90,9 +91,10 @@ def build_scan_meta(dt: datetime | None = None) -> dict:
 # ── 학생 엔트리 → dict ────────────────────────────────────
 
 def _student_to_dict(entry: StudentEntry) -> dict[str, Any]:
+    display_name = student_meta.field(str(entry.student_id), "display_name") if entry.student_id else None
     return {
         "student_id":   entry.student_id,
-        "display_name": entry.display_name,
+        "display_name": display_name or entry.display_name,
         "level":        entry.level,
         "student_star": entry.student_star,
         "weapon_state": entry.weapon_state.value if entry.weapon_state else None,

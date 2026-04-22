@@ -1382,9 +1382,10 @@ def load_inventory_snapshot() -> dict[str, dict]:
 
 def _row_to_record(row: dict, owned: bool) -> StudentRecord:
     student_id = row.get("student_id") or ""
+    canonical_name = student_meta.field(student_id, "display_name")
     return StudentRecord(
         student_id=student_id,
-        display_name=row.get("display_name") or student_meta.field(student_id, "display_name") or student_id or "",
+        display_name=canonical_name or row.get("display_name") or student_id or "",
         owned=owned,
         farmable=row.get("farmable") or student_meta.field(student_id, "farmable"),
         level=row.get("level"),
