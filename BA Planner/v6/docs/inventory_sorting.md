@@ -59,6 +59,7 @@ ID pattern:
 
 ```text
 Item_Icon_Material_{IconKey}_{TierIndex}
+Item_Icon_WorkBook_Potential{StatKey}
 ```
 
 ### Equipment
@@ -96,9 +97,14 @@ the normalized name.
 
 Profile ID: `activity_reports`
 
-Reports currently use the explicit `_REPORT_NAMES` list in
-`core.inventory_profiles`. They do not have stable item IDs in the profile yet,
-so storage falls back to the normalized name.
+Reports use `_REPORT_NAMES` for display labels and stable zero-based item IDs
+for storage and detail templates.
+
+ID pattern:
+
+```text
+Item_Icon_ExpItem_{TierIndex}
+```
 
 ## Gap Recovery
 

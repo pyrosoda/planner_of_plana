@@ -276,6 +276,55 @@ def match_score_resized(
     return _ncc_diff_score(crop_proc, tmpl_proc)
 
 
+def match_score_resized_raw(
+    crop: Image.Image,
+    tmpl_path: str,
+) -> float:
+    """
+    Resize-only color template score for item/equipment images.
+
+    This intentionally does not normalize, binarize, grayscale, or otherwise
+    preprocess the image. Inventory icons/detail art rely on their original
+    color and texture; preprocessing is reserved for text, numbers, and UI
+    state templates.
+    """
+    entry = _tmpl(tmpl_path)
+    if entry is None:
+        return 0.0
+
+    h_t, w_t = entry.bgr.shape[:2]
+    if h_t < 2 or w_t < 2:
+        return 0.0
+
+    crop_bgr = to_bgr(crop)
+    crop_bgr = cv2.resize(crop_bgr, (w_t, h_t), interpolation=cv2.INTER_AREA)
+    tmpl_bgr = entry.bgr
+
+    try:
+        if entry.has_alpha and entry.alpha is not None and entry.alpha.max() > 0:
+            alpha = cv2.resize(entry.alpha, (w_t, h_t), interpolation=cv2.INTER_NEAREST)
+            valid = alpha > ALPHA_THRESH
+            if not np.any(valid):
+                return 0.0
+            diff = np.mean(
+                np.abs(
+                    crop_bgr.astype(np.float32) - tmpl_bgr.astype(np.float32)
+                )[valid]
+            ) / 255.0
+            return max(0.0, min(1.0, 1.0 - float(diff)))
+
+        res = cv2.matchTemplate(crop_bgr, tmpl_bgr, cv2.TM_CCOEFF_NORMED)
+        _, ncc, _, _ = cv2.minMaxLoc(res)
+        diff = np.mean(
+            np.abs(crop_bgr.astype(np.float32) - tmpl_bgr.astype(np.float32))
+        ) / 255.0
+        return 0.65 * float(ncc) + 0.35 * (1.0 - float(diff))
+    except cv2.error as e:
+        log_cv2_error(_log, "match_score_resized_raw failed", e,
+                      ctx=MatchCtx(roi=Path(tmpl_path).stem))
+        return 0.0
+
+
 def match_score_resized_masked(
     crop: Image.Image,
     tmpl_path: str,

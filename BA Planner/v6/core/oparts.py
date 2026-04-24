@@ -265,10 +265,11 @@ OPART_DEFINITIONS: tuple[OpartDefinition, ...] = (
 OPART_FAMILY_NAMES_EN: tuple[str, ...] = tuple(defn.family_en for defn in OPART_DEFINITIONS)
 OPART_TIER_GROUPS: tuple[tuple[str, str, str, str], ...] = tuple(defn.tier_names for defn in OPART_DEFINITIONS)
 OPART_WB_ITEMS: tuple[tuple[str, str], ...] = (
-    ("교양 체육 WB", "교양 체육 WB"),
-    ("교양 사격 WB", "교양 사격 WB"),
-    ("교양 위생 WB", "교양 위생 WB"),
+    ("Item_Icon_WorkBook_PotentialMaxHP", "교양 체육 WB"),
+    ("Item_Icon_WorkBook_PotentialAttack", "교양 사격 WB"),
+    ("Item_Icon_WorkBook_PotentialHealPower", "교양 위생 WB"),
 )
+OPART_LEGACY_WB_ITEM_IDS: tuple[str, ...] = tuple(name for _item_id, name in OPART_WB_ITEMS)
 OPART_WB_NAMES: tuple[str, ...] = tuple(name for _item_id, name in OPART_WB_ITEMS)
 OPART_ORDERED_NAMES: tuple[str, ...] = tuple(
     tier_name
@@ -284,6 +285,7 @@ OPART_ITEM_ID_TO_NAME: dict[str, str] = {
     for index, tier_name in enumerate(defn.tier_names)
 }
 OPART_ITEM_ID_TO_NAME.update({item_id: name for item_id, name in OPART_WB_ITEMS})
+OPART_ITEM_ID_TO_NAME.update({item_id: item_id for item_id in OPART_LEGACY_WB_ITEM_IDS})
 OPART_ORDERED_ITEM_IDS: tuple[str, ...] = tuple(
     item_id
     for defn in OPART_DEFINITIONS

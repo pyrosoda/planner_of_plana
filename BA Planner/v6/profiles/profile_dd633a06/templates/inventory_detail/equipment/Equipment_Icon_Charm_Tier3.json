@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Charm_Tier3",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Charm_Tier3",
+  "display_name": "페로로의 깃털",
+  "quantity": "368",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.098882+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Charm_Tier3.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 29,
+    "candidate_sequence": 30,
+    "left_anchor_index": 28,
+    "right_anchor_index": 30,
+    "left_anchor_score": 0.9088,
+    "right_anchor_score": 0.9422,
+    "review_required": false,
+    "scanned_quantity": "368",
+    "review_confirmed": true
+  }
+}

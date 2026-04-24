@@ -122,6 +122,9 @@ PATH_EXCEPTIONS: dict[str, str] = {
     "shoukouhou_misaki": "shokuhou_misaki",
     "shun_kid": "shun_small",
 }
+SCHALE_MERGE_PATHS: dict[str, tuple[str, ...]] = {
+    "hoshino_battle": ("hoshino_battle_tank", "hoshino_battle_dealer"),
+}
 PATH_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("_bunny_girl", "_bunnygirl"),
     ("_school_uniform", "_uniform"),
@@ -306,13 +309,20 @@ def _student_path_lookup(schale_students: dict[str, dict[str, Any]]) -> dict[str
     }
 
 
+def _schale_student_by_path(
+    path_name: str,
+    path_lookup: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    return path_lookup.get(_normalize_key(path_name))
+
+
 def get_schale_student(source: str, *, schale_students: dict[str, dict[str, Any]] | None = None) -> tuple[str, dict[str, Any]]:
     schale_students = schale_students or fetch_students()
     slug = parse_student_source(source)
     lookup = _student_path_lookup(schale_students)
-    student = lookup.get(_normalize_key(slug))
+    student = _schale_student_by_path(slug, lookup)
     if student is None:
-        student = lookup.get(_normalize_key(local_id_to_schale_path(slug)))
+        student = _schale_student_by_path(local_id_to_schale_path(slug), lookup)
     if student is None:
         raise KeyError(slug)
     return str(student.get("PathName") or slug), student
@@ -701,6 +711,46 @@ def skill_values(student: dict[str, Any], schale_students: dict[str, dict[str, A
     return result
 
 
+def _merge_skill_values(*payloads: dict[str, Any]) -> dict[str, Any]:
+    if not payloads:
+        return {}
+    merged = dict(payloads[0])
+    for payload in payloads[1:]:
+        for field_name in SKILL_FIELDS:
+            current = merged.get(field_name)
+            incoming = payload.get(field_name)
+            if isinstance(current, list) or isinstance(incoming, list):
+                values: list[str] = []
+                for source in (current, incoming):
+                    values.extend(str(item) for item in _listify(source) if str(item))
+                merged[field_name] = sorted(set(values))
+            elif current == "yes" or incoming == "yes":
+                merged[field_name] = "yes"
+            elif current is None:
+                merged[field_name] = incoming
+    return merged
+
+
+def merged_skill_values(
+    local_student_id: str,
+    primary_student: dict[str, Any],
+    schale_students: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    path_lookup = _student_path_lookup(schale_students)
+    merge_paths = SCHALE_MERGE_PATHS.get(local_student_id)
+    if not merge_paths:
+        return skill_values(primary_student, schale_students)
+
+    payloads: list[dict[str, Any]] = []
+    for path_name in merge_paths:
+        student = _schale_student_by_path(path_name, path_lookup)
+        if student is not None:
+            payloads.append(skill_values(student, schale_students))
+    if not payloads:
+        return skill_values(primary_student, schale_students)
+    return _merge_skill_values(*payloads)
+
+
 def _guess_variant_label(local_student_id: str, existing_students: dict[str, dict[str, Any]]) -> tuple[str | None, str | None]:
     if local_student_id in existing_students:
         meta = existing_students[local_student_id]
@@ -763,7 +813,7 @@ def build_student_meta_from_schale(
         "variant": None if variant_name in {"", None} else str(variant_name),
     }
     next_meta.update(scalar_values(schale_student, schale_items))
-    next_meta.update(skill_values(schale_student, schale_students))
+    next_meta.update(merged_skill_values(local_student_id, schale_student, schale_students))
 
     changed_fields = sorted(
         field_name
@@ -808,7 +858,7 @@ def apply_sync_fields(
 
         changed = False
         scalar = scalar_values(schale_student, schale_items)
-        skills = skill_values(schale_student, schale_students)
+        skills = merged_skill_values(student_id, schale_student, schale_students)
         for field_name in SCALAR_FIELDS:
             next_value = scalar[field_name]
             if meta.get(field_name) != next_value:

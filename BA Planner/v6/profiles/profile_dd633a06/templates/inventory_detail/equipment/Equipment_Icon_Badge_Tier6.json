@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Badge_Tier6",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Badge_Tier6",
+  "display_name": "코코데빌 실버 배지",
+  "quantity": "618",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.122106+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Badge_Tier6.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 44,
+    "candidate_sequence": 45,
+    "left_anchor_index": 43,
+    "right_anchor_index": 45,
+    "left_anchor_score": 0.8894,
+    "right_anchor_score": 0.8928,
+    "review_required": false,
+    "scanned_quantity": "618",
+    "review_confirmed": true
+  }
+}

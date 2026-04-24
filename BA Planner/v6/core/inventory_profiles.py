@@ -140,6 +140,13 @@ _REPORT_NAMES = [
     "상급 활동 보고서",
     "최상급 활동 보고서",
 ]
+_REPORT_ITEM_IDS = tuple(f"Item_Icon_ExpItem_{tier}" for tier in range(4))
+_REPORT_ITEM_ID_TO_NAME = {
+    item_id: name for item_id, name in zip(_REPORT_ITEM_IDS, _REPORT_NAMES)
+}
+_REPORT_ITEM_ID_TO_NAME.update(
+    {f"report_{tier}": name for tier, name in enumerate(_REPORT_NAMES)}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,6 +216,8 @@ _PROFILES = {
         source="item",
         ordered_names=tuple(_REPORT_NAMES),
         terminal_names=frozenset({"최상급 활동 보고서"}),
+        expected_item_ids=frozenset(_REPORT_ITEM_IDS),
+        terminal_item_ids=frozenset({_REPORT_ITEM_IDS[-1]}),
     ),
 }
 
@@ -292,6 +301,10 @@ def inventory_item_display_name(item_id: str | None) -> str | None:
         if school_label and tier_label:
             return f"{tier_label} 전술 교육 BD ({school_label})"
 
+    report_name = _REPORT_ITEM_ID_TO_NAME.get(item_id)
+    if report_name:
+        return report_name
+
     if item_id.startswith("Equipment_Icon_Exp_"):
         return EQUIPMENT_ITEM_ID_TO_NAME.get(item_id)
 
@@ -350,6 +363,9 @@ def inventory_profile_ordered_item_ids(profile: InventoryScanProfile) -> tuple[s
 
     if profile.profile_id == "ooparts":
         return tuple(OPART_ORDERED_ITEM_IDS)
+
+    if profile.profile_id == "activity_reports":
+        return tuple(_REPORT_ITEM_IDS)
 
     if profile.profile_id == "equipment":
         return tuple(_equipment_ordered_item_ids())
@@ -428,6 +444,14 @@ def infer_inventory_scan_profile(
         skill_bd_hits = [item_id for item_id in item_ids if item_id.startswith("Item_Icon_Material_ExSkill_")]
         if len(skill_bd_hits) >= 4 and len(skill_bd_hits) >= max(4, int(len(item_ids) * 0.7)):
             return _PROFILES["tactical_bd"]
+
+        report_hits = [
+            item_id
+            for item_id in item_ids
+            if item_id in _PROFILES["activity_reports"].expected_item_ids
+        ]
+        if len(report_hits) >= 2 and len(report_hits) >= max(2, int(len(item_ids) * 0.7)):
+            return _PROFILES["activity_reports"]
 
     sample = [_compact(name) for name in (raw_names or []) if name]
     if not sample:
@@ -535,10 +559,17 @@ def is_inventory_profile_complete(
     found_item_ids: set[str],
     found_names: set[str],
 ) -> bool:
-    if profile.terminal_item_ids and profile.terminal_item_ids & found_item_ids:
-        return True
-    if profile.terminal_names and profile.terminal_names & found_names:
-        return True
     if profile.expected_item_ids:
         return profile.expected_item_ids.issubset(found_item_ids)
     return set(profile.ordered_names).issubset(found_names)
+
+
+def is_inventory_profile_terminal_seen(
+    profile: InventoryScanProfile,
+    found_item_ids: set[str],
+    found_names: set[str],
+) -> bool:
+    return bool(
+        (profile.terminal_item_ids and profile.terminal_item_ids & found_item_ids)
+        or (profile.terminal_names and profile.terminal_names & found_names)
+    )

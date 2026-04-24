@@ -44,6 +44,7 @@ PANEL_H = 620
 POINT_CAPTURE_FILE = BASE_DIR / "debug" / "captured_click_points.json"
 REGION_CAPTURE_DIR = BASE_DIR / "debug" / "region_captures"
 INVENTORY_DETAIL_TEMPLATE_DIR = BASE_DIR / "templates" / "inventory_detail"
+INVENTORY_DETAIL_NAME_TEMPLATE_DIR = BASE_DIR / "templates" / "inventory_detail_names"
 INVENTORY_COUNT_TEMPLATE_DIR = BASE_DIR / "templates" / "inventory_count"
 EQUIPMENT_COUNT_TEMPLATE_DIR = BASE_DIR / "templates" / "equipment_count"
 DEFAULT_CAPTURE_NAME = "skill_close_button"
@@ -61,6 +62,8 @@ REGION_TEMPLATE_PROFILE_OPTIONS = (
     ("activity_reports", "Reports"),
     ("ooparts", "OOParts"),
     ("equipment", "Equipment"),
+    ("item_name_image_region", "Item Name Region"),
+    ("equip_name_image_region", "Equip Name Region"),
     ("digit2_2", "Digit 2_2"),
     ("digit5_5", "Digit 5_5"),
     ("eq_digit1", "Equip Digit 1"),
@@ -1510,6 +1513,7 @@ class InputTestOverlay(tk.Toplevel):
 
         count_region_path = INVENTORY_COUNT_TEMPLATE_DIR / f"{profile_id}.region.json"
         equipment_count_region_path = EQUIPMENT_COUNT_TEMPLATE_DIR / f"{profile_id}.region.json"
+        detail_name_region_path = INVENTORY_DETAIL_NAME_TEMPLATE_DIR / f"{profile_id}.region.json"
         if count_region_path.exists():
             try:
                 payload = json.loads(count_region_path.read_text(encoding="utf-8-sig"))
@@ -1518,6 +1522,11 @@ class InputTestOverlay(tk.Toplevel):
         elif equipment_count_region_path.exists():
             try:
                 payload = json.loads(equipment_count_region_path.read_text(encoding="utf-8-sig"))
+            except Exception:
+                payload = None
+        elif detail_name_region_path.exists():
+            try:
+                payload = json.loads(detail_name_region_path.read_text(encoding="utf-8-sig"))
             except Exception:
                 payload = None
         else:

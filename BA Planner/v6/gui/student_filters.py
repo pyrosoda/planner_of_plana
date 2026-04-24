@@ -76,6 +76,11 @@ FILTER_FIELD_LABELS: dict[str, str] = {
 
 META_FILTER_KEYS: tuple[str, ...] = tuple(key for key in FILTER_FIELD_ORDER if key not in {"student_star", "weapon_state"})
 SCHOOL_FILTER_EXCLUDED_VALUES: frozenset[str] = frozenset({"Sakugawa", "Tokiwadai"})
+EXTRA_FILTER_VALUES: dict[str, dict[str, tuple[str, ...]]] = {
+    "hoshino_battle": {
+        "role": ("dealer",),
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,12 +104,13 @@ def get_student_value(student: Any, key: str) -> str:
 
 
 def get_student_values(student: Any, key: str) -> tuple[str, ...]:
+    student_id = _student_id(student)
     owned = True
     if isinstance(student, Mapping):
         owned = bool(student.get("owned", True))
         value = student.get(key)
         if value in (None, "") and key in META_FILTER_KEYS:
-            value = student_meta.field(str(student.get("student_id") or ""), key)
+            value = student_meta.field(student_id, key)
     else:
         owned = bool(getattr(student, "owned", True))
         if hasattr(student, key):
@@ -112,17 +118,22 @@ def get_student_values(student: Any, key: str) -> tuple[str, ...]:
         elif key == "student_star" and hasattr(student, "star"):
             value = getattr(student, "star")
         elif key in META_FILTER_KEYS:
-            value = student_meta.field(_student_id(student), key)
+            value = student_meta.field(student_id, key)
         else:
             value = None
 
     if not owned and key in {"student_star", "weapon_state"}:
         return ()
     if value is None:
-        return ()
-    if isinstance(value, (list, tuple, set)):
-        return tuple(str(item) for item in value if str(item))
-    return (str(value),)
+        values = ()
+    elif isinstance(value, (list, tuple, set)):
+        values = tuple(str(item) for item in value if str(item))
+    else:
+        values = (str(value),)
+    extras = EXTRA_FILTER_VALUES.get(student_id, {}).get(key, ())
+    if extras:
+        values = tuple(dict.fromkeys([*values, *extras]))
+    return values
 
 
 def _student_id(student: Any) -> str:

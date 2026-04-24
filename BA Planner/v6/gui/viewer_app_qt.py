@@ -22,7 +22,7 @@ from core.config import get_storage_paths
 from core.db import init_db
 from core.equipment_items import EQUIPMENT_EXP_ITEMS, EQUIPMENT_SERIES, WEAPON_PART_ITEMS
 from core.inventory_profiles import inventory_item_display_name
-from core.oparts import OPART_ORDERED_ITEM_IDS, OPART_WB_ITEMS
+from core.oparts import OPART_ITEM_ID_TO_NAME, OPART_LEGACY_WB_ITEM_IDS, OPART_ORDERED_ITEM_IDS, OPART_WB_ITEMS
 from core.planning import (
     MAX_TARGET_EQUIP_LEVEL,
     MAX_TARGET_EQUIP_TIER,
@@ -106,7 +106,13 @@ _WORKBOOK_ID_TO_NAME = {
     "Item_Icon_WorkBook_PotentialMaxHP": "Max HP WB",
     "Item_Icon_WorkBook_PotentialHealPower": "Heal Power WB",
 }
-_WB_ITEM_IDS = tuple(item_id for item_id, _name in OPART_WB_ITEMS)
+_WB_ITEM_IDS = tuple(item_id for item_id, _name in OPART_WB_ITEMS) + OPART_LEGACY_WB_ITEM_IDS
+_LEGACY_WB_ID_TO_ITEM_ID = {name: item_id for item_id, name in OPART_WB_ITEMS}
+_OPART_NAME_TO_ITEM_ID = {
+    name: item_id
+    for item_id, name in OPART_ITEM_ID_TO_NAME.items()
+    if item_id.startswith("Item_Icon_")
+}
 _OPART_ITEM_IDS = tuple(item_id for item_id in OPART_ORDERED_ITEM_IDS if item_id not in _WB_ITEM_IDS)
 _SCHOOL_SEQUENCE = (
     "Hyakkiyako",
@@ -1089,6 +1095,11 @@ def _report_icon_for_entry(item_id: str | None, name: str | None) -> str | None:
 
 
 def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
+    if item_id:
+        item_id = _LEGACY_WB_ID_TO_ITEM_ID.get(item_id, item_id)
+    elif name:
+        item_id = _OPART_NAME_TO_ITEM_ID.get(name)
+
     report_icon = _report_icon_for_entry(item_id, name)
     if report_icon:
         path = POLI_BG_DIR / f"{report_icon}.png"

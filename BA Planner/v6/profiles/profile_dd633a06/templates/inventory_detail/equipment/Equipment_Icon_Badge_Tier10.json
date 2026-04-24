@@ -1,0 +1,23 @@
+{
+  "name": "Equipment_Icon_Badge_Tier10",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Badge_Tier10",
+  "display_name": "코인 배지",
+  "quantity": "728",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.116073+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Badge_Tier10.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "gap_recovered",
+    "reason": "candidate_template_match",
+    "profile_id": "equipment",
+    "profile_index": 40,
+    "candidate_sequence": 41,
+    "match_score": 0.8708,
+    "review_required": false,
+    "scanned_quantity": "728",
+    "review_confirmed": true
+  }
+}

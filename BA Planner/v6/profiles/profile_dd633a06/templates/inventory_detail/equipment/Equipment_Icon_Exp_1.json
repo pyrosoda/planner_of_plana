@@ -1,0 +1,23 @@
+{
+  "name": "Equipment_Icon_Exp_1",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Exp_1",
+  "display_name": "일반 강화석",
+  "quantity": "20136",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.066138+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Exp_1.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "gap_recovered",
+    "reason": "candidate_template_match",
+    "profile_id": "equipment",
+    "profile_index": 2,
+    "candidate_sequence": 3,
+    "match_score": 0.9709,
+    "review_required": false,
+    "scanned_quantity": "20136",
+    "review_confirmed": true
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Charm_Tier5",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Charm_Tier5",
+  "display_name": "카모 달마",
+  "quantity": "666",
+  "scan_id": "2026-04-23_234705",
+  "confirmed_at": "2026-04-23T23:49:24.745054+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Charm_Tier5.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 27,
+    "candidate_sequence": 28,
+    "left_anchor_index": 26,
+    "right_anchor_index": 28,
+    "left_anchor_score": 0.9158,
+    "right_anchor_score": 0.8972,
+    "review_required": false,
+    "scanned_quantity": "666",
+    "review_confirmed": true
+  }
+}

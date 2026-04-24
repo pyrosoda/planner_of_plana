@@ -118,13 +118,17 @@ def deserialize_student(d: dict):
 # ══════════════════════════════════════════════════════════
 
 def serialize_item(entry) -> dict:
-    return {
+    data = {
         "item_id":  entry.item_id,
         "name":     entry.name,
         "quantity": entry.quantity,
         "source":   entry.source,
         "index":    entry.index,
     }
+    scan_meta = getattr(entry, "scan_meta", None)
+    if scan_meta:
+        data["scan_meta"] = scan_meta
+    return data
 
 
 def deserialize_item(d: dict):
@@ -135,6 +139,7 @@ def deserialize_item(d: dict):
         item_id=d.get("item_id"),
         source=d.get("source", "item"),
         index=d.get("index", 0),
+        scan_meta=dict(d.get("scan_meta") or {}),
     )
 
 

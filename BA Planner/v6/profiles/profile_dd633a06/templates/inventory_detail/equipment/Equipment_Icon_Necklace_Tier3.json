@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Necklace_Tier3",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Necklace_Tier3",
+  "display_name": "니콜라이 로켓",
+  "quantity": "1819",
+  "scan_id": "2026-04-23_235009",
+  "confirmed_at": "2026-04-23T23:52:36.034737+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Necklace_Tier3.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 11,
+    "candidate_sequence": 12,
+    "left_anchor_index": 10,
+    "right_anchor_index": 12,
+    "left_anchor_score": 0.9253,
+    "right_anchor_score": 0.9695,
+    "review_required": false,
+    "scanned_quantity": "1819",
+    "review_confirmed": true
+  }
+}

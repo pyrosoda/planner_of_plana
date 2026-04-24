@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Hat_Tier9",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Hat_Tier9",
+  "display_name": "세일러 햇",
+  "quantity": "521",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.143869+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Hat_Tier9.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 77,
+    "candidate_sequence": 78,
+    "left_anchor_index": 76,
+    "right_anchor_index": 78,
+    "left_anchor_score": 0.9248,
+    "right_anchor_score": 0.8871,
+    "review_required": false,
+    "scanned_quantity": "521",
+    "review_confirmed": true
+  }
+}

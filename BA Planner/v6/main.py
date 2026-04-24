@@ -5,12 +5,15 @@ Blue Archive Analyzer v6 entry point.
 import ctypes
 import hashlib
 import importlib.util
+import json
 import os
 import queue
 import sys
 import threading
 import traceback
-from tkinter import TclError, messagebox
+from datetime import datetime
+from pathlib import Path
+from tkinter import TclError, messagebox, ttk
 
 import tkinter as tk
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -97,7 +100,13 @@ if missing:
 
 try:
     from core.analyzer import analyze_scan_summary, is_student_maxed
-    from core.capture import clear_target, find_target_hwnd, get_target_info, set_target_window
+    from core.capture import (
+        clear_target,
+        find_target_hwnd,
+        get_target_info,
+        is_target_foreground,
+        set_target_window,
+    )
     from core.config import (
         activate_profile,
         get_active_profile_name,
@@ -112,7 +121,7 @@ try:
     from core.log_context import set_debug_dump
     from core.logger import LOG_APP, get_logger, setup_logging
     from core.repository import ScanRepository
-    from core.scanner import ScanResult, Scanner
+    from core.scanner import ItemEntry, ScanResult, Scanner
     from core.student_order import ordered_owned_student_rows, ordered_student_rows
     from core.states import AppState, StateMachine, can_transition
     from core.template_cache import warmup_all
@@ -146,6 +155,192 @@ _FULL_SCAN_ITEM_FILTERS: tuple[str, ...] = (
     "tech_notes",
     "activity_reports",
 )
+
+
+class ScanReviewDialog(tk.Toplevel):
+    def __init__(self, master, rows: list[dict]):
+        super().__init__(master)
+        self.title("Scan Review")
+        self.result = False
+        self._rows = rows
+        self._quantity_var = tk.StringVar()
+        self.transient(master)
+        self.attributes("-topmost", True)
+        self.grab_set()
+        self.geometry("920x520")
+        self.minsize(780, 420)
+
+        root = ttk.Frame(self, padding=12)
+        root.pack(fill="both", expand=True)
+
+        summary = ttk.Label(
+            root,
+            text=(
+                "Review highlighted scan results. Edit the selected quantity, "
+                "then save to commit the scan."
+            ),
+        )
+        summary.pack(anchor="w", pady=(0, 8))
+
+        tree_frame = ttk.Frame(root)
+        tree_frame.pack(fill="both", expand=True)
+
+        columns = ("kind", "status", "name", "old", "quantity", "reason")
+        self._tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=14)
+        headings = {
+            "kind": "Kind",
+            "status": "Status",
+            "name": "Item",
+            "old": "Previous",
+            "quantity": "Commit Qty",
+            "reason": "Reason",
+        }
+        widths = {
+            "kind": 90,
+            "status": 130,
+            "name": 260,
+            "old": 90,
+            "quantity": 90,
+            "reason": 260,
+        }
+        for column in columns:
+            self._tree.heading(column, text=headings[column])
+            self._tree.column(column, width=widths[column], stretch=(column in {"name", "reason"}))
+
+        self._tree.tag_configure("zero_filled", background="#ffd6d6")
+        self._tree.tag_configure("dp_aligned", background="#fff0bf")
+        self._tree.tag_configure("order_inferred", background="#fff0bf")
+        self._tree.tag_configure("sequence_inferred", background="#fff0bf")
+        self._tree.tag_configure("weapon_sequence_checked", background="#fff0bf")
+        self._tree.tag_configure("weapon_sequence_inferred", background="#fff0bf")
+        self._tree.tag_configure("gap_recovered", background="#ffe0b8")
+        self._tree.tag_configure("edited", background="#d8edff")
+
+        scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self._tree.yview)
+        self._tree.configure(yscrollcommand=scroll.set)
+        self._tree.pack(fill="both", expand=True, side="left")
+        scroll.pack(side="right", fill="y")
+
+        editor = ttk.Frame(root)
+        editor.pack(fill="x", pady=(10, 0))
+        ttk.Label(editor, text="Selected quantity").pack(side="left")
+        self._quantity_entry = ttk.Entry(editor, textvariable=self._quantity_var, width=14)
+        self._quantity_entry.pack(side="left", padx=(8, 8))
+        ttk.Button(editor, text="Apply edit", command=self._apply_selected).pack(side="left")
+        ttk.Button(editor, text="Use scanned", command=self._use_scanned).pack(side="left", padx=(8, 0))
+
+        buttons = ttk.Frame(root)
+        buttons.pack(fill="x", pady=(12, 0))
+        ttk.Button(buttons, text="Do not save", command=self._cancel).pack(side="left")
+        ttk.Button(buttons, text="Save scan", command=self._accept).pack(side="right")
+
+        self._tree.bind("<<TreeviewSelect>>", lambda _event: self._load_selected())
+        self._tree.bind("<Double-Button-1>", lambda _event: self._focus_quantity())
+        self._quantity_entry.bind("<Return>", lambda _event: self._apply_selected())
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+        for idx, row in enumerate(self._rows):
+            self._insert_or_update_row(idx)
+        if self._rows:
+            first = "0"
+            self._tree.selection_set(first)
+            self._tree.focus(first)
+            self._load_selected()
+        self.after(50, self._raise_window)
+
+    def _raise_window(self) -> None:
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+            self._quantity_entry.focus_set()
+        except TclError:
+            pass
+
+    def _row_values(self, row: dict) -> tuple[str, str, str, str, str, str]:
+        item: ItemEntry = row["item"]
+        meta = getattr(item, "scan_meta", {}) or {}
+        return (
+            row.get("kind", ""),
+            str(meta.get("status") or "review"),
+            str(item.name or item.item_id or ""),
+            str(row.get("old_quantity") or ""),
+            str(item.quantity or ""),
+            str(meta.get("reason") or ""),
+        )
+
+    def _insert_or_update_row(self, idx: int) -> None:
+        row = self._rows[idx]
+        item: ItemEntry = row["item"]
+        meta = getattr(item, "scan_meta", {}) or {}
+        status = str(meta.get("status") or "review")
+        tags = [status]
+        if meta.get("user_edited"):
+            tags.append("edited")
+        iid = str(idx)
+        values = self._row_values(row)
+        if self._tree.exists(iid):
+            self._tree.item(iid, values=values, tags=tags)
+        else:
+            self._tree.insert("", "end", iid=iid, values=values, tags=tags)
+
+    def _selected_index(self) -> int | None:
+        selected = self._tree.selection()
+        if not selected:
+            return None
+        try:
+            return int(selected[0])
+        except ValueError:
+            return None
+
+    def _load_selected(self) -> None:
+        idx = self._selected_index()
+        if idx is None:
+            self._quantity_var.set("")
+            return
+        self._quantity_var.set(str(self._rows[idx]["item"].quantity or ""))
+
+    def _focus_quantity(self) -> None:
+        self._quantity_entry.focus_set()
+        self._quantity_entry.select_range(0, "end")
+
+    def _apply_selected(self) -> None:
+        idx = self._selected_index()
+        if idx is None:
+            return
+        value = self._quantity_var.get().strip()
+        item: ItemEntry = self._rows[idx]["item"]
+        item.quantity = value
+        item.scan_meta = dict(getattr(item, "scan_meta", {}) or {})
+        item.scan_meta["user_edited"] = True
+        item.scan_meta["review_required"] = False
+        self._insert_or_update_row(idx)
+
+    def _use_scanned(self) -> None:
+        idx = self._selected_index()
+        if idx is None:
+            return
+        item: ItemEntry = self._rows[idx]["item"]
+        meta = getattr(item, "scan_meta", {}) or {}
+        scanned = meta.get("scanned_quantity")
+        if scanned is None:
+            return
+        self._quantity_var.set(str(scanned))
+        self._apply_selected()
+
+    def _accept(self) -> None:
+        self._apply_selected()
+        for row in self._rows:
+            item: ItemEntry = row["item"]
+            item.scan_meta = dict(getattr(item, "scan_meta", {}) or {})
+            item.scan_meta["review_confirmed"] = True
+            item.scan_meta["review_required"] = False
+        self.result = True
+        self.destroy()
+
+    def _cancel(self) -> None:
+        self.result = False
+        self.destroy()
 
 
 class App(tk.Tk):
@@ -261,12 +456,12 @@ class App(tk.Tk):
 
         if new == AppState.WATCHING:
             self._ensure_watcher_running()
-            if self._watcher and self._watcher.in_lobby:
+            if self._should_show_watching_overlay():
                 self._overlay.set_lobby_state(True)
                 self._overlay.show()
             else:
                 self._overlay.set_lobby_state(False)
-                self._overlay.show()
+                self._overlay.hide()
             return
 
         if new == AppState.SCANNING:
@@ -338,6 +533,7 @@ class App(tk.Tk):
             return
         try:
             self._check_target_window_closed(source="poll")
+            self._sync_watching_overlay_visibility()
         finally:
             if not self._destroyed:
                 self.after(500, self._poll_target_window)
@@ -366,15 +562,35 @@ class App(tk.Tk):
         if self._watcher and self._watcher.state == WatcherState.RUNNING:
             self._watcher.pause()
 
+    def _should_show_watching_overlay(self) -> bool:
+        return bool(
+            self.state == AppState.WATCHING
+            and self._watcher
+            and self._watcher.in_lobby
+            and is_target_foreground()
+        )
+
+    def _sync_watching_overlay_visibility(self) -> None:
+        if self.state != AppState.WATCHING:
+            return
+        if self._should_show_watching_overlay():
+            self._overlay.set_lobby_state(True)
+            self._overlay.show()
+        else:
+            self._overlay.set_lobby_state(bool(self._watcher and self._watcher.in_lobby))
+            self._overlay.hide()
+
     def _on_lobby_enter(self) -> None:
         self._overlay.set_lobby_state(True)
-        if self.state in (AppState.WATCHING, AppState.ERROR):
+        if self.state == AppState.WATCHING:
+            self._sync_watching_overlay_visibility()
+        elif self.state == AppState.ERROR:
             self._overlay.show()
 
     def _on_lobby_leave(self) -> None:
         self._overlay.set_lobby_state(False)
         if self.state == AppState.WATCHING:
-            self._overlay.show()
+            self._overlay.hide()
         elif self.state != AppState.SCANNING:
             self._overlay.hide()
 
@@ -432,6 +648,7 @@ class App(tk.Tk):
             autosave_manager=self._asv,
             inventory_profile_id=meta.get("item_scan_filter_profile") or None,
             fast_student_ids=meta.get("fast_student_ids") or None,
+            inventory_detail_override_dir=self._inventory_detail_override_dir(),
         )
 
     def _choose_item_scan_filter(self) -> str | list[str] | None:
@@ -745,7 +962,7 @@ class App(tk.Tk):
                 )
 
             self._result = result
-            self._auto_save(result, meta)
+            self._dispatch_ui(self._review_and_auto_save, result, meta)
         except Exception as exc:
             import traceback
 
@@ -754,6 +971,160 @@ class App(tk.Tk):
                 self._asv.emergency_save(result, meta)
             self._dispatch_ui(self._overlay.add_log, f"스캔 오류: {exc}")
             self._dispatch_ui(self._transition_to, AppState.ERROR, str(exc))
+
+    def _inventory_key_for_review(self, item: ItemEntry) -> str:
+        return str(item.item_id or item.name or "")
+
+    def _inventory_detail_override_dir(self) -> Path:
+        return self._storage.root / "templates" / "inventory_detail"
+
+    def _inventory_detail_name_override_dir(self) -> Path:
+        return self._storage.root / "templates" / "inventory_detail_names"
+
+    def _safe_template_name(self, value: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in value).strip("._")
+
+    def _save_confirmed_inventory_templates(self, rows: list[dict], meta: dict) -> int:
+        saved = 0
+        override_root = self._inventory_detail_override_dir()
+        name_override_root = self._inventory_detail_name_override_dir()
+        scan_id = str(meta.get("scan_id") or "unknown")
+        for row in rows:
+            item: ItemEntry = row["item"]
+            item_id = str(item.item_id or "").strip()
+            if not item_id:
+                continue
+            if item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+                continue
+            crop = getattr(item, "detail_crop", None)
+            if crop is None:
+                continue
+            scan_meta = dict(getattr(item, "scan_meta", {}) or {})
+            if not scan_meta.get("review_confirmed"):
+                continue
+            profile_id = str(scan_meta.get("profile_id") or "").strip()
+            if not profile_id:
+                continue
+
+            safe_name = self._safe_template_name(item_id)
+            if not safe_name:
+                continue
+            target_dir = override_root / profile_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            image_path = target_dir / f"{safe_name}.png"
+            json_path = target_dir / f"{safe_name}.json"
+
+            crop.save(image_path)
+            name_crop = getattr(item, "detail_name_crop", None)
+            name_image_path = None
+            if name_crop is not None:
+                name_target_dir = name_override_root / profile_id
+                name_target_dir.mkdir(parents=True, exist_ok=True)
+                name_image_path = name_target_dir / f"{safe_name}.png"
+                name_crop.save(name_image_path)
+
+            payload = {
+                "name": item_id,
+                "profile_id": profile_id,
+                "source": item.source,
+                "item_id": item_id,
+                "display_name": item.name,
+                "quantity": item.quantity,
+                "scan_id": scan_id,
+                "confirmed_at": datetime.now().astimezone().isoformat(),
+                "image_path": str(image_path),
+                "name_image_path": str(name_image_path) if name_image_path else None,
+                "template_source": "user_confirmed_scan",
+                "scan_meta": scan_meta,
+            }
+            json_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            if name_image_path is not None:
+                name_payload = dict(payload)
+                name_payload["image_path"] = str(name_image_path)
+                name_payload["detail_image_path"] = str(image_path)
+                name_payload["template_kind"] = "detail_name"
+                (name_image_path.with_suffix(".json")).write_text(
+                    json.dumps(name_payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            item.scan_meta["user_template_path"] = str(image_path)
+            if name_image_path is not None:
+                item.scan_meta["user_name_template_path"] = str(name_image_path)
+            saved += 1
+        if saved:
+            _log.info("saved confirmed inventory detail templates: %d", saved)
+            self._overlay.add_log(f"Saved {saved} confirmed inventory templates")
+        return saved
+
+    def _scan_review_rows(self, result: ScanResult) -> list[dict]:
+        try:
+            current_inventory = self._repo.load_current_inventory()
+        except Exception:
+            current_inventory = {}
+
+        rows: list[dict] = []
+        sections = (("item", result.items or []), ("equipment", result.equipment or []))
+        for kind, entries in sections:
+            for item in entries:
+                meta = dict(getattr(item, "scan_meta", {}) or {})
+                status = str(meta.get("status") or "ok")
+                if not meta.get("review_required"):
+                    continue
+
+                key = self._inventory_key_for_review(item)
+                old_entry = current_inventory.get(key, {})
+                old_quantity = old_entry.get("quantity")
+                scanned_quantity = str(item.quantity or "")
+                item.scan_meta = meta
+                item.scan_meta.setdefault("scanned_quantity", scanned_quantity)
+
+                if (
+                    status == "zero_filled"
+                    and old_quantity not in (None, "", "0")
+                    and scanned_quantity == "0"
+                ):
+                    item.quantity = str(old_quantity)
+                    item.scan_meta["suggested_quantity"] = str(old_quantity)
+                    item.scan_meta["reason"] = (
+                        f"{item.scan_meta.get('reason') or 'zero_filled'}; "
+                        "previous_nonzero_preserved"
+                    )
+
+                rows.append(
+                    {
+                        "kind": kind,
+                        "item": item,
+                        "old_quantity": old_quantity,
+                    }
+                )
+        return rows
+
+    def _review_and_auto_save(self, result: ScanResult, meta: dict) -> None:
+        rows = self._scan_review_rows(result)
+        _log.info("scan review rows: %d", len(rows))
+        if rows:
+            _log.info("opening scan review dialog")
+            self._overlay.add_log(f"Review needed: {len(rows)} inventory entries")
+            parent = self
+            try:
+                if self._overlay.winfo_exists():
+                    parent = self._overlay
+            except TclError:
+                parent = self
+            dialog = ScanReviewDialog(parent, rows)
+            self.wait_window(dialog)
+            if not dialog.result:
+                scan_id = meta.get("scan_id", "unknown")
+                _log.info("scan save skipped by review: %s", scan_id)
+                self._overlay.add_log(f"Scan save skipped by review ({scan_id})")
+                return
+            self._save_confirmed_inventory_templates(rows, meta)
+
+        _log.info("scan review accepted or not needed; saving")
+        self._auto_save(result, meta)
 
     def _on_scan_finished(self) -> None:
         self._scanner = None

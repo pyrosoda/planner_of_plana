@@ -1,0 +1,48 @@
+﻿{
+    "name":  "Equipment_Icon_WeaponExpGrowthZ_0",
+    "captured_at":  "2026-04-24T16:23:24",
+    "source_image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\extractor\\KakaoTalk_20260418_164503742_01.jpg",
+    "source_size":  {
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "preview_scale":  0.546875,
+    "preview_rect":  {
+                         "left":  69,
+                         "top":  613,
+                         "right":  576,
+                         "bottom":  686
+                     },
+    "crop_box_image":  {
+                           "left":  126,
+                           "top":  1121,
+                           "right":  1054,
+                           "bottom":  1254
+                       },
+    "output_size":  {
+                        "width":  928,
+                        "height":  133
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_detail_names\\equipment\\Equipment_Icon_WeaponExpGrowthZ_0.png",
+    "region_source_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\debug\\region_captures\\equip_name_image_regino.region.json",
+    "selection_mode":  "quad",
+    "points_image":  [
+                         {
+                             "x":  126.001,
+                             "y":  1121.0
+                         },
+                         {
+                             "x":  1054.001,
+                             "y":  1121.0
+                         },
+                         {
+                             "x":  1054.001,
+                             "y":  1254.0
+                         },
+                         {
+                             "x":  126.001,
+                             "y":  1254.0
+                         }
+                     ],
+    "item_id":  "Equipment_Icon_WeaponExpGrowthZ_0"
+}

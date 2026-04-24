@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Badge_Tier1",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Badge_Tier1",
+  "display_name": "서벌 금속 배지",
+  "quantity": "239",
+  "scan_id": "2026-04-23_235254",
+  "confirmed_at": "2026-04-23T23:55:24.386309+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Badge_Tier1.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 89,
+    "candidate_sequence": 90,
+    "left_anchor_index": 88,
+    "right_anchor_index": 90,
+    "left_anchor_score": 0.9864,
+    "right_anchor_score": 0.983,
+    "review_required": false,
+    "scanned_quantity": "239",
+    "review_confirmed": true
+  }
+}

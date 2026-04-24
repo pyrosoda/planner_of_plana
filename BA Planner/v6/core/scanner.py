@@ -6,6 +6,7 @@ Broken legacy comments and UI strings were cleaned up for readability.
 """
 
 import ctypes
+import os
 import sys
 import time
 import json
@@ -49,6 +50,8 @@ from core.matcher import (
     CheckFlag,
     EquipSlotFlag,
     match_score_resized,
+    match_score_resized_raw,
+    match_score_textonly,
     match_student_texture,
     is_lobby,
     is_student_menu,
@@ -81,6 +84,7 @@ from core.inventory_profiles import (
     inventory_item_display_name,
     inventory_profile_ordered_item_ids,
     is_inventory_profile_complete,
+    is_inventory_profile_terminal_seen,
     next_inventory_profile_name,
     normalize_inventory_profile_ids,
     resolve_inventory_profile_name,
@@ -143,6 +147,40 @@ INVENTORY_PROFILE_MAX_DETAIL_CANDIDATES = {
     "activity_reports": 4,
 }
 PROFILE_DIRECT_MATCH_THRESHOLD = 0.82
+STRICT_DETAIL_FAMILY_THRESHOLDS: dict[str, tuple[float, float, float]] = {
+    "Equipment_Icon_WeaponExpGrowth": (0.92, 0.025, 0.03),
+}
+
+
+def _inventory_detail_strict_family(item_id: str | None) -> str | None:
+    if not item_id:
+        return None
+    for prefix in STRICT_DETAIL_FAMILY_THRESHOLDS:
+        if item_id.startswith(prefix):
+            return prefix
+    return None
+
+
+def _inventory_detail_strict_family_position(
+    item_id: str | None,
+) -> tuple[str, int, int] | None:
+    family_key = _inventory_detail_strict_family(item_id)
+    if family_key != "Equipment_Icon_WeaponExpGrowth" or not item_id:
+        return None
+    suffix = item_id.removeprefix("Equipment_Icon_WeaponExpGrowth")
+    parts = suffix.split("_")
+    if len(parts) != 2:
+        return None
+    group_token = parts[0]
+    try:
+        tier_token = int(parts[1])
+    except ValueError:
+        return None
+    group_rank = {"Z": 0, "C": 1, "B": 2, "A": 3}.get(group_token)
+    tier_rank = {3: 0, 2: 1, 1: 2, 0: 3}.get(tier_token)
+    if group_rank is None or tier_rank is None:
+        return None
+    return family_key, group_rank, tier_rank
 PROFILE_SEARCH_MATCH_THRESHOLD = 0.88
 VK_SPACE = 0x20
 _USER32 = ctypes.windll.user32 if sys.platform == "win32" else None
@@ -188,6 +226,9 @@ class ItemEntry:
     item_id:  Optional[str] = None
     source:   str = "item"
     index:    int = 0
+    scan_meta: dict = field(default_factory=dict)
+    detail_crop: Optional[Image.Image] = field(default=None, repr=False, compare=False)
+    detail_name_crop: Optional[Image.Image] = field(default=None, repr=False, compare=False)
 
     def key(self) -> str:
         stable = (self.item_id or self.name or "").strip().lower()
@@ -584,6 +625,7 @@ class InventoryVerification:
     item_id: Optional[str] = None
     match_score: float = 0.0
     detail_crop: Optional[Image.Image] = None
+    detail_name_crop: Optional[Image.Image] = None
 
 
 @dataclass
@@ -592,6 +634,7 @@ class InventoryDetailCandidate:
     slot_index: int
     count: str
     detail_crop: Image.Image
+    detail_name_crop: Optional[Image.Image] = None
     detected_item_id: Optional[str] = None
     detected_score: float = 0.0
 
@@ -690,6 +733,8 @@ _INVENTORY_TEMPLATE_DIRS: dict[str, tuple[str, ...]] = {
 _INVENTORY_TEMPLATE_CATALOG: dict[str, list[tuple[str, str]]] = {}
 _INVENTORY_DETAIL_TEMPLATE_CATALOG: dict[str, list[tuple[str, str]]] = {}
 _INVENTORY_DETAIL_TEMPLATE_REGION: dict[str, dict] = {}
+_INVENTORY_DETAIL_NAME_TEMPLATE_CATALOG: dict[str, list[tuple[str, str]]] = {}
+_INVENTORY_DETAIL_NAME_TEMPLATE_REGION: dict[str, dict] = {}
 _REGION_CAPTURE_PAYLOADS: dict[str, dict] = {}
 _REGION_CAPTURE_REGIONS: dict[str, dict] = {}
 _REGION_CAPTURE_REFERENCE_PATHS: dict[str, str | None] = {}
@@ -760,6 +805,72 @@ def _inventory_detail_template_region(profile_id: str | None) -> dict | None:
         _INVENTORY_DETAIL_TEMPLATE_REGION[profile_id] = region
         return region
 
+    return None
+
+
+def _inventory_detail_name_template_catalog(profile_id: str | None) -> list[tuple[str, str]]:
+    if not profile_id:
+        return []
+    cached = _INVENTORY_DETAIL_NAME_TEMPLATE_CATALOG.get(profile_id)
+    if cached is not None:
+        return cached
+
+    base = TEMPLATE_DIR / "inventory_detail_names" / profile_id
+    catalog: list[tuple[str, str]] = []
+    if base.exists():
+        for png in sorted(base.glob("*.png")):
+            catalog.append((png.stem, str(png)))
+
+    _INVENTORY_DETAIL_NAME_TEMPLATE_CATALOG[profile_id] = catalog
+    return catalog
+
+
+def _region_from_payload(payload: dict) -> dict | None:
+    points = payload.get("points_ratio") or []
+    if len(points) < 4:
+        return None
+    try:
+        xs = [float(point.get("x", 0.0)) for point in points]
+        ys = [float(point.get("y", 0.0)) for point in points]
+    except Exception:
+        return None
+    return {
+        "x1": max(0.0, min(xs)),
+        "y1": max(0.0, min(ys)),
+        "x2": min(1.0, max(xs)),
+        "y2": min(1.0, max(ys)),
+    }
+
+
+def _inventory_detail_name_template_region(source: str) -> dict | None:
+    key = "equipment" if source == "equipment" else "item"
+    cached = _INVENTORY_DETAIL_NAME_TEMPLATE_REGION.get(key)
+    if cached is not None:
+        return cached
+
+    stems = (
+        ("equip_name_image_region", "equip_name_image_regino")
+        if key == "equipment"
+        else ("item_name_image_region", "item_name_image_regino")
+    )
+    search_dirs = (
+        TEMPLATE_DIR / "inventory_detail_names",
+        BASE_DIR / "debug" / "region_captures",
+    )
+    for base in search_dirs:
+        for stem in stems:
+            json_path = base / f"{stem}.region.json"
+            if not json_path.exists():
+                continue
+            try:
+                payload = json.loads(json_path.read_text(encoding="utf-8-sig"))
+            except Exception:
+                continue
+            region = _region_from_payload(payload)
+            if region is None:
+                continue
+            _INVENTORY_DETAIL_NAME_TEMPLATE_REGION[key] = region
+            return region
     return None
 
 
@@ -876,6 +987,7 @@ class Scanner:
         autosave_manager = None,   # AutoSaveManager | None
         inventory_profile_id: str | list[str] | tuple[str, ...] | None = None,
         fast_student_ids: Optional[list[str]] = None,
+        inventory_detail_override_dir: str | os.PathLike | None = None,
     ):
         self.r             = regions
         self._on_progress  = on_progress
@@ -900,6 +1012,11 @@ class Scanner:
             "equipment": set(),
         }
         self._default_inventory_profile_ids = normalize_inventory_profile_ids(inventory_profile_id)
+        self._inventory_detail_override_dir = (
+            Path(inventory_detail_override_dir)
+            if inventory_detail_override_dir
+            else None
+        )
         self._forced_inventory_profile_id: str | None = (
             None
             if not self._default_inventory_profile_ids or self._default_inventory_profile_ids == ("all",)
@@ -1995,8 +2112,13 @@ class Scanner:
             matched_item_id = None
             matched_score = 0.0
             detail_crop = self._inventory_detail_crop(img2, profile_id) if profile_id else None
+            detail_name_crop = self._inventory_detail_name_crop(img2, source) if profile_id else None
             if profile_id:
-                matched_item_id, matched_score = self._match_inventory_detail_crop(detail_crop, profile_id)
+                matched_item_id, matched_score = self._match_inventory_detail_crop(
+                    detail_crop,
+                    profile_id,
+                    detail_name_crop,
+                )
                 if matched_item_id:
                     self.log(
                         f"    detail template matched: {matched_item_id} "
@@ -2008,6 +2130,7 @@ class Scanner:
                 item_id=matched_item_id,
                 match_score=matched_score,
                 detail_crop=detail_crop,
+                detail_name_crop=detail_name_crop,
             )
         self.log("    detail template fallback disabled: profile/template match required")
         return None
@@ -2020,7 +2143,7 @@ class Scanner:
         best_item_id: str | None = None
         best_score = 0.0
         for item_id, path in _inventory_template_catalog(source):
-            score = match_score_resized(icon_crop, path)
+            score = match_score_resized_raw(icon_crop, path)
             if score > best_score:
                 best_score = score
                 best_item_id = item_id
@@ -2039,18 +2162,97 @@ class Scanner:
             return None
         return crop_region(image, region)
 
-    def _match_inventory_detail_crop(
+    def _inventory_detail_name_crop(
+        self,
+        image: Image.Image,
+        source: str,
+    ) -> Image.Image | None:
+        region = _inventory_detail_name_template_region(source)
+        if region is None:
+            return None
+        return crop_region(image, region)
+
+    def _inventory_detail_template_catalog_for_scan(
+        self,
+        profile_id: str | None,
+    ) -> list[tuple[str, str]]:
+        base_catalog = _inventory_detail_template_catalog(profile_id)
+        if not profile_id or self._inventory_detail_override_dir is None:
+            return base_catalog
+
+        override_base = self._inventory_detail_override_dir / profile_id
+        if not override_base.exists():
+            return base_catalog
+
+        override_by_id: dict[str, str] = {}
+        for png in sorted(override_base.glob("*.png")):
+            override_by_id[png.stem] = str(png)
+        if not override_by_id:
+            return base_catalog
+
+        catalog: list[tuple[str, str]] = []
+        used: set[str] = set()
+        for item_id, path in base_catalog:
+            if item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+                catalog.append((item_id, path))
+                used.add(item_id)
+                continue
+            override_path = override_by_id.get(item_id)
+            if override_path:
+                catalog.append((item_id, override_path))
+                used.add(item_id)
+            else:
+                catalog.append((item_id, path))
+        for item_id, path in override_by_id.items():
+            if item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
+                continue
+            if item_id not in used:
+                catalog.append((item_id, path))
+        return catalog
+
+    def _inventory_detail_name_template_catalog_for_scan(
+        self,
+        profile_id: str | None,
+    ) -> list[tuple[str, str]]:
+        base_catalog = _inventory_detail_name_template_catalog(profile_id)
+        if not profile_id or self._inventory_detail_override_dir is None:
+            return base_catalog
+
+        override_base = self._inventory_detail_override_dir.parent / "inventory_detail_names" / profile_id
+        if not override_base.exists():
+            return base_catalog
+
+        override_by_id = {png.stem: str(png) for png in sorted(override_base.glob("*.png"))}
+        if not override_by_id:
+            return base_catalog
+
+        catalog: list[tuple[str, str]] = []
+        used: set[str] = set()
+        for item_id, path in base_catalog:
+            override_path = override_by_id.get(item_id)
+            catalog.append((item_id, override_path or path))
+            used.add(item_id)
+        for item_id, path in override_by_id.items():
+            if item_id not in used:
+                catalog.append((item_id, path))
+        return catalog
+
+    def _match_inventory_detail_name_crop(
         self,
         crop: Image.Image | None,
         profile_id: str | None,
     ) -> tuple[str | None, float]:
         if crop is None:
             return None, 0.0
+        catalog = self._inventory_detail_name_template_catalog_for_scan(profile_id)
+        if not catalog:
+            return None, 0.0
+
         best_item_id: str | None = None
         best_score = 0.0
         second_best = 0.0
-        for item_id, path in _inventory_detail_template_catalog(profile_id):
-            score = match_score_resized(crop, path)
+        for item_id, path in catalog:
+            score = match_score_textonly(crop, path)
             if score > best_score:
                 second_best = best_score
                 best_score = score
@@ -2058,8 +2260,76 @@ class Scanner:
             elif score > second_best:
                 second_best = score
 
+        if best_score < 0.72 or (best_score - second_best) < 0.02:
+            return None, best_score
+        return best_item_id, best_score
+
+    def _match_inventory_detail_crop(
+        self,
+        crop: Image.Image | None,
+        profile_id: str | None,
+        name_crop: Image.Image | None = None,
+    ) -> tuple[str | None, float]:
+        if crop is None:
+            return None, 0.0
+        catalog = self._inventory_detail_template_catalog_for_scan(profile_id)
+        if not catalog:
+            return None, 0.0
+        name_catalog = dict(self._inventory_detail_name_template_catalog_for_scan(profile_id))
+
+        best_item_id: str | None = None
+        best_score = 0.0
+        second_best = 0.0
+        family_top_scores: dict[str, list[tuple[str, float]]] = {}
+        for item_id, path in catalog:
+            icon_score = match_score_resized_raw(crop, path)
+            name_path = name_catalog.get(item_id)
+            name_score = match_score_textonly(name_crop, name_path) if name_crop is not None and name_path else 0.0
+            if name_score > 0.0:
+                score = 0.72 * icon_score + 0.28 * name_score
+            else:
+                score = icon_score
+            if score > best_score:
+                second_best = best_score
+                best_score = score
+                best_item_id = item_id
+            elif score > second_best:
+                second_best = score
+
+            family_key = _inventory_detail_strict_family(item_id)
+            if family_key is not None:
+                top_scores = family_top_scores.setdefault(family_key, [])
+                top_scores.append((item_id, score))
+                top_scores.sort(key=lambda row: row[1], reverse=True)
+                if len(top_scores) > 4:
+                    del top_scores[4:]
+
         if best_score < 0.88 or (best_score - second_best) < 0.015:
             return None, best_score
+
+        strict_family = _inventory_detail_strict_family(best_item_id)
+        if strict_family is not None:
+            family_threshold, overall_margin_threshold, family_margin_threshold = (
+                STRICT_DETAIL_FAMILY_THRESHOLDS[strict_family]
+            )
+            family_second_best = 0.0
+            for item_id, score in family_top_scores.get(strict_family, []):
+                if item_id != best_item_id:
+                    family_second_best = score
+                    break
+            overall_margin = best_score - second_best
+            family_margin = best_score - family_second_best
+            if (
+                best_score < family_threshold
+                or overall_margin < overall_margin_threshold
+                or family_margin < family_margin_threshold
+            ):
+                self.log(
+                    f"    detail template ambiguous reject: {best_item_id} "
+                    f"(score={best_score:.2f}, overall_margin={overall_margin:.3f}, "
+                    f"family_margin={family_margin:.3f})"
+                )
+                return None, best_score
         return best_item_id, best_score
 
     def _match_inventory_detail_template(
@@ -2070,6 +2340,7 @@ class Scanner:
         return self._match_inventory_detail_crop(
             self._inventory_detail_crop(image, profile_id),
             profile_id,
+            self._inventory_detail_name_crop(image, profile_id or "item"),
         )
 
     def _fill_missing_profile_entries(
@@ -2146,9 +2417,14 @@ class Scanner:
         if not ordered_names or not candidates:
             return items
 
-        template_catalog = dict(_inventory_detail_template_catalog(profile.profile_id))
+        template_catalog = dict(self._inventory_detail_template_catalog_for_scan(profile.profile_id))
         if not template_catalog:
             return items
+        family_profile_indices: dict[str, list[int]] = {}
+        for idx, item_id in enumerate(ordered_item_ids):
+            family_key = _inventory_detail_strict_family(item_id)
+            if family_key is not None:
+                family_profile_indices.setdefault(family_key, []).append(idx)
 
         def _template_path_for(idx: int) -> str | None:
             if idx >= len(ordered_names):
@@ -2160,6 +2436,10 @@ class Scanner:
             if expected_name and expected_name in template_catalog:
                 return template_catalog[expected_name]
             return None
+
+        name_template_catalog = dict(
+            self._inventory_detail_name_template_catalog_for_scan(profile.profile_id)
+        )
 
         def _entry_index(entry: ItemEntry) -> int | None:
             if entry.item_id:
@@ -2191,97 +2471,389 @@ class Scanner:
             template_path = _template_path_for(idx)
             if not template_path:
                 return 0.0
-            return match_score_resized(candidate.detail_crop, template_path)
+            icon_score = match_score_resized_raw(candidate.detail_crop, template_path)
+            expected_id = ordered_item_ids[idx] if idx < len(ordered_item_ids) else None
+            name_path = name_template_catalog.get(expected_id or "") if expected_id else None
+            if candidate.detail_name_crop is None or not name_path:
+                return icon_score
+            name_score = match_score_textonly(candidate.detail_name_crop, name_path)
+            return 0.72 * icon_score + 0.28 * name_score
 
-        existing_indices: set[int] = set()
-        seen_keys = {entry.key() for entry in items}
-        for entry in items:
-            idx = _entry_index(entry)
-            if idx is not None:
-                existing_indices.add(idx)
+        candidate_count = len(candidates)
+        profile_count = len(ordered_names)
+        score_cache: dict[tuple[int, int], float] = {}
+        family_margin_cache: dict[tuple[int, int], float] = {}
+        neg_inf = -10.0**9
 
-        recovered: list[ItemEntry] = []
-        cursor = 0
-        recovered_nonzero = 0
-        recovered_zero = 0
+        def _normalized_distance(candidate_idx: int, profile_idx: int) -> float:
+            cand_ratio = (
+                candidate_idx / max(1, candidate_count - 1)
+                if candidate_count > 1
+                else 0.0
+            )
+            prof_ratio = (
+                profile_idx / max(1, profile_count - 1)
+                if profile_count > 1
+                else 0.0
+            )
+            return abs(cand_ratio - prof_ratio)
 
-        for candidate in candidates:
-            while cursor < len(ordered_names) and cursor in existing_indices:
-                cursor += 1
-            if self._stop_requested() or cursor >= len(ordered_names):
-                break
+        def _match_score(candidate_idx: int, profile_idx: int) -> float:
+            key = (candidate_idx, profile_idx)
+            cached = score_cache.get(key)
+            if cached is not None:
+                return cached
 
-            matched_idx: int | None = None
-            matched_score = 0.0
+            candidate = candidates[candidate_idx]
+            template_score = _score(candidate, profile_idx)
+            if template_score <= 0.0:
+                score_cache[key] = neg_inf
+                return neg_inf
+
             detected_idx = _candidate_detected_index(candidate)
-            if detected_idx is not None and detected_idx >= cursor:
-                matched_idx = detected_idx
-                matched_score = candidate.detected_score
-            else:
-                direct_score = _score(candidate, cursor)
-                matched_score = direct_score
-                if direct_score >= PROFILE_DIRECT_MATCH_THRESHOLD:
-                    matched_idx = cursor
-                else:
-                    for idx in range(cursor + 1, len(ordered_names)):
-                        score = _score(candidate, idx)
-                        if score > matched_score:
-                            matched_score = score
-                        if score >= PROFILE_SEARCH_MATCH_THRESHOLD:
-                            matched_idx = idx
-                            matched_score = score
-                            break
+            expected_item_id = ordered_item_ids[profile_idx] if profile_idx < len(ordered_item_ids) else None
+            family_key = _inventory_detail_strict_family(expected_item_id)
+            family_margin: float | None = None
+            detected_item_id = None
+            if detected_idx is not None and detected_idx < len(ordered_item_ids):
+                detected_item_id = ordered_item_ids[detected_idx]
 
-            if matched_idx is None:
-                if matched_score >= 0.70:
-                    self.log(
-                        f"  profile gap recovery unresolved: "
-                        f"slot={candidate.slot_index} cursor={cursor} "
-                        f"best={matched_score:.2f}"
+            if family_key is not None:
+                alt_best = 0.0
+                for alt_profile_idx in family_profile_indices.get(family_key, []):
+                    if alt_profile_idx == profile_idx:
+                        continue
+                    alt_score = _score(candidate, alt_profile_idx)
+                    if alt_score > alt_best:
+                        alt_best = alt_score
+                family_margin = template_score - alt_best
+                family_margin_cache[key] = family_margin
+                if template_score < 0.90 and family_margin < 0.015:
+                    score_cache[key] = neg_inf
+                    return neg_inf
+
+            score = (template_score - PROFILE_DIRECT_MATCH_THRESHOLD) * 4.0
+            if detected_idx == profile_idx:
+                if family_key is not None:
+                    strict_bonus = 0.45 + max(0.0, candidate.detected_score - 0.95) * 0.9
+                    if family_margin is not None:
+                        if family_margin >= 0.05:
+                            strict_bonus += 0.25
+                        elif family_margin < 0.03:
+                            strict_bonus -= 0.35
+                    score += strict_bonus
+                else:
+                    score += 1.6 + max(0.0, candidate.detected_score - PROFILE_DIRECT_MATCH_THRESHOLD) * 1.5
+            elif detected_idx is not None:
+                if family_key is not None:
+                    mismatch_distance = abs(detected_idx - profile_idx)
+                    score -= 1.35 + min(mismatch_distance * 0.32, 2.0)
+                    detected_position = _inventory_detail_strict_family_position(detected_item_id)
+                    expected_position = _inventory_detail_strict_family_position(expected_item_id)
+                    if detected_position is not None and expected_position is not None:
+                        _family, detected_group, detected_tier = detected_position
+                        _family, expected_group, expected_tier = expected_position
+                        score -= abs(detected_group - expected_group) * 0.55
+                        score -= abs(detected_tier - expected_tier) * 0.18
+                else:
+                    score -= 1.2 + min(abs(detected_idx - profile_idx) * 0.15, 0.9)
+
+            if family_key is not None and family_margin is not None:
+                if family_margin < 0.02:
+                    score -= 1.2
+                elif family_margin < 0.03:
+                    score -= 0.6
+
+            score -= _normalized_distance(candidate_idx, profile_idx) * 0.75
+            score_cache[key] = score
+            return score
+
+        def _skip_profile_penalty(profile_idx: int) -> float:
+            if profile_count <= 1:
+                return -0.45
+            edge_distance = min(profile_idx, profile_count - 1 - profile_idx)
+            return -0.35 if edge_distance == 0 else -0.55
+
+        def _skip_candidate_penalty(candidate_idx: int) -> float:
+            candidate = candidates[candidate_idx]
+            detected_idx = _candidate_detected_index(candidate)
+            if detected_idx is not None and candidate.detected_score >= PROFILE_DIRECT_MATCH_THRESHOLD:
+                return -1.25
+            if candidate.detected_score >= 0.90:
+                return -0.85
+            return -0.35
+
+        def _anchor_strength(candidate_idx: int, profile_idx: int) -> float:
+            candidate = candidates[candidate_idx]
+            if candidate.detected_score < 0.95:
+                return neg_inf
+            template_score = _score(candidate, profile_idx)
+            if template_score < 0.93:
+                return neg_inf
+
+            expected_item_id = (
+                ordered_item_ids[profile_idx]
+                if profile_idx < len(ordered_item_ids)
+                else None
+            )
+            family_key = _inventory_detail_strict_family(expected_item_id)
+            family_margin = family_margin_cache.get((candidate_idx, profile_idx))
+            if family_key is not None:
+                if family_margin is None:
+                    _match_score(candidate_idx, profile_idx)
+                    family_margin = family_margin_cache.get((candidate_idx, profile_idx))
+                if candidate.detected_score < 0.96 or template_score < 0.94:
+                    return neg_inf
+                if family_margin is None or family_margin < 0.035:
+                    return neg_inf
+            elif candidate.detected_score < 0.97:
+                return neg_inf
+
+            return candidate.detected_score + template_score
+
+        def _run_segment_dp(
+            candidate_start: int,
+            candidate_end: int,
+            profile_start: int,
+            profile_end: int,
+        ) -> tuple[dict[int, int], int, float]:
+            segment_candidate_count = candidate_end - candidate_start
+            segment_profile_count = profile_end - profile_start
+            if segment_candidate_count <= 0 and segment_profile_count <= 0:
+                return {}, 0, 0.0
+
+            dp: list[list[float]] = [
+                [neg_inf] * (segment_profile_count + 1)
+                for _ in range(segment_candidate_count + 1)
+            ]
+            prev: list[list[tuple[int, int, str] | None]] = [
+                [None] * (segment_profile_count + 1)
+                for _ in range(segment_candidate_count + 1)
+            ]
+            dp[0][0] = 0.0
+
+            for local_candidate_idx in range(segment_candidate_count + 1):
+                for local_profile_idx in range(segment_profile_count + 1):
+                    current = dp[local_candidate_idx][local_profile_idx]
+                    if current <= neg_inf / 2:
+                        continue
+
+                    global_candidate_idx = candidate_start + local_candidate_idx
+                    global_profile_idx = profile_start + local_profile_idx
+
+                    if local_profile_idx < segment_profile_count:
+                        score = current + _skip_profile_penalty(global_profile_idx)
+                        if score > dp[local_candidate_idx][local_profile_idx + 1]:
+                            dp[local_candidate_idx][local_profile_idx + 1] = score
+                            prev[local_candidate_idx][local_profile_idx + 1] = (
+                                local_candidate_idx,
+                                local_profile_idx,
+                                "skip_profile",
+                            )
+
+                    if local_candidate_idx < segment_candidate_count:
+                        score = current + _skip_candidate_penalty(global_candidate_idx)
+                        if score > dp[local_candidate_idx + 1][local_profile_idx]:
+                            dp[local_candidate_idx + 1][local_profile_idx] = score
+                            prev[local_candidate_idx + 1][local_profile_idx] = (
+                                local_candidate_idx,
+                                local_profile_idx,
+                                "skip_candidate",
+                            )
+
+                    if (
+                        local_candidate_idx < segment_candidate_count
+                        and local_profile_idx < segment_profile_count
+                    ):
+                        match_score = _match_score(
+                            global_candidate_idx,
+                            global_profile_idx,
+                        )
+                        if match_score > neg_inf / 2:
+                            score = current + match_score
+                            if score > dp[local_candidate_idx + 1][local_profile_idx + 1]:
+                                dp[local_candidate_idx + 1][local_profile_idx + 1] = score
+                                prev[local_candidate_idx + 1][local_profile_idx + 1] = (
+                                    local_candidate_idx,
+                                    local_profile_idx,
+                                    "match",
+                                )
+
+            segment_matches: dict[int, int] = {}
+            segment_skipped_candidates = 0
+            local_candidate_idx = segment_candidate_count
+            local_profile_idx = segment_profile_count
+            while local_candidate_idx > 0 or local_profile_idx > 0:
+                step = prev[local_candidate_idx][local_profile_idx]
+                if step is None:
+                    break
+                prev_local_candidate_idx, prev_local_profile_idx, action = step
+                if action == "match":
+                    segment_matches[profile_start + prev_local_profile_idx] = (
+                        candidate_start + prev_local_candidate_idx
                     )
+                elif action == "skip_candidate":
+                    segment_skipped_candidates += 1
+                local_candidate_idx, local_profile_idx = (
+                    prev_local_candidate_idx,
+                    prev_local_profile_idx,
+                )
+
+            return (
+                segment_matches,
+                segment_skipped_candidates,
+                dp[segment_candidate_count][segment_profile_count],
+            )
+
+        raw_anchors: list[tuple[int, int, float]] = []
+        for candidate_idx, candidate in enumerate(candidates):
+            detected_idx = _candidate_detected_index(candidate)
+            if detected_idx is None:
+                continue
+            strength = _anchor_strength(candidate_idx, detected_idx)
+            if strength <= neg_inf / 2:
+                continue
+            raw_anchors.append((candidate_idx, detected_idx, strength))
+
+        anchors: list[tuple[int, int, float]] = []
+        for candidate_idx, profile_idx, strength in raw_anchors:
+            if not anchors:
+                anchors.append((candidate_idx, profile_idx, strength))
+                continue
+            last_candidate_idx, last_profile_idx, last_strength = anchors[-1]
+            if candidate_idx <= last_candidate_idx:
+                continue
+            if profile_idx > last_profile_idx:
+                anchors.append((candidate_idx, profile_idx, strength))
+                continue
+            if profile_idx == last_profile_idx and strength > last_strength:
+                anchors[-1] = (candidate_idx, profile_idx, strength)
+
+        matched_candidates: dict[int, int] = {}
+        skipped_candidates = 0
+        total_alignment_score = 0.0
+        segment_count = 0
+        anchor_points = [(-1, -1, 0.0), *anchors, (candidate_count, profile_count, 0.0)]
+        for segment_idx in range(len(anchor_points) - 1):
+            left_candidate_idx, left_profile_idx, _left_strength = anchor_points[segment_idx]
+            right_candidate_idx, right_profile_idx, right_strength = anchor_points[segment_idx + 1]
+            segment_matches, segment_skipped_candidates, segment_score = _run_segment_dp(
+                left_candidate_idx + 1,
+                right_candidate_idx,
+                left_profile_idx + 1,
+                right_profile_idx,
+            )
+            matched_candidates.update(segment_matches)
+            skipped_candidates += segment_skipped_candidates
+            total_alignment_score += segment_score
+            segment_count += 1
+            if right_candidate_idx < candidate_count and right_profile_idx < profile_count:
+                matched_candidates[right_profile_idx] = right_candidate_idx
+                total_alignment_score += _match_score(right_candidate_idx, right_profile_idx)
+
+        self.log(
+            f"  profile dp anchors: count={len(anchors)} segments={segment_count}"
+        )
+
+        matched_indices = sorted(matched_candidates)
+        first_match_idx = matched_indices[0] if matched_indices else None
+        last_match_idx = matched_indices[-1] if matched_indices else None
+
+        aligned: list[ItemEntry] = []
+        matched_count = 0
+        zero_filled_count = 0
+        for profile_idx, expected_name in enumerate(ordered_names):
+            expected_item_id = ordered_item_ids[profile_idx] if profile_idx < len(ordered_item_ids) else None
+            matched_candidate_idx = matched_candidates.get(profile_idx)
+            if matched_candidate_idx is None:
+                review_required = (
+                    first_match_idx is not None
+                    and last_match_idx is not None
+                    and first_match_idx <= profile_idx <= last_match_idx
+                )
+                aligned.append(
+                    ItemEntry(
+                        name=expected_name,
+                        quantity="0",
+                        item_id=expected_item_id,
+                        source=source,
+                        index=profile_idx,
+                        scan_meta={
+                            "status": "zero_filled",
+                            "reason": "dp_skip_profile",
+                            "profile_id": profile.profile_id,
+                            "profile_index": profile_idx,
+                            "review_required": review_required,
+                        },
+                    )
+                )
+                zero_filled_count += 1
                 continue
 
-            for gap_idx in range(cursor, matched_idx):
-                if gap_idx in existing_indices:
-                    continue
-                key = _entry_key_for(gap_idx)
-                if key in seen_keys:
-                    continue
-                entry = ItemEntry(
-                    name=ordered_names[gap_idx],
-                    quantity="0",
-                    item_id=ordered_item_ids[gap_idx] if gap_idx < len(ordered_item_ids) else None,
-                    source=source,
-                    index=gap_idx,
-                )
-                recovered.append(entry)
-                existing_indices.add(gap_idx)
-                seen_keys.add(entry.key())
-                recovered_zero += 1
-
-            if matched_idx not in existing_indices:
-                entry = ItemEntry(
-                    name=ordered_names[matched_idx],
-                    quantity=candidate.count,
-                    item_id=ordered_item_ids[matched_idx] if matched_idx < len(ordered_item_ids) else None,
-                    source=source,
-                    index=matched_idx,
-                )
-                if entry.key() not in seen_keys:
-                    recovered.append(entry)
-                    seen_keys.add(entry.key())
-                    recovered_nonzero += 1
-                existing_indices.add(matched_idx)
-
-            cursor = matched_idx + 1
-
-        if recovered:
-            self.log(
-                f"  profile gap recovery: recovered={recovered_nonzero} "
-                f"zero_filled={recovered_zero}"
+            candidate = candidates[matched_candidate_idx]
+            template_score = _score(candidate, profile_idx)
+            detected_idx = _candidate_detected_index(candidate)
+            family_margin = family_margin_cache.get((matched_candidate_idx, profile_idx))
+            family_key = _inventory_detail_strict_family(expected_item_id)
+            detected_direct_match = (
+                detected_idx == profile_idx
+                and candidate.detected_score >= PROFILE_DIRECT_MATCH_THRESHOLD
             )
-            return items + recovered
-        return items
+            strict_family_confident_direct = (
+                detected_direct_match
+                and family_key is not None
+                and candidate.detected_score >= 0.965
+                and template_score >= 0.94
+                and (family_margin or 0.0) >= 0.04
+            )
+            direct_match = (
+                strict_family_confident_direct
+                if family_key is not None
+                else detected_direct_match
+            )
+            status = "ok" if direct_match else "dp_aligned"
+            if direct_match:
+                reason = "direct_match"
+            elif detected_direct_match and family_key is not None:
+                reason = "strict_family_review"
+            else:
+                reason = "dp_sequence_alignment"
+            aligned.append(
+                ItemEntry(
+                    name=expected_name,
+                    quantity=candidate.count,
+                    item_id=expected_item_id,
+                    source=source,
+                    index=profile_idx,
+                    scan_meta={
+                        "status": status,
+                        "reason": reason,
+                        "profile_id": profile.profile_id,
+                        "profile_index": profile_idx,
+                        "candidate_sequence": candidate.sequence,
+                        "candidate_slot": candidate.slot_index,
+                        "detected_item_id": candidate.detected_item_id,
+                        "detected_score": round(candidate.detected_score, 4),
+                        "match_score": round(template_score, 4),
+                        "family_margin": round(family_margin, 4) if family_margin is not None else None,
+                        "strict_family_review": bool(
+                            detected_direct_match and family_key is not None and not direct_match
+                        ),
+                        "review_required": not direct_match,
+                    },
+                    detail_crop=candidate.detail_crop,
+                    detail_name_crop=candidate.detail_name_crop,
+                )
+            )
+            matched_count += 1
+
+        self.log(
+            f"  profile dp alignment: matched={matched_count} "
+            f"zero_filled={zero_filled_count} "
+            f"skipped_candidates={skipped_candidates} "
+            f"score={total_alignment_score:.2f}"
+        )
+        return aligned
 
     def _append_profile_gap_entries(
         self,
@@ -2404,10 +2976,8 @@ class Scanner:
         seen_hashes: list[str]       = []
         detail_candidates: list[InventoryDetailCandidate] = []
         detail_candidate_seq = 0
-        page_slot_history: list[list[str]] = []
         icon_cache = self._inventory_icon_cache.setdefault(source, {})
         failed_hashes = self._inventory_failed_hashes.setdefault(source, set())
-        prev_last_row_hashes: list[str] | None = None
         active_profile = get_inventory_profile(self._forced_inventory_profile_id)
         if active_profile is not None and active_profile.source != source:
             active_profile = None
@@ -2415,15 +2985,12 @@ class Scanner:
         icon = "아이템" if source == "item" else "장비"
         grid_cols = int(r_sec.get("grid_cols", 0))
         current_scroll_amount = scroll_amount
-        pending_skip_rows = 0
-        prev_page_profile_indices: list[int | None] | None = None
         profile_ordered_names: list[str] = list(active_profile.ordered_names) if active_profile is not None else []
         profile_ordered_item_ids: list[str | None] = list(inventory_profile_ordered_item_ids(active_profile)) if active_profile is not None else []
         profile_index_by_name: dict[str, int] = {name: idx for idx, name in enumerate(profile_ordered_names)}
         profile_index_by_item_id: dict[str, int] = {
             item_id: idx for idx, item_id in enumerate(profile_ordered_item_ids) if item_id
         }
-        profile_hash_to_index: dict[str, int] = {}
         profile_cursor = 0
         profile_max_unique_items = (
             INVENTORY_PROFILE_MAX_UNIQUE_ITEMS.get(active_profile.profile_id)
@@ -2435,11 +3002,6 @@ class Scanner:
             if active_profile is not None
             else None
         )
-        disable_first_match_realign = (
-            source == "equipment"
-            or (active_profile is not None and active_profile.profile_id == "equipment")
-        )
-
         def _unique_scanned_item_count() -> int:
             return len(
                 {
@@ -2460,6 +3022,25 @@ class Scanner:
             self.log(
                 f"  inventory profile forced: {active_profile.profile_id} "
                 f"({expected_count} expected{limit_suffix})"
+            )
+
+        def _profile_found_count() -> int:
+            if active_profile is None:
+                return 0
+            if active_profile.expected_item_ids:
+                return len(
+                    {
+                        entry.item_id
+                        for entry in items
+                        if entry.item_id in active_profile.expected_item_ids
+                    }
+                )
+            return len(
+                {
+                    entry.name
+                    for entry in items
+                    if entry.name in set(active_profile.ordered_names)
+                }
             )
 
         for scroll_i in range(MAX_SCROLLS):
@@ -2488,37 +3069,15 @@ class Scanner:
             if len(seen_hashes) > 10:
                 seen_hashes.pop(0)
 
-            current_hashes = [snap.icon_hash for snap in page.slots]
-            history_overlap_rows = 0
-            if grid_cols > 0 and page_slot_history:
-                history_overlap_rows = max(
-                    (_count_row_overlap(prev_hashes, current_hashes, grid_cols) for prev_hashes in page_slot_history),
-                    default=0,
-                )
-            skip_rows = max(pending_skip_rows, history_overlap_rows)
-            skip_slots = min(len(slots), skip_rows * grid_cols)
-            if skip_slots > 0:
-                self.log(
-                    f"  page overlap detected: skip_rows={skip_rows} "
-                    f"skip_slots={skip_slots}"
-                )
-
             new_this = 0
+            candidates_before_page = len(detail_candidates)
             page_item_ids: list[str] = []
             page_raw_names: list[str] = []
-            current_page_profile_indices: list[int | None] = [None] * len(slots)
-            page_skip_until = skip_slots
-            page_alignment_locked = (
-                active_profile is None
-                or prev_page_profile_indices is None
-            )
             profile_limit_reached = False
             candidate_limit_reached = False
             for slot_idx, (slot, slot_snap) in enumerate(zip(slots, page.slots)):
                 if self._stop_requested():
                     break
-                if slot_idx < page_skip_until:
-                    continue
 
                 icon_crop = crop_region(img, _slot_icon_region(slot))
                 icon_template_item_id, icon_template_score = self._match_inventory_icon(icon_crop, source)
@@ -2551,6 +3110,7 @@ class Scanner:
                             slot_index=slot_idx,
                             count=count,
                             detail_crop=verified.detail_crop,
+                            detail_name_crop=verified.detail_name_crop,
                             detected_item_id=detail_template_item_id,
                             detected_score=detail_template_score,
                         )
@@ -2581,50 +3141,6 @@ class Scanner:
                     if assigned_profile_idx is None and matched_profile_name:
                         assigned_profile_idx = profile_index_by_name.get(matched_profile_name)
 
-                    if (
-                        prev_page_profile_indices is not None
-                        and assigned_profile_idx is not None
-                    ):
-                        prev_match_pos = next(
-                            (
-                                idx
-                                for idx, prev_idx in enumerate(prev_page_profile_indices)
-                                if prev_idx == assigned_profile_idx
-                            ),
-                            None,
-                        )
-                        if prev_match_pos is not None:
-                            if disable_first_match_realign:
-                                self.log(
-                                    f"  page first-match realign ignored: "
-                                    f"slot={slot_idx} prev_slot={prev_match_pos} "
-                                    f"profile_idx={assigned_profile_idx}"
-                                )
-                            else:
-                                shift = prev_match_pos - slot_idx
-                                if 0 <= shift < len(slots):
-                                    inferred_skip = len(slots) - shift
-                                    if inferred_skip > page_skip_until:
-                                        page_skip_until = inferred_skip
-                                        for fill_idx in range(min(inferred_skip, len(slots))):
-                                            src_idx = fill_idx + shift
-                                            if 0 <= src_idx < len(prev_page_profile_indices):
-                                                current_page_profile_indices[fill_idx] = prev_page_profile_indices[src_idx]
-                                        self.log(
-                                            f"  page realigned by first match: "
-                                            f"slot={slot_idx} prev_slot={prev_match_pos} "
-                                            f"profile_idx={assigned_profile_idx} skip_slots={page_skip_until}"
-                                        )
-                                        page_alignment_locked = True
-                                if slot_idx < page_skip_until:
-                                    current_page_profile_indices[slot_idx] = assigned_profile_idx
-                                    profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                                    continue
-                        elif not page_alignment_locked:
-                            page_alignment_locked = True
-                    elif not page_alignment_locked and item_id is not None:
-                        page_alignment_locked = True
-
                     if assigned_profile_idx is None:
                         self.log(
                             f"  explicit template outside profile skip: "
@@ -2632,29 +3148,10 @@ class Scanner:
                         )
                         continue
 
-                    if assigned_profile_idx < profile_cursor:
-                        inferred_skip = profile_cursor - assigned_profile_idx
-                        skip_until = min(len(slots), slot_idx + inferred_skip)
-                        if skip_until > page_skip_until:
-                            page_skip_until = skip_until
-                            self.log(
-                                f"  profile skip window: slot={slot_idx} "
-                                f"profile_idx={assigned_profile_idx} cursor={profile_cursor} "
-                                f"skip_until={page_skip_until}"
-                            )
-                        current_page_profile_indices[slot_idx] = assigned_profile_idx
-                        profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
-                        self.log(
-                            f"  aligned duplicate skip: slot={slot_idx} "
-                            f"profile_idx={assigned_profile_idx} cursor={profile_cursor}"
-                        )
-                        continue
-
                     if assigned_profile_idx > profile_cursor:
                         self.log(
                             f"  profile cursor jump: {profile_cursor} -> {assigned_profile_idx}"
                         )
-                    current_page_profile_indices[slot_idx] = assigned_profile_idx
                     if assigned_profile_idx < len(profile_ordered_names):
                         name = profile_ordered_names[assigned_profile_idx]
                     else:
@@ -2664,7 +3161,6 @@ class Scanner:
                         and profile_ordered_item_ids[assigned_profile_idx]
                     ):
                         item_id = profile_ordered_item_ids[assigned_profile_idx]
-                    profile_hash_to_index[slot_snap.icon_hash] = assigned_profile_idx
 
                 if not name and item_id:
                     name = inventory_item_display_name(item_id) or item_id
@@ -2706,6 +3202,16 @@ class Scanner:
                     item_id=item_id,
                     source=source,
                     index=len(items),
+                    scan_meta={
+                        "status": "ok",
+                        "reason": "direct_match",
+                        "profile_id": active_profile.profile_id if active_profile is not None else None,
+                        "profile_index": assigned_profile_idx,
+                        "match_score": round(max(detail_template_score, icon_template_score), 4),
+                        "review_required": False,
+                    },
+                    detail_crop=verified.detail_crop,
+                    detail_name_crop=verified.detail_name_crop,
                 )
                 k = entry.key()
                 if k not in seen_keys:
@@ -2717,8 +3223,6 @@ class Scanner:
                             mapped_idx = profile_index_by_name.get(entry.name)
                             if mapped_idx is not None:
                                 profile_cursor = max(profile_cursor, mapped_idx + 1)
-                                profile_hash_to_index[slot_snap.icon_hash] = mapped_idx
-                                current_page_profile_indices[slot_idx] = mapped_idx
                     new_this += 1
                     self.log(f"  {icon} [{len(items):>3}] {name}  x{count} ({detect_source})")
                     if (
@@ -2766,16 +3270,6 @@ class Scanner:
                             mapped_idx = profile_index_by_name.get(entry.name)
                         if mapped_idx is not None:
                             profile_cursor = max(profile_cursor, mapped_idx + 1)
-                    profile_hash_to_index = {}
-                    for icon_hash, cached_value in icon_cache.items():
-                        cached_name, _cached_count, cached_item_id = cached_value
-                        mapped_idx = None
-                        if cached_item_id:
-                            mapped_idx = profile_index_by_item_id.get(cached_item_id)
-                        if mapped_idx is None and cached_name:
-                            mapped_idx = profile_index_by_name.get(cached_name)
-                        if mapped_idx is not None:
-                            profile_hash_to_index[icon_hash] = mapped_idx
                     rebuilt_seen_keys: set[str] = set()
                     rebuilt_profile_names: set[str] = set()
                     for entry in items:
@@ -2812,29 +3306,39 @@ class Scanner:
                         )
                         profile_limit_reached = True
 
-            self.log(f"  scroll {scroll_i+1}: new {new_this} / total {len(items)}")
+            new_candidates_this = len(detail_candidates) - candidates_before_page
+            candidate_suffix = (
+                f", candidates +{new_candidates_this}/{len(detail_candidates)}"
+                if active_profile is not None
+                else ""
+            )
+            self.log(
+                f"  scroll {scroll_i+1}: new {new_this} / total {len(items)}"
+                f"{candidate_suffix}"
+            )
 
             if profile_limit_reached:
                 break
 
             if active_profile is not None:
+                expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
                 found_item_ids = {entry.item_id for entry in items if entry.item_id}
                 found_names = {entry.name for entry in items if entry.name}
                 if is_inventory_profile_complete(active_profile, found_item_ids, found_names):
                     self.log(
                         f"  profile complete: {active_profile.profile_id} "
-                        f"({len(found_names & set(active_profile.ordered_names))} matched)"
+                        f"({_profile_found_count()}/{expected_count} matched)"
+                    )
+                    break
+                if is_inventory_profile_terminal_seen(active_profile, found_item_ids, found_names):
+                    self.log(
+                        f"  profile terminal reached: {active_profile.profile_id} "
+                        f"({_profile_found_count()}/{expected_count} matched, "
+                        f"candidates={len(detail_candidates)})"
                     )
                     break
 
-            page_slot_history.append(current_hashes)
-            if len(page_slot_history) > 12:
-                page_slot_history.pop(0)
-            pending_skip_rows = 0
-            if active_profile is not None:
-                prev_page_profile_indices = current_page_profile_indices
-
-            moved, after_page, current_scroll_amount, pending_skip_rows = self._scroll_inventory_page(
+            moved, after_page, current_scroll_amount, _overlap_rows = self._scroll_inventory_page(
                 rect,
                 slots,
                 grid_r,
@@ -2846,24 +3350,21 @@ class Scanner:
             if after_page is None:
                 break
             repeated_last_row = (
-                prev_last_row_hashes is not None
-                and prev_last_row_hashes == page.last_row_hashes
+                page.last_row_hashes
+                and after_page.last_row_hashes
+                and page.last_row_hashes == after_page.last_row_hashes
             )
-            prev_last_row_hashes = after_page.last_row_hashes
             if not moved:
                 self.log(f"  scroll finished: total {len(items)}")
                 break
-            if new_this == 0 and (repeated_last_row or scroll_i >= 2):
-                self.log(f"  no new items: total {len(items)}")
+            if repeated_last_row:
+                self.log(f"  repeated last row after scroll: total {len(items)}")
                 break
         if active_profile is not None:
             expected_count = len(active_profile.expected_item_ids) or len(active_profile.ordered_names)
-            found_item_ids = {entry.item_id for entry in items if entry.item_id}
-            found_names = {entry.name for entry in items if entry.name}
-            complete = is_inventory_profile_complete(active_profile, found_item_ids, found_names)
-            if not complete and len(items) < expected_count:
+            if detail_candidates:
                 self.log(
-                    f"  profile gap recovery start: "
+                    f"  profile dp alignment start: "
                     f"{active_profile.profile_id} "
                     f"({len(items)}/{expected_count}, candidates={len(detail_candidates)})"
                 )

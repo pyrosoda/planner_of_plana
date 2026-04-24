@@ -101,6 +101,7 @@ def _items_to_inventory(items: list[ItemEntry]) -> dict:
                 "quantity": item.quantity,
                 "index": item.index,
                 "item_source": item.source,
+                "scan_meta": dict(getattr(item, "scan_meta", {}) or {}),
             }
             continue
 
@@ -118,6 +119,7 @@ def _items_to_inventory(items: list[ItemEntry]) -> dict:
                 "quantity": item.quantity,
                 "index": item.index,
                 "item_source": item.source,
+                "scan_meta": dict(getattr(item, "scan_meta", {}) or {}),
             }
     return inventory
 
@@ -148,6 +150,7 @@ def _normalize_inventory_entry(item_key: str, raw_entry: dict[str, Any]) -> dict
         "quantity": entry.get("quantity"),
         "index": entry.get("index"),
         "item_source": entry.get("item_source") or entry.get("source"),
+        "scan_meta": dict(entry.get("scan_meta") or {}),
         "last_seen_at": entry.get("last_seen_at"),
         "last_scan_id": entry.get("last_scan_id"),
     }
@@ -169,7 +172,7 @@ def _merge_inventory_entry(existing: dict[str, Any], incoming: dict[str, Any]) -
         primary, secondary = existing, incoming
 
     merged = dict(primary)
-    for key in ("item_id", "name", "quantity", "index", "item_source", "last_seen_at", "last_scan_id"):
+    for key in ("item_id", "name", "quantity", "index", "item_source", "scan_meta", "last_seen_at", "last_scan_id"):
         if merged.get(key) in (None, "") and secondary.get(key) not in (None, ""):
             merged[key] = secondary.get(key)
     return merged

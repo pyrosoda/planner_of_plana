@@ -1,0 +1,71 @@
+﻿{
+    "name":  "Item_Icon_SkillBook_Hyakkiyako_1",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  115,
+                              "y":  958
+                          },
+                          {
+                              "x":  951,
+                              "y":  958
+                          },
+                          {
+                              "x":  951,
+                              "y":  1089
+                          },
+                          {
+                              "x":  115,
+                              "y":  1089
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  115,
+                              "y":  958
+                          },
+                          {
+                              "x":  951,
+                              "y":  958
+                          },
+                          {
+                              "x":  951,
+                              "y":  1089
+                          },
+                          {
+                              "x":  115,
+                              "y":  1089
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.044922,
+                             "y":  0.665278
+                         },
+                         {
+                             "x":  0.371484,
+                             "y":  0.665278
+                         },
+                         {
+                             "x":  0.371484,
+                             "y":  0.75625
+                         },
+                         {
+                             "x":  0.044922,
+                             "y":  0.75625
+                         }
+                     ],
+    "shape":  "rectangle",
+    "captured_at":  "2026-04-24T17:15:32",
+    "output_size":  {
+                        "width":  836,
+                        "height":  131
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_detail_names\\tech_notes\\Item_Icon_SkillBook_Hyakkiyako_1.png",
+    "item_id":  "Item_Icon_SkillBook_Hyakkiyako_1"
+}

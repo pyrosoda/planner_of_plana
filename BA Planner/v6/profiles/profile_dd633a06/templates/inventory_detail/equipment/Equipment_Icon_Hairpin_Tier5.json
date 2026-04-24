@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Hairpin_Tier5",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Hairpin_Tier5",
+  "display_name": "다목적 헤어핀",
+  "quantity": "30",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.104424+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Hairpin_Tier5.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 36,
+    "candidate_sequence": 37,
+    "left_anchor_index": 35,
+    "right_anchor_index": 37,
+    "left_anchor_score": 0.9243,
+    "right_anchor_score": 0.8872,
+    "review_required": false,
+    "scanned_quantity": "30",
+    "review_confirmed": true
+  }
+}

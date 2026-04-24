@@ -1,0 +1,26 @@
+{
+  "name": "Equipment_Icon_Necklace_Tier9",
+  "profile_id": "equipment",
+  "source": "equipment",
+  "item_id": "Equipment_Icon_Necklace_Tier9",
+  "display_name": "옥토퍼스 홀더",
+  "quantity": "35",
+  "scan_id": "2026-04-23_234046",
+  "confirmed_at": "2026-04-23T23:46:02.076433+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\equipment\\Equipment_Icon_Necklace_Tier9.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "order_inferred",
+    "reason": "single_gap_between_anchors",
+    "profile_id": "equipment",
+    "profile_index": 5,
+    "candidate_sequence": 6,
+    "left_anchor_index": 4,
+    "right_anchor_index": 6,
+    "left_anchor_score": 0.9074,
+    "right_anchor_score": 0.8903,
+    "review_required": false,
+    "scanned_quantity": "35",
+    "review_confirmed": true
+  }
+}

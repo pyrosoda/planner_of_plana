@@ -1,0 +1,71 @@
+﻿{
+    "name":  "Equipment_Icon_Necklace_Tier5",
+    "window_rect":  {
+                        "left":  0,
+                        "top":  0,
+                        "width":  2560,
+                        "height":  1440
+                    },
+    "points_screen":  [
+                          {
+                              "x":  126,
+                              "y":  1121
+                          },
+                          {
+                              "x":  1054,
+                              "y":  1121
+                          },
+                          {
+                              "x":  1054,
+                              "y":  1254
+                          },
+                          {
+                              "x":  126,
+                              "y":  1254
+                          }
+                      ],
+    "points_client":  [
+                          {
+                              "x":  126,
+                              "y":  1121
+                          },
+                          {
+                              "x":  1054,
+                              "y":  1121
+                          },
+                          {
+                              "x":  1054,
+                              "y":  1254
+                          },
+                          {
+                              "x":  126,
+                              "y":  1254
+                          }
+                      ],
+    "points_ratio":  [
+                         {
+                             "x":  0.049219,
+                             "y":  0.778472
+                         },
+                         {
+                             "x":  0.411719,
+                             "y":  0.778472
+                         },
+                         {
+                             "x":  0.411719,
+                             "y":  0.870833
+                         },
+                         {
+                             "x":  0.049219,
+                             "y":  0.870833
+                         }
+                     ],
+    "shape":  "rectangle",
+    "captured_at":  "2026-04-24T16:06:42",
+    "output_size":  {
+                        "width":  928,
+                        "height":  133
+                    },
+    "image_path":  "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\templates\\inventory_detail_names\\equipment\\Equipment_Icon_Necklace_Tier5.png",
+    "item_id":  "Equipment_Icon_Necklace_Tier5"
+}
