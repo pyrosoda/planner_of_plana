@@ -8,6 +8,11 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from core.oparts import OPART_FAMILY_EN_BY_ICON_TOKEN
+from core.schale_skill_material_map import (
+    school_skill_material_label,
+    skill_material_base_from_item,
+    skill_material_label,
+)
 from tools.student_meta_options import FIELD_OPTIONS
 
 
@@ -24,10 +29,12 @@ SCALAR_FIELDS: tuple[str, ...] = (
     "defense_type",
     "growth_material_main",
     "growth_material_sub",
-    "growth_material_main_ex_levels",
-    "growth_material_main_skill_levels",
-    "growth_material_sub_ex_levels",
-    "growth_material_sub_skill_levels",
+    "raw_skill_ex_material",
+    "raw_skill_ex_material_amount",
+    "raw_skill_material",
+    "raw_skill_material_amount",
+    "mapped_skill_ex_material_rows",
+    "mapped_skill_material_rows",
     "equipment_slot_1",
     "equipment_slot_2",
     "equipment_slot_3",
@@ -116,6 +123,28 @@ WEAPON_BOOST_MAP: dict[str, str] = {
     "Street": "terrain_urban",
     "Indoor": "terrain_indoor",
 }
+NO_OPART_STUDENT_IDS: frozenset[str] = frozenset({
+    "hatsune_miku",
+    "misaka_mikoto",
+    "saten_ruiko",
+    "shoukouhou_misaki",
+})
+EX_OPART_TIER_PLAN: tuple[tuple[int | None, int | None], ...] = (
+    (1, None),
+    (2, 1),
+    (3, 2),
+    (4, 3),
+)
+SKILL_OPART_TIER_PLAN: tuple[tuple[int | None, int | None], ...] = (
+    (None, None),
+    (None, None),
+    (1, None),
+    (2, 1),
+    (2, 1),
+    (3, 2),
+    (4, 3),
+    (4, 3),
+)
 PATH_EXCEPTIONS: dict[str, str] = {
     "hoshino_battle": "hoshino_battle_tank",
     "shiroko_riding": "shiroko_cycling",
@@ -411,6 +440,19 @@ def _artifact_family_name(material_id: int, items: dict[str, dict[str, Any]]) ->
     return _canonical_artifact_name(str(candidate.get("Name", "")), str(candidate.get("Icon", "")))
 
 
+def _artifact_entry(material_id: int, amount: int, items: dict[str, dict[str, Any]]) -> tuple[str, int, int] | None:
+    family = _artifact_family_name(material_id, items)
+    if family is None:
+        return None
+    item = items.get(str(material_id))
+    if not isinstance(item, dict):
+        return None
+    quality = int(item.get("Quality") or 0)
+    if quality < 1:
+        return None
+    return family, quality, int(amount)
+
+
 def _recruit_type(student: dict[str, Any]) -> str:
     codes = set(_flatten_numbers(student.get("IsLimited")))
     for code, label in RECRUIT_PRIORITY:
@@ -425,87 +467,123 @@ def _terrain_rank(value: Any) -> str | None:
     return TERRAIN_MAP.get(value)
 
 
-def _growth_materials(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> tuple[str | None, str | None]:
-    main = None
-    potential_id = student.get("PotentialMaterial")
-    if isinstance(potential_id, int):
-        main = _artifact_family_name(potential_id, items)
-
-    artifact_counter: Counter[str] = Counter()
-    for material_id in _flatten_numbers(student.get("SkillExMaterial")) + _flatten_numbers(student.get("SkillMaterial")):
-        family = _artifact_family_name(material_id, items)
-        if family:
-            artifact_counter[family] += 1
-
-    sub = None
-    if main is None and artifact_counter:
-        main = artifact_counter.most_common(1)[0][0]
-    for family, _count in artifact_counter.most_common():
-        if family != main:
-            sub = family
-            break
-    return main, sub
-
-
-def _opart_amounts_for_family(
-    material_rows: Any,
-    amount_rows: Any,
-    family_name: str | None,
-    items: dict[str, dict[str, Any]],
-) -> list[int]:
+def _artifact_rows(material_rows: Any, amount_rows: Any, items: dict[str, dict[str, Any]]) -> list[list[tuple[str, int, int]]]:
     material_list = material_rows if isinstance(material_rows, list) else []
     amount_list = amount_rows if isinstance(amount_rows, list) else []
-    if family_name is None:
-        return [0 for _ in material_list]
-    results: list[int] = []
+    rows: list[list[tuple[str, int, int]]] = []
     for idx, materials in enumerate(material_list):
         row_materials = materials if isinstance(materials, list) else []
         row_amounts = amount_list[idx] if idx < len(amount_list) and isinstance(amount_list[idx], list) else []
-        total = 0
+        entries: list[tuple[str, int, int]] = []
         for material_idx, material_id in enumerate(row_materials):
-            if not isinstance(material_id, int):
+            if not isinstance(material_id, int) or material_idx >= len(row_amounts):
                 continue
-            if _artifact_family_name(material_id, items) != family_name:
-                continue
-            if material_idx < len(row_amounts):
-                total += int(row_amounts[material_idx])
-        results.append(total)
-    return results
+            entry = _artifact_entry(material_id, int(row_amounts[material_idx]), items)
+            if entry is not None:
+                entries.append(entry)
+        rows.append(entries)
+    return rows
 
 
-def _growth_material_level_amounts(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, list[int]]:
-    main_name, sub_name = _growth_materials(student, items)
+def _resolve_opart_families(
+    local_student_id: str,
+    student: dict[str, Any],
+    ex_rows: list[list[tuple[str, int, int]]],
+    skill_rows: list[list[tuple[str, int, int]]],
+    items: dict[str, dict[str, Any]],
+) -> tuple[str | None, str | None]:
+    if local_student_id in NO_OPART_STUDENT_IDS:
+        return None, None
+
+    main_counter: Counter[str] = Counter()
+    sub_counter: Counter[str] = Counter()
+    potential_id = student.get("PotentialMaterial")
+    main_hint = _artifact_family_name(int(potential_id), items) if isinstance(potential_id, int) else None
+
+    for rows, plan in ((ex_rows, EX_OPART_TIER_PLAN), (skill_rows, SKILL_OPART_TIER_PLAN)):
+        for idx, entries in enumerate(rows):
+            main_tier, sub_tier = plan[idx] if idx < len(plan) else (None, None)
+            for family, tier, amount in entries:
+                if main_tier is not None and tier == main_tier:
+                    main_counter[family] += amount
+                if sub_tier is not None and tier == sub_tier:
+                    sub_counter[family] += amount
+
+    main_family = main_hint or (main_counter.most_common(1)[0][0] if main_counter else None)
+    sub_family = sub_counter.most_common(1)[0][0] if sub_counter else None
+    return main_family, sub_family
+
+
+def _growth_material_payload(
+    local_student_id: str,
+    student: dict[str, Any],
+    items: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    ex_rows = _artifact_rows(student.get("SkillExMaterial"), student.get("SkillExMaterialAmount"), items)
+    skill_rows = _artifact_rows(student.get("SkillMaterial"), student.get("SkillMaterialAmount"), items)
+    main_name, sub_name = _resolve_opart_families(local_student_id, student, ex_rows, skill_rows, items)
     return {
-        "growth_material_main_ex_levels": _opart_amounts_for_family(
-            student.get("SkillExMaterial"),
-            student.get("SkillExMaterialAmount"),
-            main_name,
-            items,
-        ),
-        "growth_material_main_skill_levels": _opart_amounts_for_family(
-            student.get("SkillMaterial"),
-            student.get("SkillMaterialAmount"),
-            main_name,
-            items,
-        ),
-        "growth_material_sub_ex_levels": _opart_amounts_for_family(
-            student.get("SkillExMaterial"),
-            student.get("SkillExMaterialAmount"),
-            sub_name,
-            items,
-        ),
-        "growth_material_sub_skill_levels": _opart_amounts_for_family(
-            student.get("SkillMaterial"),
-            student.get("SkillMaterialAmount"),
-            sub_name,
-            items,
-        ),
+        "growth_material_main": main_name,
+        "growth_material_sub": sub_name,
     }
 
 
-def scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _raw_rows(value: Any) -> list[list[int]]:
+    rows: list[list[int]] = []
+    for row in value if isinstance(value, list) else []:
+        if not isinstance(row, list):
+            rows.append([])
+            continue
+        rows.append([int(item) for item in row if isinstance(item, int)])
+    return rows
+
+
+def _mapped_material_rows(
+    local_student_id: str,
+    student: dict[str, Any],
+    material_rows: Any,
+    amount_rows: Any,
+    items: dict[str, dict[str, Any]],
+    *,
+    is_skill: bool,
+) -> list[dict[str, int]]:
+    rows: list[dict[str, int]] = []
+    for row_materials, row_amounts in zip(_listify(material_rows), _listify(amount_rows)):
+        if not isinstance(row_materials, list) or not isinstance(row_amounts, list):
+            rows.append({})
+            continue
+        mapped: dict[str, int] = {}
+        for material_id, amount in zip(row_materials, row_amounts):
+            if not isinstance(material_id, int) or not isinstance(amount, int):
+                continue
+            item = items.get(str(material_id))
+            if not isinstance(item, dict):
+                continue
+
+            skill_entry = skill_material_base_from_item(item)
+            if skill_entry is not None:
+                base, tier = skill_entry
+                label = skill_material_label(base, tier)
+                mapped[label] = mapped.get(label, 0) + int(amount)
+                continue
+
+            artifact = _artifact_entry(material_id, int(amount), items)
+            if artifact is not None:
+                family, tier, artifact_amount = artifact
+                label = skill_material_label(family, tier)
+                mapped[label] = mapped.get(label, 0) + artifact_amount
+        rows.append(mapped)
+
+    if is_skill:
+        while len(rows) < 8:
+            rows.append({})
+        rows.append({} if local_student_id in NO_OPART_STUDENT_IDS else {school_skill_material_label(student.get("School"), "Note", 5): 1})
+    return rows
+
+
+def scalar_values(local_student_id: str, student: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
     equipment = list(student.get("Equipment") or [])
-    growth_main, growth_sub = _growth_materials(student, items)
+    growth_payload = _growth_material_payload(local_student_id, student, items)
     result = {
         "search_tags": _unique_text_values(student.get("SearchTags")),
         "school": SCHOOL_MAP.get(str(student.get("School")), student.get("School")),
@@ -513,8 +591,18 @@ def scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> 
         "recruit_type": _recruit_type(student),
         "attack_type": ATTACK_TYPE_MAP.get(str(student.get("BulletType"))),
         "defense_type": DEFENSE_TYPE_MAP.get(str(student.get("ArmorType"))),
-        "growth_material_main": growth_main,
-        "growth_material_sub": growth_sub,
+        "growth_material_main": growth_payload["growth_material_main"],
+        "growth_material_sub": growth_payload["growth_material_sub"],
+        "raw_skill_ex_material": _raw_rows(student.get("SkillExMaterial")),
+        "raw_skill_ex_material_amount": _raw_rows(student.get("SkillExMaterialAmount")),
+        "raw_skill_material": _raw_rows(student.get("SkillMaterial")),
+        "raw_skill_material_amount": _raw_rows(student.get("SkillMaterialAmount")),
+        "mapped_skill_ex_material_rows": _mapped_material_rows(
+            local_student_id, student, student.get("SkillExMaterial"), student.get("SkillExMaterialAmount"), items, is_skill=False
+        ),
+        "mapped_skill_material_rows": _mapped_material_rows(
+            local_student_id, student, student.get("SkillMaterial"), student.get("SkillMaterialAmount"), items, is_skill=True
+        ),
         "equipment_slot_1": equipment[0] if len(equipment) > 0 else None,
         "equipment_slot_2": equipment[1] if len(equipment) > 1 else None,
         "equipment_slot_3": equipment[2] if len(equipment) > 2 else None,
@@ -529,7 +617,6 @@ def scalar_values(student: dict[str, Any], items: dict[str, dict[str, Any]]) -> 
         "terrain_indoor": _terrain_rank(student.get("IndoorBattleAdaptation")),
         "weapon3_terrain_boost": WEAPON_BOOST_MAP.get(str((student.get("Weapon") or {}).get("AdaptationType"))),
     }
-    result.update(_growth_material_level_amounts(student, items))
     return result
 
 
@@ -812,7 +899,7 @@ def build_student_meta_from_schale(
         "group": group_name,
         "variant": None if variant_name in {"", None} else str(variant_name),
     }
-    next_meta.update(scalar_values(schale_student, schale_items))
+    next_meta.update(scalar_values(local_student_id, schale_student, schale_items))
     next_meta.update(merged_skill_values(local_student_id, schale_student, schale_students))
 
     changed_fields = sorted(
@@ -845,6 +932,12 @@ def apply_sync_fields(
     path_lookup = _student_path_lookup(schale_students)
     updated_count = 0
     missing: list[str] = []
+    deprecated_fields = (
+        "growth_material_main_ex_levels",
+        "growth_material_main_skill_levels",
+        "growth_material_sub_ex_levels",
+        "growth_material_sub_skill_levels",
+    )
 
     for student_id, meta in students.items():
         if selected_ids is not None and student_id not in selected_ids:
@@ -857,8 +950,12 @@ def apply_sync_fields(
             continue
 
         changed = False
-        scalar = scalar_values(schale_student, schale_items)
+        scalar = scalar_values(student_id, schale_student, schale_items)
         skills = merged_skill_values(student_id, schale_student, schale_students)
+        for field_name in deprecated_fields:
+            if field_name in meta:
+                meta.pop(field_name, None)
+                changed = True
         for field_name in SCALAR_FIELDS:
             next_value = scalar[field_name]
             if meta.get(field_name) != next_value:

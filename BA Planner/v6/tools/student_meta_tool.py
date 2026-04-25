@@ -23,7 +23,9 @@ from tools.student_meta_options import FIELD_OPTIONS
 MODULE_NAME = "core.student_meta"
 MODULE_PATH = ROOT_DIR / "core" / "student_meta.py"
 PLAN_FILE = "item_plan_adjustments.json"
+STUDENT_TEMPLATE_DIR = ROOT_DIR / "templates" / "students"
 PORTRAIT_TEMPLATE_DIR = ROOT_DIR / "templates" / "students_portraits"
+STUDENT_ELEPH_DIR = ROOT_DIR / "templates" / "students_elephs"
 
 FIELD_SPECS: list[dict[str, object]] = [
     {"name": "student_id", "label": "Student ID", "required": True},
@@ -32,6 +34,7 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "group", "label": "Group", "required": True},
     {"name": "variant", "label": "Variant"},
     {"name": "search_tags", "label": "Search Tags"},
+    {"name": "kr_search_tags", "label": "KR Search Tags"},
     {"name": "school", "label": "School"},
     {"name": "rarity", "label": "Rarity"},
     {"name": "recruit_type", "label": "Recruit Type"},
@@ -40,10 +43,12 @@ FIELD_SPECS: list[dict[str, object]] = [
     {"name": "defense_type", "label": "Defense Type"},
     {"name": "growth_material_main", "label": "Main Growth Mat"},
     {"name": "growth_material_sub", "label": "Sub Growth Mat"},
-    {"name": "growth_material_main_ex_levels", "label": "Main Oparts EX"},
-    {"name": "growth_material_main_skill_levels", "label": "Main Oparts Skills"},
-    {"name": "growth_material_sub_ex_levels", "label": "Sub Oparts EX"},
-    {"name": "growth_material_sub_skill_levels", "label": "Sub Oparts Skills"},
+    {"name": "raw_skill_ex_material", "label": "Raw Skill EX Material"},
+    {"name": "raw_skill_ex_material_amount", "label": "Raw Skill EX Amount"},
+    {"name": "raw_skill_material", "label": "Raw Skill Material"},
+    {"name": "raw_skill_material_amount", "label": "Raw Skill Amount"},
+    {"name": "mapped_skill_ex_material_rows", "label": "Mapped Skill EX Rows"},
+    {"name": "mapped_skill_material_rows", "label": "Mapped Skill Rows"},
     {"name": "equipment_slot_1", "label": "Equipment 1"},
     {"name": "equipment_slot_2", "label": "Equipment 2"},
     {"name": "equipment_slot_3", "label": "Equipment 3"},
@@ -77,6 +82,9 @@ FIELD_SPECS: list[dict[str, object]] = [
 ]
 
 LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
+    "match_template_asset": "Match Template Asset",
+    "portrait_asset": "Portrait Asset",
+    "eleph_asset": "Eleph Asset",
     "passive_stat": "Passive Stat",
     "weapon_passive_stat": "Weapon Passive Stat",
     "extra_passive_stat": "Extra Passive Stat",
@@ -94,16 +102,23 @@ LABELS = {str(s["name"]): str(s["label"]) for s in FIELD_SPECS} | {
     "skill_knockback": "Knockback / Pull",
 }
 LIST_FIELDS = {
-    "growth_material_main_ex_levels", "growth_material_main_skill_levels",
-    "growth_material_sub_ex_levels", "growth_material_sub_skill_levels",
     "search_tags",
+    "kr_search_tags",
     "passive_stat", "weapon_passive_stat", "extra_passive_stat", "skill_buff", "skill_debuff",
     "skill_cc", "skill_special", "skill_heal_targets", "skill_dispel_targets",
     "skill_reposition_targets", "skill_summon_types", "skill_buff_specials",
 }
+STRUCTURED_FIELDS = {
+    "raw_skill_ex_material",
+    "raw_skill_ex_material_amount",
+    "raw_skill_material",
+    "raw_skill_material_amount",
+    "mapped_skill_ex_material_rows",
+    "mapped_skill_material_rows",
+}
 FREE_TEXT_COMBO_FIELDS = {"student_id", "display_name", "group"}
 ANALYTICS_FIELDS = (
-    "search_tags", "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
+    "search_tags", "kr_search_tags", "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
     "growth_material_main", "growth_material_sub", "equipment_slot_1", "equipment_slot_2",
     "equipment_slot_3", "combat_class", "cover_type", "range_type", "role", "weapon_type",
     "position", "terrain_outdoor", "terrain_urban", "terrain_indoor", "weapon3_terrain_boost",
@@ -120,9 +135,13 @@ METADATA_TABLE_COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("student_id", "Student ID", 170),
     ("display_name", "Name", 170),
     ("server", "Server", 90),
+    ("match_template_asset", "Match", 70),
+    ("portrait_asset", "Portrait", 70),
+    ("eleph_asset", "Eleph", 70),
     ("group", "Group", 140),
     ("variant", "Variant", 110),
     ("search_tags", "Search Tags", 180),
+    ("kr_search_tags", "KR Search Tags", 180),
     ("school", "School", 120),
     ("rarity", "Rarity", 60),
     ("attack_type", "Attack", 90),
@@ -133,11 +152,15 @@ METADATA_TABLE_COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("template_name", "Template", 160),
 )
 DETAIL_FIELD_ORDER: tuple[str, ...] = (
+    "match_template_asset",
+    "portrait_asset",
+    "eleph_asset",
     "display_name",
     "template_name",
     "group",
     "variant",
     "search_tags",
+    "kr_search_tags",
     "school",
     "rarity",
     "recruit_type",
@@ -146,10 +169,12 @@ DETAIL_FIELD_ORDER: tuple[str, ...] = (
     "defense_type",
     "growth_material_main",
     "growth_material_sub",
-    "growth_material_main_ex_levels",
-    "growth_material_main_skill_levels",
-    "growth_material_sub_ex_levels",
-    "growth_material_sub_skill_levels",
+    "raw_skill_ex_material",
+    "raw_skill_ex_material_amount",
+    "raw_skill_material",
+    "raw_skill_material_amount",
+    "mapped_skill_ex_material_rows",
+    "mapped_skill_material_rows",
     "equipment_slot_1",
     "equipment_slot_2",
     "equipment_slot_3",
@@ -221,6 +246,8 @@ def _as_list(value: object) -> list[str]:
 
 
 def _display(field_name: str, value: object) -> str:
+    if field_name in STRUCTURED_FIELDS:
+        return "" if value is None else pprint.pformat(value, width=100, sort_dicts=False)
     if field_name in LIST_FIELDS:
         return ", ".join(_as_list(value))
     return "" if value is None else str(value)
@@ -229,6 +256,7 @@ def _display(field_name: str, value: object) -> str:
 def _student_search_blob(student_id: str, meta: dict[str, object]) -> str:
     terms = [student_id, str(meta.get("display_name") or "")]
     terms.extend(_as_list(meta.get("search_tags")))
+    terms.extend(_as_list(meta.get("kr_search_tags")))
     return " ".join(term for term in terms if term).casefold()
 
 
@@ -236,6 +264,11 @@ def _form_value(field_name: str, raw: str) -> object | None:
     value = _normalize_value(raw)
     if value is None:
         return None
+    if field_name in STRUCTURED_FIELDS:
+        parsed = ast.literal_eval(value)
+        if not isinstance(parsed, list):
+            raise ValueError(f"{field_name} must be a list value.")
+        return parsed
     if field_name in LIST_FIELDS:
         return _as_list(value)
     return value
@@ -246,6 +279,8 @@ def _sorted_unique(values: list[str]) -> tuple[str, ...]:
 
 
 def _collect_field_values(students: dict[str, dict], field_name: str) -> tuple[str, ...]:
+    if field_name in STRUCTURED_FIELDS:
+        return ("",)
     if field_name == "student_id":
         return _sorted_unique(list(students))
     out: list[str] = []
@@ -296,6 +331,41 @@ def resolve_portrait_template_path(template_name: object) -> Path | None:
         if candidate.exists():
             return candidate
     return None
+
+
+def _resolve_student_asset_path(base_dir: Path, stem: str) -> Path | None:
+    name = str(stem or "").strip()
+    if not name:
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        candidate = base_dir / f"{name}{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def resolve_match_template_path(student_id: str) -> Path | None:
+    return _resolve_student_asset_path(STUDENT_TEMPLATE_DIR, student_id)
+
+
+def resolve_student_portrait_path(student_id: str) -> Path | None:
+    return _resolve_student_asset_path(PORTRAIT_TEMPLATE_DIR, student_id)
+
+
+def resolve_student_eleph_path(student_id: str) -> Path | None:
+    return _resolve_student_asset_path(STUDENT_ELEPH_DIR, f"Item_Icon_SecretStone_{student_id}")
+
+
+def _asset_status(path: Path | None) -> str:
+    return "OK" if path is not None else "Missing"
+
+
+def build_student_asset_status(student_id: str) -> dict[str, str]:
+    return {
+        "match_template_asset": _asset_status(resolve_match_template_path(student_id)),
+        "portrait_asset": _asset_status(resolve_student_portrait_path(student_id)),
+        "eleph_asset": _asset_status(resolve_student_eleph_path(student_id)),
+    }
 
 
 def warn_missing_portrait_template(student_id: str, meta: dict[str, object]) -> bool:
@@ -561,13 +631,16 @@ def build_metadata_table_rows(
     query = search_query.strip().casefold()
     rows: list[dict[str, object]] = []
     for student_id, meta in students.items():
+        asset_status = build_student_asset_status(student_id)
         row = {
             "student_id": student_id,
             "display_name": str(meta.get("display_name", "")),
             "server": _server_label(student_id),
+            **asset_status,
             "group": str(meta.get("group", "") or ""),
             "variant": _display("variant", meta.get("variant")),
             "search_tags": _display("search_tags", meta.get("search_tags")),
+            "kr_search_tags": _display("kr_search_tags", meta.get("kr_search_tags")),
             "school": _display("school", meta.get("school")),
             "rarity": _display("rarity", meta.get("rarity")),
             "attack_type": _display("attack_type", meta.get("attack_type")),
@@ -594,7 +667,11 @@ def build_metadata_detail_rows(student_id: str, students: dict[str, dict]) -> li
     if meta is None:
         return []
     rows = [("student_id", "Student ID", student_id), ("server", "Server", _server_label(student_id))]
+    for field_name, value in build_student_asset_status(student_id).items():
+        rows.append((field_name, LABELS.get(field_name, field_name), value))
     for field_name in DETAIL_FIELD_ORDER:
+        if field_name in {"match_template_asset", "portrait_asset", "eleph_asset"}:
+            continue
         rows.append((field_name, LABELS.get(field_name, field_name), _display(field_name, _resolved_field_value(student_id, meta, field_name))))
     return rows
 
@@ -649,12 +726,15 @@ class StudentMetaToolApp:
         self.root = tk.Tk()
         self.root.title("Student Metadata Debug Tool")
         self._ui_scale = get_ui_scale(self.root, base_width=1600, base_height=980)
-        self.root.geometry(f"{scale_px(1560, self._ui_scale)}x{scale_px(940, self._ui_scale)}")
+        self.root.geometry(f"{scale_px(1720, self._ui_scale)}x{scale_px(1040, self._ui_scale)}")
         self.students = get_students()
         self.field_options = build_field_options(self.students)
         self.selected_student_id: str | None = None
         self.vars: dict[str, tk.StringVar] = {}
         self.widgets: dict[str, ttk.Widget] = {}
+        self._editor_canvas: tk.Canvas | None = None
+        self._editor_form: ttk.Frame | None = None
+        self._wheel_target: tk.Misc | None = None
         self.attribute_var = tk.StringVar(value=LABELS[ANALYTICS_FIELDS[0]])
         self.attribute_value_var = tk.StringVar(value="")
         self.student_sort_var = tk.StringVar(value=STUDENT_SORTS[0])
@@ -714,15 +794,25 @@ class StudentMetaToolApp:
         parent.rowconfigure(0, weight=1)
         left = ttk.Frame(parent, padding=(0, 0, 12, 0))
         left.grid(row=0, column=0, sticky="ns")
+        left.columnconfigure(0, weight=1)
         left.rowconfigure(2, weight=1)
         ttk.Label(left, text="Students").grid(row=0, column=0, sticky="w")
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(left, textvariable=self.search_var, width=28)
+        search_entry = ttk.Entry(left, textvariable=self.search_var, width=36)
         search_entry.grid(row=1, column=0, sticky="ew", pady=(6, 8))
         search_entry.bind("<KeyRelease>", lambda _e: self._refresh_student_list())
-        self.student_list = tk.Listbox(left, width=32, exportselection=False)
-        self.student_list.grid(row=2, column=0, sticky="nsew")
+        list_frame = ttk.Frame(left)
+        list_frame.grid(row=2, column=0, sticky="nsew")
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+        self.student_list = tk.Listbox(list_frame, width=40, exportselection=False)
+        self.student_list.grid(row=0, column=0, sticky="nsew")
+        list_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.student_list.yview)
+        list_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.student_list.configure(yscrollcommand=list_scrollbar.set)
         self.student_list.bind("<<ListboxSelect>>", self._on_select_student)
+        self.student_list.bind("<Enter>", lambda _e: self._set_wheel_target(self.student_list))
+        self.student_list.bind("<Leave>", lambda _e: self._set_wheel_target(None))
         left_buttons = ttk.Frame(left)
         left_buttons.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         ttk.Button(left_buttons, text="New", command=self._new_student).grid(row=0, column=0, padx=(0, 6))
@@ -741,15 +831,18 @@ class StudentMetaToolApp:
         form.columnconfigure(1, weight=1)
         canvas.create_window((0, 0), window=form, anchor="nw")
         form.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
+        self._editor_canvas = canvas
+        self._editor_form = form
+        self._bind_scroll_region(canvas)
+        self._bind_scroll_region(form)
         for row, spec in enumerate(FIELD_SPECS):
             name = str(spec["name"])
             label = str(spec["label"])
             display = f"{label} *" if spec.get("required") else label
-            ttk.Label(form, text=display, width=18).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
+            ttk.Label(form, text=display, width=22).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
             var = tk.StringVar()
             self.vars[name] = var
-            if name in LIST_FIELDS:
+            if name in LIST_FIELDS or name in STRUCTURED_FIELDS:
                 widget = ttk.Entry(form, textvariable=var)
             else:
                 combo_state = "normal" if name in FREE_TEXT_COMBO_FIELDS else "readonly"
@@ -760,6 +853,11 @@ class StudentMetaToolApp:
                     state=combo_state,
                 )
             widget.grid(row=row, column=1, sticky="ew", pady=4)
+            if isinstance(widget, ttk.Combobox):
+                widget.bind("<MouseWheel>", self._on_combobox_mousewheel)
+                widget.bind("<Button-4>", self._on_combobox_mousewheel)
+                widget.bind("<Button-5>", self._on_combobox_mousewheel)
+            self._bind_scroll_region(widget)
             self.widgets[name] = widget
         action_bar = ttk.Frame(right)
         action_bar.grid(row=2, column=0, sticky="ew", pady=(10, 0))
@@ -950,6 +1048,8 @@ class StudentMetaToolApp:
 
     def _refresh_student_list(self) -> None:
         query = self.search_var.get().strip().lower()
+        previous_selection = self.vars.get("student_id").get().strip() if self.vars.get("student_id") else ""
+        first_visible = self.student_list.nearest(0) if self.student_list.size() else 0
         self.student_list.delete(0, tk.END)
         self._list_ids: list[str] = []
         for sid in sorted(self.students):
@@ -958,6 +1058,14 @@ class StudentMetaToolApp:
                 continue
             self._list_ids.append(sid)
             self.student_list.insert(tk.END, f"{sid} | {name}")
+        if previous_selection and previous_selection in self._list_ids:
+            index = self._list_ids.index(previous_selection)
+            self.student_list.selection_clear(0, tk.END)
+            self.student_list.selection_set(index)
+            self.student_list.activate(index)
+        if self.student_list.size():
+            max_index = max(0, min(first_visible, self.student_list.size() - 1))
+            self.student_list.yview(max_index)
 
     def _clear_form(self) -> None:
         for var in self.vars.values():
@@ -1096,9 +1204,12 @@ class StudentMetaToolApp:
         self._populate_tree(self.item_tree, [(r["item"], r["current_qty"], r["plan_delta"], r["adjusted_qty"], "" if int(r["index"]) < 0 else r["index"]) for r in filtered])
 
     def _refresh_all_views(self, *, preserve_student_id: str | None = None) -> None:
+        list_first_visible = self.student_list.nearest(0) if hasattr(self, "student_list") and self.student_list.size() else 0
         self.students = get_students()
         self._refresh_field_options()
         self._refresh_student_list()
+        if hasattr(self, "student_list") and self.student_list.size():
+            self.student_list.yview(max(0, min(list_first_visible, self.student_list.size() - 1)))
         self._refresh_attribute_value_options()
         self._refresh_student_analysis()
         self._refresh_metadata_debug(select_student_id=preserve_student_id)
@@ -1135,6 +1246,55 @@ class StudentMetaToolApp:
         else:
             self.detail_title_var.set("No students match the current filter")
             self._populate_tree(self.detail_tree, [])
+
+    def _set_wheel_target(self, widget: tk.Misc | None) -> None:
+        self._wheel_target = widget
+
+    def _bind_scroll_region(self, widget: tk.Misc) -> None:
+        widget.bind("<Enter>", lambda _e, target=widget: self._set_wheel_target(target))
+        widget.bind("<Leave>", lambda _e: self._set_wheel_target(None))
+        widget.bind("<MouseWheel>", self._on_mousewheel)
+        widget.bind("<Button-4>", self._on_mousewheel)
+        widget.bind("<Button-5>", self._on_mousewheel)
+
+    def _mousewheel_steps(self, event) -> int:
+        if getattr(event, "num", None) == 4:
+            return -1
+        if getattr(event, "num", None) == 5:
+            return 1
+        delta = int(getattr(event, "delta", 0))
+        if delta == 0:
+            return 0
+        return -1 if delta > 0 else 1
+
+    def _scroll_widget(self, widget: tk.Misc, steps: int) -> bool:
+        if steps == 0:
+            return False
+        try:
+            if isinstance(widget, tk.Listbox):
+                widget.yview_scroll(steps, "units")
+                return True
+            if widget is self._editor_canvas:
+                widget.yview_scroll(steps, "units")
+                return True
+        except tk.TclError:
+            return False
+        return False
+
+    def _on_mousewheel(self, event):
+        steps = self._mousewheel_steps(event)
+        widget = self._wheel_target
+        while widget is not None:
+            if self._scroll_widget(widget, steps):
+                return "break"
+            widget = getattr(widget, "master", None)
+        return None
+
+    def _on_combobox_mousewheel(self, event):
+        widget = event.widget
+        if self.root.focus_get() is widget:
+            return None
+        return self._on_mousewheel(event) or "break"
 
     def _populate_detail_for_student(self, student_id: str) -> None:
         rows = build_metadata_detail_rows(student_id, self.students)

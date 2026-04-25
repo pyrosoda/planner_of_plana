@@ -229,6 +229,12 @@ def _preferred_text_hex(background: str) -> str:
     return "#101722" if luminance >= 170 else "#f2f2f2"
 
 
+def _live_line_edit_text(widget: QLineEdit | None) -> str:
+    if isinstance(widget, LiveSearchLineEdit):
+        return widget.liveText()
+    return widget.text() if widget is not None else ""
+
+
 PALETTE_ACCENT, PALETTE_SOFT, PALETTE_PANEL, PALETTE_PANEL_ALT, PALETTE_TEXT = _load_main_palette()
 
 BG = _mix_hex(PALETTE_PANEL_ALT, "#090b12", 0.3)
@@ -907,6 +913,36 @@ class PlanOptionStrip(QWidget):
                 current_marker=is_current and not is_selected,
                 clickable=enabled,
             )
+
+
+class LiveSearchLineEdit(QLineEdit):
+    liveTextChanged = Signal(str)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._preedit_text = ""
+        self.textChanged.connect(self._emit_live_text)
+
+    def liveText(self) -> str:
+        if not self._preedit_text:
+            return self.text()
+        cursor = self.cursorPosition()
+        base_text = self.text()
+        return f"{base_text[:cursor]}{self._preedit_text}{base_text[cursor:]}"
+
+    def inputMethodEvent(self, event) -> None:
+        super().inputMethodEvent(event)
+        self._preedit_text = event.preeditString() or ""
+        self._emit_live_text()
+
+    def focusOutEvent(self, event) -> None:
+        super().focusOutEvent(event)
+        if self._preedit_text:
+            self._preedit_text = ""
+            self._emit_live_text()
+
+    def _emit_live_text(self, *_args) -> None:
+        self.liveTextChanged.emit(self.liveText())
 
 
 class PlanStepper(QWidget):
@@ -2353,9 +2389,9 @@ class StudentViewerWindow(QMainWindow):
         )
         toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        self._search = QLineEdit()
+        self._search = LiveSearchLineEdit()
         self._search.setPlaceholderText("Search by student name, id, or tag")
-        self._search.textChanged.connect(self._apply_filters)
+        self._search.liveTextChanged.connect(lambda _text: self._apply_filters())
         toolbar_layout.addWidget(self._search, 3)
 
         self._sort_mode = QComboBox()
@@ -2744,9 +2780,10 @@ class StudentViewerWindow(QMainWindow):
         )
         toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        self._resource_search = QLineEdit()
+        self._resource_search = LiveSearchLineEdit()
         self._resource_search.setPlaceholderText("Search the same filtered student set")
         self._resource_search.textChanged.connect(self._on_resource_search_changed)
+        self._resource_search.liveTextChanged.connect(lambda _text: self._apply_filters())
         toolbar_layout.addWidget(self._resource_search, 3)
 
         self._resource_sort_mode = QComboBox()
@@ -3041,7 +3078,8 @@ class StudentViewerWindow(QMainWindow):
             return
         self._resource_syncing_controls = True
         try:
-            self._resource_search.setText(self._search.text())
+            if self._resource_search.text() != self._search.text():
+                self._resource_search.setText(self._search.text())
             target_sort = self._sort_mode.currentData()
             for index in range(self._resource_sort_mode.count()):
                 if self._resource_sort_mode.itemData(index) == target_sort:
@@ -3612,9 +3650,9 @@ class StudentViewerWindow(QMainWindow):
         quick_add_row = QHBoxLayout()
         quick_add_row.setContentsMargins(0, 0, 0, 0)
         quick_add_row.setSpacing(scale_px(8, self._ui_scale))
-        self._plan_search = QLineEdit()
+        self._plan_search = LiveSearchLineEdit()
         self._plan_search.setPlaceholderText("Type student name, id, or tag")
-        self._plan_search.textChanged.connect(self._refresh_plan_lists)
+        self._plan_search.liveTextChanged.connect(lambda _text: self._refresh_plan_lists())
         quick_add_row.addWidget(self._plan_search, 1)
         self._plan_add_button = ParallelogramButton("Add", style=self._card_button_style)
         self._plan_add_button.clicked.connect(self._add_selected_student_to_plan)
@@ -4364,7 +4402,7 @@ class StudentViewerWindow(QMainWindow):
     def _refresh_plan_lists(self) -> None:
         if not hasattr(self, "_plan_all_list"):
             return
-        query = self._plan_search.text().strip().casefold()
+        query = _live_line_edit_text(self._plan_search).strip().casefold()
         current_all = self._plan_current_all_student_id()
         current_plan = self._current_plan_grid_student_id() or self._selected_plan_student_id
         goal_map = self._plan_goal_map()
@@ -4819,7 +4857,8 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_inventory_tab()
 
     def _apply_filters(self) -> None:
-        query = self._search.text().strip().casefold()
+        active_search = self._resource_search if hasattr(self, "_resource_search") and self._resource_search.hasFocus() else self._search
+        query = _live_line_edit_text(active_search).strip().casefold()
         sort_mode = self._sort_mode.currentData()
 
         items = [

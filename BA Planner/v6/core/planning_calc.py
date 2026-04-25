@@ -7,6 +7,7 @@ from pathlib import Path
 
 from core.equipment_items import EQUIPMENT_SERIES_BY_KEY
 from core.planning import GrowthPlan, StudentGoal
+from core.schale_skill_material_map import is_skill_book_label
 from core import student_meta
 
 
@@ -90,37 +91,6 @@ _WEAPON_STAR_ELEPH_CUMULATIVE = {
     2: 120,
     3: 300,
     4: 500,
-}
-_EX_BD_CUMULATIVE: dict[int, tuple[int, int, int, int]] = {
-    0: (0, 0, 0, 0),
-    1: (0, 0, 0, 0),
-    2: (12, 0, 0, 0),
-    3: (30, 12, 0, 0),
-    4: (30, 30, 12, 0),
-    5: (30, 30, 30, 8),
-}
-_SKILL_NOTE_CUMULATIVE: dict[int, tuple[int, int, int, int, int]] = {
-    0: (0, 0, 0, 0, 0),
-    1: (0, 0, 0, 0, 0),
-    2: (5, 0, 0, 0, 0),
-    3: (13, 0, 0, 0, 0),
-    4: (25, 5, 0, 0, 0),
-    5: (25, 13, 0, 0, 0),
-    6: (25, 25, 5, 0, 0),
-    7: (25, 25, 13, 0, 0),
-    8: (25, 25, 25, 8, 0),
-    9: (25, 25, 25, 20, 0),
-    10: (25, 25, 25, 20, 1),
-}
-_SKILL_OOPART_TIER_BY_TARGET_LEVEL = {
-    3: 1,
-    4: 1,
-    5: 2,
-    6: 2,
-    7: 3,
-    8: 3,
-    9: 4,
-    10: 4,
 }
 _EQUIPMENT_TIER_MATERIALS_CUMULATIVE: dict[int, tuple[int, ...]] = {
     0: (0, 0, 0, 0, 0, 0, 0, 0, 0),
@@ -362,18 +332,6 @@ def _eleph_label(student_name: object, student_id: str) -> str:
     return f"{name or student_id} Eleph"
 
 
-def _school_material_label(school_name: str | None, family: str, tier: int) -> str:
-    school = (school_name or "ETC").strip() or "ETC"
-    return f"{school} {family} T{tier}"
-
-
-def _skill_book_school_name(school_name: str | None) -> str:
-    school = (school_name or "ETC").strip() or "ETC"
-    if school == "SRT":
-        return "Valkyrie"
-    return school
-
-
 def _equipment_material_label(slot_name: str | None, tier: int) -> str:
     series = EQUIPMENT_SERIES_BY_KEY.get(slot_name or "")
     if series and 1 <= tier <= len(series.tier_names):
@@ -516,27 +474,49 @@ def _calculate_star_cost(record, goal: StudentGoal) -> tuple[int, dict[str, int]
     return credits, materials
 
 
-def _diff_cumulative_tuple(current_level: int, target_level: int, table: dict[int, tuple[int, ...]]) -> tuple[int, ...]:
-    current_key = min(max(current_level, 0), max(table))
-    target_key = min(max(target_level, current_key), max(table))
-    current_values = table.get(current_key, tuple())
-    target_values = table.get(target_key, tuple())
-    return tuple(max(0, target - current) for current, target in zip(current_values, target_values))
+def _merge_material_rows(total: dict[str, int], row: dict[str, int]) -> None:
+    for key, value in row.items():
+        amount = _safe_int(value, 0)
+        if amount > 0:
+            total[key] = total.get(key, 0) + amount
+
+
+def _row_window_total(rows: list[dict[str, int]], current_level: int, target_level: int, *, target_start_level: int) -> dict[str, int]:
+    total: dict[str, int] = {}
+    if target_level <= current_level:
+        return total
+    for target in range(max(current_level + 1, target_start_level), target_level + 1):
+        index = target - target_start_level
+        if 0 <= index < len(rows):
+            _merge_material_rows(total, rows[index])
+    return total
+
+
+def _filter_materials(materials: dict[str, int], *, skill_books: bool) -> dict[str, int]:
+    filtered: dict[str, int] = {}
+    for key, value in materials.items():
+        if is_skill_book_label(key) == skill_books:
+            filtered[key] = value
+    return filtered
 
 
 def _calculate_skill_book_cost(student_id: str, current_ex: int, target_ex: int, current_skills: list[int], target_skills: list[int]) -> dict[str, int]:
-    school_name = _skill_book_school_name(student_meta.school(student_id))
     materials: dict[str, int] = {}
-
-    ex_delta = _diff_cumulative_tuple(current_ex, target_ex, _EX_BD_CUMULATIVE)
-    for tier, amount in enumerate(ex_delta, start=1):
-        _add_material_value(materials, f"{school_name} BD", tier, amount)
-
+    _merge_material_rows(
+        materials,
+        _filter_materials(
+            _row_window_total(student_meta.mapped_skill_ex_material_rows(student_id), current_ex, target_ex, target_start_level=2),
+            skill_books=True,
+        ),
+    )
     for current_level, target_level in zip(current_skills, target_skills):
-        skill_delta = _diff_cumulative_tuple(current_level, target_level, _SKILL_NOTE_CUMULATIVE)
-        for tier, amount in enumerate(skill_delta, start=1):
-            _add_material_value(materials, f"{school_name} Note", tier, amount)
-
+        _merge_material_rows(
+            materials,
+            _filter_materials(
+                _row_window_total(student_meta.mapped_skill_material_rows(student_id), current_level, target_level, target_start_level=2),
+                skill_books=True,
+            ),
+        )
     return materials
 
 
@@ -755,38 +735,22 @@ def _calculate_weapon_level_cost(record, goal: StudentGoal) -> tuple[int, int]:
 
 
 def _calculate_ex_ooparts(student_id: str, current_level: int, target_level: int) -> dict[str, int]:
-    window_total: dict[str, int] = {}
-    main_costs = student_meta.growth_material_main_ex_levels(student_id)
-    sub_costs = student_meta.growth_material_sub_ex_levels(student_id)
-    main_name = student_meta.growth_material_main(student_id)
-    sub_name = student_meta.growth_material_sub(student_id)
-    for target in range(max(current_level + 1, 2), target_level + 1):
-        main_index = target - 2
-        sub_index = target - 2
-        if 0 <= main_index < len(main_costs):
-            _add_material_value(window_total, main_name, main_index + 1, main_costs[main_index])
-        if 0 <= sub_index < len(sub_costs):
-            _add_material_value(window_total, sub_name, sub_index + 1, sub_costs[sub_index])
-    return window_total
+    return _filter_materials(
+        _row_window_total(student_meta.mapped_skill_ex_material_rows(student_id), current_level, target_level, target_start_level=2),
+        skill_books=False,
+    )
 
 
 def _calculate_skill_ooparts(student_id: str, current_levels: list[int], target_levels: list[int]) -> dict[str, int]:
     total: dict[str, int] = {}
-    main_costs = student_meta.growth_material_main_skill_levels(student_id)
-    sub_costs = student_meta.growth_material_sub_skill_levels(student_id)
-    main_name = student_meta.growth_material_main(student_id)
-    sub_name = student_meta.growth_material_sub(student_id)
-
     for current_level, target_level in zip(current_levels, target_levels):
-        for target in range(max(current_level + 1, 3), target_level + 1):
-            index = target - 3
-            tier = _SKILL_OOPART_TIER_BY_TARGET_LEVEL.get(target)
-            if tier is None:
-                continue
-            if 0 <= index < len(main_costs):
-                _add_material_value(total, main_name, tier, main_costs[index])
-            if 0 <= index < len(sub_costs):
-                _add_material_value(total, sub_name, tier, sub_costs[index])
+        _merge_material_rows(
+            total,
+            _filter_materials(
+                _row_window_total(student_meta.mapped_skill_material_rows(student_id), current_level, target_level, target_start_level=2),
+                skill_books=False,
+            ),
+        )
     return total
 
 
