@@ -1,0 +1,32 @@
+{
+  "name": "Item_Icon_SkillBook_Ultimate_Piece",
+  "profile_id": "tech_notes",
+  "source": "item",
+  "item_id": "Item_Icon_SkillBook_Ultimate_Piece",
+  "display_name": "비의서",
+  "quantity": "55",
+  "scan_id": "2026-04-24_183949",
+  "confirmed_at": "2026-04-24T18:43:32.602515+09:00",
+  "image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail_names\\tech_notes\\Item_Icon_SkillBook_Ultimate_Piece.png",
+  "name_image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail_names\\tech_notes\\Item_Icon_SkillBook_Ultimate_Piece.png",
+  "template_source": "user_confirmed_scan",
+  "scan_meta": {
+    "status": "dp_aligned",
+    "reason": "dp_sequence_alignment",
+    "profile_id": "tech_notes",
+    "profile_index": 44,
+    "candidate_sequence": 140,
+    "candidate_slot": 19,
+    "detected_item_id": null,
+    "detected_score": 0.0,
+    "match_score": 0.8641,
+    "family_margin": null,
+    "strict_family_review": false,
+    "review_required": false,
+    "scanned_quantity": "55",
+    "user_edited": true,
+    "review_confirmed": true
+  },
+  "detail_image_path": "C:\\Users\\brigh\\planner_of_plana\\BA Planner\\v6\\profiles\\profile_dd633a06\\templates\\inventory_detail\\tech_notes\\Item_Icon_SkillBook_Ultimate_Piece.png",
+  "template_kind": "detail_name"
+}

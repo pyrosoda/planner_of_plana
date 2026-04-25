@@ -20,9 +20,9 @@ if str(BASE_DIR) not in sys.path:
 import core.student_meta as student_meta
 from core.config import get_storage_paths
 from core.db import init_db
-from core.equipment_items import EQUIPMENT_EXP_ITEMS, EQUIPMENT_SERIES, WEAPON_PART_ITEMS
+from core.equipment_items import EQUIPMENT_EXP_ITEMS, EQUIPMENT_ITEM_ID_TO_NAME, EQUIPMENT_SERIES, WEAPON_PART_ITEMS
 from core.inventory_profiles import inventory_item_display_name
-from core.oparts import OPART_ITEM_ID_TO_NAME, OPART_LEGACY_WB_ITEM_IDS, OPART_ORDERED_ITEM_IDS, OPART_WB_ITEMS
+from core.oparts import OPART_DEFINITIONS, OPART_ITEM_ID_TO_NAME, OPART_LEGACY_WB_ITEM_IDS, OPART_ORDERED_ITEM_IDS, OPART_WB_ITEMS
 from core.planning import (
     MAX_TARGET_EQUIP_LEVEL,
     MAX_TARGET_EQUIP_TIER,
@@ -77,6 +77,9 @@ UI_FONT_PATH = BASE_DIR / "gui" / "font" / "경기천년제목_Medium.ttf"
 POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
 SCHOOL_LOGO_DIR = BASE_DIR / "templates" / "icons" / "school_logo"
 EQUIPMENT_ICON_DIR = BASE_DIR / "templates" / "icons" / "equipment"
+OPART_ICON_DIR = BASE_DIR / "templates" / "icons" / "ooparts"
+SKILL_BOOK_ICON_DIR = BASE_DIR / "templates" / "icons" / "skill_book"
+SKILL_DB_ICON_DIR = BASE_DIR / "templates" / "icons" / "skill_db"
 INVENTORY_DETAIL_DIR = BASE_DIR / "templates" / "inventory_detail"
 CARD_BUTTON_ASSET = POLI_BG_DIR / "square.png"
 MAIN_UI_PALETTE_PATH = BASE_DIR / "gui" / "main_ui_color_palete.txt"
@@ -127,6 +130,27 @@ _SCHOOL_SEQUENCE = (
     "Highlander",
     "Wildhunt",
 )
+_OPART_EN_TO_ICON_KEY = {
+    definition.family_en.casefold(): definition.icon_key
+    for definition in OPART_DEFINITIONS
+}
+_PLAN_RESOURCE_CATEGORY_ORDER = {
+    "credits": 0,
+    "level_exp": 10,
+    "equipment_exp": 20,
+    "weapon_exp": 30,
+    "skill_books": 40,
+    "ex_ooparts": 50,
+    "skill_ooparts": 60,
+    "favorite_item_materials": 70,
+    "stat_materials": 80,
+    "equipment_materials": 90,
+    "star_materials": 100,
+}
+_EQUIPMENT_NAME_TO_ITEM_ID = {
+    name: item_id
+    for item_id, name in EQUIPMENT_ITEM_ID_TO_NAME.items()
+}
 
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -1107,35 +1131,45 @@ def _inventory_icon_path(item_id: str | None, name: str | None) -> Path | None:
             return path
 
     if item_id:
+        if item_id == "Item_Icon_Favor_Selection":
+            path = POLI_BG_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
         if item_id in _WORKBOOK_ID_TO_NAME:
             path = POLI_BG_DIR / f"{item_id}.png"
             if path.exists():
                 return path
         if item_id.startswith("Item_Icon_SkillBook_"):
+            path = SKILL_BOOK_ICON_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
             path = INVENTORY_DETAIL_DIR / "tech_notes" / f"{item_id}.png"
             if path.exists():
                 return path
         if item_id.startswith("Item_Icon_Material_ExSkill_"):
+            path = SKILL_DB_ICON_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
             path = INVENTORY_DETAIL_DIR / "tactical_bd" / f"{item_id}.png"
             if path.exists():
                 return path
         if item_id in _OPART_ITEM_IDS or item_id in _WB_ITEM_IDS:
-            path = INVENTORY_DETAIL_DIR / "ooparts" / f"{item_id}.png"
+            path = OPART_ICON_DIR / f"{item_id}.png"
             if path.exists():
                 return path
         if item_id.startswith("Equipment_Icon_") and "_Tier" in item_id:
+            path = EQUIPMENT_ICON_DIR / f"{item_id}.png"
+            if path.exists():
+                return path
             path = INVENTORY_DETAIL_DIR / "equipment" / f"{item_id}.png"
             if path.exists():
                 return path
         if item_id.startswith("Equipment_Icon_Exp_") or item_id.startswith("Equipment_Icon_WeaponExpGrowth"):
-            path = POLI_BG_DIR / f"{item_id}.png"
+            path = EQUIPMENT_ICON_DIR / f"{item_id}.png"
             if path.exists():
                 return path
 
     if name:
-        path = INVENTORY_DETAIL_DIR / "ooparts" / f"{name}.png"
-        if path.exists():
-            return path
         path = INVENTORY_DETAIL_DIR / "activity_reports" / f"{name}.png"
         if path.exists():
             return path
@@ -1164,6 +1198,98 @@ def _inventory_display_label(item_key: str, payload: dict) -> str:
             return workbook_name
     display_name = inventory_item_display_name(str(item_id)) if item_id else None
     return str(display_name or payload.get("name") or item_key)
+
+
+def _plan_resource_split_tier(key: str) -> tuple[str, int | None]:
+    base, separator, tier_text = key.rpartition(" T")
+    if not separator:
+        return key.strip(), None
+    try:
+        return base.strip(), int(tier_text)
+    except ValueError:
+        return key.strip(), None
+
+
+def _plan_resource_item_id(key: str, category: str) -> str | None:
+    base, tier = _plan_resource_split_tier(key)
+    if category == "credits":
+        return "Currency_Icon_Gold"
+    if tier is None:
+        if category == "equipment_materials" and base in _EQUIPMENT_NAME_TO_ITEM_ID:
+            return _EQUIPMENT_NAME_TO_ITEM_ID[base]
+        return key if key.startswith(("Item_Icon_", "Equipment_Icon_")) else None
+
+    zero_tier = max(0, tier - 1)
+    if category == "level_exp":
+        return f"Item_Icon_ExpItem_{zero_tier}"
+    if category == "equipment_exp":
+        return f"Equipment_Icon_Exp_{zero_tier}"
+    if category == "weapon_exp":
+        return f"Equipment_Icon_WeaponExpGrowthA_{zero_tier}"
+    if category == "skill_books":
+        school, _, resource_kind = base.partition(" ")
+        if school in _SCHOOL_SEQUENCE and resource_kind == "BD":
+            return f"Item_Icon_Material_ExSkill_{school}_{zero_tier}"
+        if school in _SCHOOL_SEQUENCE and resource_kind == "Note":
+            if tier == 5:
+                return "Item_Icon_SkillBook_Ultimate_Piece"
+            return f"Item_Icon_SkillBook_{school}_{zero_tier}"
+    if category == "equipment_materials" and base in EQUIPMENT_ITEM_ID_TO_NAME:
+        return base
+    if category == "equipment_materials" and base in _EQUIPMENT_NAME_TO_ITEM_ID:
+        return _EQUIPMENT_NAME_TO_ITEM_ID[base]
+    if category == "equipment_materials" and base in {series.icon_key for series in EQUIPMENT_SERIES}:
+        return f"Equipment_Icon_{base}_Tier{tier}"
+    if category in {"ex_ooparts", "skill_ooparts", "stat_materials"}:
+        if base == "Item_Icon_WorkBook_PotentialMaxHP":
+            return base
+        icon_key = _OPART_EN_TO_ICON_KEY.get(base.casefold())
+        if icon_key:
+            return f"Item_Icon_Material_{icon_key}_{zero_tier}"
+    if category == "favorite_item_materials":
+        if base == "Item_Icon_Favor_Selection":
+            return base
+        icon_key = _OPART_EN_TO_ICON_KEY.get(base.casefold())
+        if icon_key:
+            return f"Item_Icon_Material_{icon_key}_{zero_tier}"
+    return key if key.startswith(("Item_Icon_", "Equipment_Icon_")) else None
+
+
+def _plan_resource_icon_path(item_id: str | None, name: str) -> Path | None:
+    if item_id == "Currency_Icon_Gold":
+        path = POLI_BG_DIR / "Currency_Icon_Gold.png"
+        return path if path.exists() else None
+    if item_id == "Item_Icon_Favor_Selection":
+        path = POLI_BG_DIR / "Item_Icon_Favor_Selection.png"
+        return path if path.exists() else None
+    return _inventory_icon_path(item_id, name)
+
+
+def _plan_resource_display_name(item_id: str | None, fallback: str) -> str:
+    if item_id == "Currency_Icon_Gold":
+        return "Credits"
+    if item_id == "Item_Icon_Favor_Selection":
+        return "Favorite Gift Selection"
+    display_name = inventory_item_display_name(item_id) if item_id else None
+    return str(display_name or fallback)
+
+
+def _inventory_quantity_index(inventory: dict[str, dict]) -> dict[str, int]:
+    index: dict[str, int] = {}
+    for item_key, payload in inventory.items():
+        quantity = _inventory_quantity_value(payload.get("quantity"))
+        if quantity is None:
+            continue
+        candidates = {str(item_key)}
+        item_id = payload.get("item_id")
+        if item_id:
+            candidates.add(str(item_id))
+        name = payload.get("name")
+        if name:
+            candidates.add(str(name))
+        for candidate in candidates:
+            index[candidate] = max(index.get(candidate, 0), quantity)
+    return index
 
 
 def _load_ui_font_family() -> str | None:
@@ -1735,6 +1861,63 @@ class InventoryListItem(QFrame):
             if not pixmap.isNull():
                 scaled = pixmap.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self._icon.setPixmap(scaled)
+                return
+        self._icon.setPixmap(QPixmap())
+
+
+@dataclass(slots=True)
+class PlanResourceRequirement:
+    key: str
+    name: str
+    required: int
+    owned: int
+    icon_path: Path | None
+    category: str
+
+
+class PlanResourceChip(QFrame):
+    def __init__(self, *, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self.setObjectName("planBand")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+        )
+        layout.setSpacing(scale_px(8, self._ui_scale))
+
+        self._icon = QLabel()
+        self._icon.setFixedSize(scale_px(36, self._ui_scale), scale_px(36, self._ui_scale))
+        self._icon.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._icon, 0, Qt.AlignVCenter)
+
+        text_wrap = QVBoxLayout()
+        text_wrap.setContentsMargins(0, 0, 0, 0)
+        text_wrap.setSpacing(scale_px(1, self._ui_scale))
+        self._name = QLabel("-")
+        self._name.setObjectName("detailMiniSub")
+        self._name.setWordWrap(True)
+        text_wrap.addWidget(self._name)
+        self._quantity = QLabel("-")
+        self._quantity.setObjectName("detailMiniValue")
+        text_wrap.addWidget(self._quantity)
+        layout.addLayout(text_wrap, 1)
+
+    def setData(self, requirement: PlanResourceRequirement) -> None:
+        self._name.setText(requirement.name)
+        self._quantity.setText(f"{requirement.required:,} / {requirement.owned:,}")
+        shortage = requirement.required > requirement.owned
+        self._name.setStyleSheet(f"color: #ff6b6b;" if shortage else "")
+        self._quantity.setStyleSheet(f"color: #ff6b6b;" if shortage else "")
+
+        if requirement.icon_path is not None and requirement.icon_path.exists():
+            pixmap = QPixmap(str(requirement.icon_path))
+            if not pixmap.isNull():
+                self._icon.setPixmap(pixmap.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 return
         self._icon.setPixmap(QPixmap())
 
@@ -2905,7 +3088,7 @@ class StudentViewerWindow(QMainWindow):
     def _resource_compact_cost_text(self, summary: PlanCostSummary | None) -> str:
         if summary is None:
             return "No planned target yet"
-        total_materials = sum(summary.star_materials.values()) + sum(summary.equipment_materials.values()) + sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values()) + sum(summary.stat_materials.values())
+        total_materials = sum(summary.star_materials.values()) + sum(summary.equipment_materials.values()) + sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values()) + sum(summary.favorite_item_materials.values()) + sum(summary.stat_materials.values())
         return f"Credits {summary.credits:,} · EXP {summary.level_exp:,} · Items {total_materials:,}"
 
     def _resource_focus_label(self, record: StudentRecord, summary: PlanCostSummary | None) -> str:
@@ -2919,6 +3102,7 @@ class StudentViewerWindow(QMainWindow):
             ("skill", sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values())),
             ("equipment", sum(summary.equipment_materials.values())),
             ("star", sum(summary.star_materials.values())),
+            ("favorite", sum(summary.favorite_item_materials.values())),
             ("stat", sum(summary.stat_materials.values())),
         ]
         label, amount = max(buckets, key=lambda item: item[1])
@@ -3032,7 +3216,7 @@ class StudentViewerWindow(QMainWindow):
                 rows.append(("Weapon EXP", summary.weapon_exp))
             rows.extend(sorted(summary.weapon_exp_items.items(), key=lambda item: (-item[1], item[0])))
             sections.append(("Weapon EXP", rows))
-        for heading, mapping in (("Star materials", summary.star_materials), ("Equipment materials", summary.equipment_materials), ("Skill books", summary.skill_books), ("EX ooparts", summary.ex_ooparts), ("Skill ooparts", summary.skill_ooparts), ("Stat materials", summary.stat_materials)):
+        for heading, mapping in (("Star materials", summary.star_materials), ("Equipment materials", summary.equipment_materials), ("Skill books", summary.skill_books), ("EX ooparts", summary.ex_ooparts), ("Skill ooparts", summary.skill_ooparts), ("Favorite item materials", summary.favorite_item_materials), ("Stat materials", summary.stat_materials)):
             if mapping:
                 sections.append((heading, sorted(mapping.items(), key=lambda item: (-item[1], item[0]))))
         if summary.stat_levels:
@@ -3468,7 +3652,7 @@ class StudentViewerWindow(QMainWindow):
         plan_header.addWidget(self._plan_count_label, 1, Qt.AlignRight)
         plan_layout.addLayout(plan_header)
 
-        self._plan_empty_label = QLabel("No students in plan yet. Search above to add your first student.")
+        self._plan_empty_label = QLabel("No students in plan yet. Use Quick Add below the grid to add your first student.")
         self._plan_empty_label.setObjectName("filterSummary")
         self._plan_empty_label.setWordWrap(True)
         plan_layout.addWidget(self._plan_empty_label)
@@ -3478,6 +3662,8 @@ class StudentViewerWindow(QMainWindow):
         self._plan_grid.current_changed.connect(self._on_plan_card_changed)
         self._plan_grid.layout_changed.connect(lambda *_: self._refresh_card_layout())
         plan_layout.addWidget(self._plan_grid, 1)
+
+        plan_layout.addWidget(quick_add_panel, 0)
 
         plan_buttons = QHBoxLayout()
         self._plan_remove_button = QPushButton("Remove")
@@ -3493,9 +3679,23 @@ class StudentViewerWindow(QMainWindow):
 
         editor_panel = QFrame()
         editor_panel.setObjectName("panel")
-        editor_layout = QVBoxLayout(editor_panel)
+        editor_outer_layout = QVBoxLayout(editor_panel)
+        editor_outer_layout.setContentsMargins(0, 0, 0, 0)
+        editor_outer_layout.setSpacing(0)
+
+        editor_scroll = QScrollArea()
+        editor_scroll.setWidgetResizable(True)
+        editor_scroll.setFrameShape(QFrame.NoFrame)
+        editor_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        editor_scroll.setObjectName("planEditorScroll")
+        editor_outer_layout.addWidget(editor_scroll, 1)
+
+        editor_content = QWidget()
+        editor_content.setObjectName("planTransparent")
+        editor_layout = QVBoxLayout(editor_content)
         editor_layout.setContentsMargins(scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale))
         editor_layout.setSpacing(scale_px(10, self._ui_scale))
+        editor_scroll.setWidget(editor_content)
 
         self._plan_name = QLabel("Select a student")
         self._plan_name.setObjectName("detailName")
@@ -3542,6 +3742,41 @@ class StudentViewerWindow(QMainWindow):
         progression_row_layout.addWidget(star_selector, 1)
         progression_layout.addWidget(progression_row)
         left_column.addWidget(progression_panel)
+
+        requirement_panel = QFrame()
+        requirement_panel.setObjectName("planSectionPanel")
+        requirement_layout = QVBoxLayout(requirement_panel)
+        requirement_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
+        )
+        requirement_layout.setSpacing(scale_px(8, self._ui_scale))
+        requirement_header = QHBoxLayout()
+        requirement_header.setContentsMargins(0, 0, 0, 0)
+        requirement_header.setSpacing(scale_px(10, self._ui_scale))
+        requirement_title = QLabel("Required Resources")
+        requirement_title.setObjectName("sectionTitle")
+        requirement_header.addWidget(requirement_title)
+        self._plan_requirement_summary = QLabel("Selected student - Needed / Inventory")
+        self._plan_requirement_summary.setObjectName("count")
+        self._plan_requirement_summary.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        requirement_header.addWidget(self._plan_requirement_summary, 1)
+        requirement_layout.addLayout(requirement_header)
+
+        self._plan_requirement_empty = QLabel("Select a planned student and set targets to preview required resources.")
+        self._plan_requirement_empty.setObjectName("filterSummary")
+        self._plan_requirement_empty.setWordWrap(True)
+        requirement_layout.addWidget(self._plan_requirement_empty)
+
+        self._plan_requirement_grid_host = QWidget()
+        self._plan_requirement_grid_host.setObjectName("planTransparent")
+        self._plan_requirement_grid = QGridLayout(self._plan_requirement_grid_host)
+        self._plan_requirement_grid.setContentsMargins(0, 0, 0, 0)
+        self._plan_requirement_grid.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        self._plan_requirement_grid.setVerticalSpacing(scale_px(8, self._ui_scale))
+        requirement_layout.addWidget(self._plan_requirement_grid_host)
 
         skill_panel = QFrame()
         skill_panel.setObjectName("planSectionPanel")
@@ -3695,7 +3930,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_student_summary.setVisible(False)
         self._plan_total_summary.setVisible(False)
         editor_layout.addWidget(controls_wrap, 0)
-        editor_layout.addWidget(quick_add_panel, 0)
+        editor_layout.addWidget(requirement_panel, 0)
         editor_layout.addStretch(1)
         splitter.addWidget(editor_panel)
 
@@ -3880,8 +4115,6 @@ class StudentViewerWindow(QMainWindow):
             target_weapon_level = current_weapon_level
         if target_weapon_star > 0 or target_weapon_level > 0:
             target_star = max(target_star, 5)
-        if int(getattr(goal, "target_equip4_tier", 0) or 0) > 0:
-            target_star = max(target_star, 3)
         target_weapon_level = min(target_weapon_level, self._weapon_level_cap_for_star(target_weapon_star))
 
         goal.target_star = target_star if target_star > current_star else None
@@ -3908,8 +4141,6 @@ class StudentViewerWindow(QMainWindow):
         if self._record_supports_unique_item(record) and hasattr(goal, "target_equip4_tier"):
             current_unique_tier = _parse_tier_number(record.equip4) or 0
             target_unique_tier = max(current_unique_tier, int(getattr(goal, "target_equip4_tier") or 0))
-            if target_star < 3:
-                target_unique_tier = current_unique_tier
             goal.target_equip4_tier = target_unique_tier if target_unique_tier > current_unique_tier else None
 
     @staticmethod
@@ -3967,7 +4198,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_unique_item_panel.setVisible(has_unique_item)
         if has_unique_item:
             selector = self._plan_unique_item_selector
-            selector.setEnabled(self._plan_supports_field(goal, "target_equip4_tier") and self._current_or_target_star(record, goal) >= 3)
+            selector.setEnabled(self._plan_supports_field(goal, "target_equip4_tier"))
 
     def _refresh_plan_editor_controls(self, record: StudentRecord, goal: StudentGoal | None) -> None:
         current_total = self._record_star_weapon_total(record)
@@ -4043,7 +4274,7 @@ class StudentViewerWindow(QMainWindow):
             self._plan_unique_item_selector.setState(
                 minimum_value=current_unique_tier,
                 value=self._goal_value(goal, "target_equip4_tier", current_unique_tier),
-                enabled_count=2 if self._current_or_target_star(record, goal) >= 3 else 0,
+                enabled_count=2,
             )
 
         self._refresh_plan_editor_visibility(record, goal)
@@ -4057,6 +4288,7 @@ class StudentViewerWindow(QMainWindow):
         record = self._records_by_id.get(student_id)
         if record is None:
             return
+        was_planned = student_id in self._plan_goal_map()
         goal = self._get_or_create_goal(student_id)
 
         if field_name == "star_weapon":
@@ -4083,10 +4315,7 @@ class StudentViewerWindow(QMainWindow):
         self._sync_plan_goal(goal, record)
         self._save_plan()
         self._selected_plan_student_id = student_id
-        self._load_plan_student(student_id)
-        self._refresh_plan_lists()
-        self._set_plan_grid_selection(student_id)
-        self._refresh_plan_totals()
+        self._refresh_after_plan_goal_change(student_id, rebuild_lists=not was_planned)
 
     def _on_plan_digit_changed(self, field_name: str, value: int) -> None:
         if self._plan_editor_guard:
@@ -4097,6 +4326,7 @@ class StudentViewerWindow(QMainWindow):
         record = self._records_by_id.get(student_id)
         if record is None:
             return
+        was_planned = student_id in self._plan_goal_map()
         goal = self._get_or_create_goal(student_id)
 
         if field_name == "target_level":
@@ -4119,9 +4349,16 @@ class StudentViewerWindow(QMainWindow):
         self._sync_plan_goal(goal, record)
         self._save_plan()
         self._selected_plan_student_id = student_id
-        self._load_plan_student(student_id)
-        self._refresh_plan_lists()
-        self._set_plan_grid_selection(student_id)
+        self._refresh_after_plan_goal_change(student_id, rebuild_lists=not was_planned)
+
+    def _refresh_after_plan_goal_change(self, student_id: str, *, rebuild_lists: bool) -> None:
+        if rebuild_lists:
+            self._refresh_plan_lists()
+            self._set_plan_grid_selection(student_id)
+        else:
+            self._load_plan_student(student_id)
+            self._set_plan_grid_selection(student_id)
+            self._update_plan_actions()
         self._refresh_plan_totals()
 
     def _refresh_plan_lists(self) -> None:
@@ -4154,21 +4391,30 @@ class StudentViewerWindow(QMainWindow):
         else:
             self._plan_search_state.setText("No students matched that search.")
 
-        self._plan_grid.clear_cards()
-        self._plan_card_by_id.clear()
-        planned_cards: list[StudentCardWidget] = []
-        for goal in sorted(self._plan.goals, key=lambda entry: self._records_by_id.get(entry.student_id).title.lower() if entry.student_id in self._records_by_id else entry.student_id):
-            record = self._records_by_id.get(goal.student_id)
-            if record is None:
-                continue
-            card = self._build_student_card(record)
-            planned_cards.append(card)
-            self._plan_card_by_id[record.student_id] = card
+        planned_goals = sorted(
+            self._plan.goals,
+            key=lambda entry: self._records_by_id.get(entry.student_id).title.lower() if entry.student_id in self._records_by_id else entry.student_id,
+        )
+        planned_ids = tuple(goal.student_id for goal in planned_goals if goal.student_id in self._records_by_id)
+        current_ids = tuple(self._plan_card_by_id)
+        if planned_ids != current_ids:
+            self._plan_grid.clear_cards()
+            self._plan_card_by_id.clear()
+            planned_cards: list[StudentCardWidget] = []
+            for goal in planned_goals:
+                record = self._records_by_id.get(goal.student_id)
+                if record is None:
+                    continue
+                card = self._build_student_card(record)
+                planned_cards.append(card)
+                self._plan_card_by_id[record.student_id] = card
 
-        if planned_cards:
-            self._plan_grid.add_cards(planned_cards)
-            for student_id in self._plan_card_by_id:
-                self._enqueue_thumb(student_id)
+            if planned_cards:
+                self._plan_grid.add_cards(planned_cards)
+                for student_id in self._plan_card_by_id:
+                    self._enqueue_thumb(student_id)
+        else:
+            planned_cards = list(self._plan_card_by_id.values())
 
         self._plan_count_label.setText(f"{len(planned_cards)} students")
         self._plan_empty_label.setVisible(not planned_cards)
@@ -4257,6 +4503,7 @@ class StudentViewerWindow(QMainWindow):
         finally:
             self._plan_editor_guard = False
         self._update_plan_student_summary(student_id)
+        self._refresh_selected_plan_requirements(student_id)
 
     def _clear_plan_editor(self) -> None:
         self._plan_editor_guard = True
@@ -4278,6 +4525,7 @@ class StudentViewerWindow(QMainWindow):
         for row in getattr(self, "_plan_stat_rows", {}).values():
             row.setVisible(False)
         self._plan_student_summary.setText("No student selected")
+        self._refresh_plan_requirements(None)
         self._update_plan_actions()
 
     def _update_plan_student_summary(self, student_id: str) -> None:
@@ -4310,6 +4558,103 @@ class StudentViewerWindow(QMainWindow):
         )
         self._refresh_resource_students_list()
         self._refresh_resource_view()
+
+    def _refresh_selected_plan_requirements(self, student_id: str | None = None) -> None:
+        selected_id = student_id or self._selected_plan_student_id or self._current_plan_grid_student_id()
+        if not selected_id:
+            self._refresh_plan_requirements(None)
+            return
+        record = self._records_by_id.get(selected_id)
+        goal = self._plan_goal_map().get(selected_id)
+        if record is None or goal is None:
+            self._refresh_plan_requirements(None)
+            return
+        self._refresh_plan_requirements(calculate_goal_cost(record, goal))
+
+    def _plan_requirement_entries(self, summary: PlanCostSummary) -> list[PlanResourceRequirement]:
+        inventory_index = _inventory_quantity_index(self._inventory_snapshot or {})
+        merged: dict[tuple[str, str], PlanResourceRequirement] = {}
+
+        def add_entry(category: str, key: str, required: int) -> None:
+            if required <= 0:
+                return
+            item_id = _plan_resource_item_id(key, category)
+            name = _plan_resource_display_name(item_id, key)
+            owned = inventory_index.get(item_id or "", inventory_index.get(key, 0))
+            icon_path = _plan_resource_icon_path(item_id, name)
+            merge_key = (category, item_id or key)
+            current = merged.get(merge_key)
+            if current is None:
+                merged[merge_key] = PlanResourceRequirement(
+                    key=item_id or key,
+                    name=name,
+                    required=required,
+                    owned=owned,
+                    icon_path=icon_path,
+                    category=category,
+                )
+            else:
+                current.required += required
+
+        add_entry("credits", "Currency_Icon_Gold", summary.credits)
+        for category, values in (
+            ("level_exp", summary.level_exp_items),
+            ("equipment_exp", summary.equipment_exp_items),
+            ("weapon_exp", summary.weapon_exp_items),
+            ("skill_books", summary.skill_books),
+            ("ex_ooparts", summary.ex_ooparts),
+            ("skill_ooparts", summary.skill_ooparts),
+            ("favorite_item_materials", summary.favorite_item_materials),
+            ("stat_materials", summary.stat_materials),
+            ("equipment_materials", summary.equipment_materials),
+            ("star_materials", summary.star_materials),
+        ):
+            for key, required in values.items():
+                add_entry(category, key, required)
+
+        return sorted(
+            merged.values(),
+            key=lambda entry: (
+                _PLAN_RESOURCE_CATEGORY_ORDER.get(entry.category, 999),
+                0 if entry.required > entry.owned else 1,
+                entry.name.lower(),
+            ),
+        )
+
+    def _refresh_plan_requirements(self, summary: PlanCostSummary | None) -> None:
+        if not hasattr(self, "_plan_requirement_grid"):
+            return
+
+        while self._plan_requirement_grid.count():
+            item = self._plan_requirement_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        if summary is None:
+            self._plan_requirement_empty.setText("Select a planned student and set targets to preview required resources.")
+            self._plan_requirement_empty.setVisible(True)
+            self._plan_requirement_grid_host.setVisible(False)
+            self._plan_requirement_summary.setText("Selected student - Needed / Inventory")
+            return
+
+        entries = self._plan_requirement_entries(summary)
+        self._plan_requirement_empty.setVisible(not entries)
+        self._plan_requirement_grid_host.setVisible(bool(entries))
+        if not entries:
+            self._plan_requirement_empty.setText("This student's current targets do not require additional resources.")
+            self._plan_requirement_summary.setText("Selected student - Needed / Inventory")
+            return
+
+        shortages = sum(1 for entry in entries if entry.required > entry.owned)
+        self._plan_requirement_summary.setText(
+            f"{len(entries)} items - {shortages} short - Needed / Inventory"
+        )
+        columns = 3
+        for index, requirement in enumerate(entries):
+            chip = PlanResourceChip(ui_scale=self._ui_scale)
+            chip.setData(requirement)
+            self._plan_requirement_grid.addWidget(chip, index // columns, index % columns)
 
     def _refresh_stats_tab(self) -> None:
         if self._stats_cards_layout is None or self._stats_summary_host is None:
@@ -4440,6 +4785,10 @@ class StudentViewerWindow(QMainWindow):
         if summary.skill_ooparts:
             lines.append("Skill ooparts:")
             for key, value in sorted(summary.skill_ooparts.items(), key=lambda item: (-item[1], item[0])):
+                lines.append(f"- {key}: {value}")
+        if summary.favorite_item_materials:
+            lines.append("Favorite item materials:")
+            for key, value in sorted(summary.favorite_item_materials.items(), key=lambda item: (-item[1], item[0])):
                 lines.append(f"- {key}: {value}")
         if summary.stat_materials:
             lines.append("Stat materials:")

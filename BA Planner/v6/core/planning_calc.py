@@ -28,6 +28,7 @@ class PlanCostSummary:
     skill_books: dict[str, int] = field(default_factory=dict)
     ex_ooparts: dict[str, int] = field(default_factory=dict)
     skill_ooparts: dict[str, int] = field(default_factory=dict)
+    favorite_item_materials: dict[str, int] = field(default_factory=dict)
     stat_materials: dict[str, int] = field(default_factory=dict)
     stat_levels: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
@@ -47,6 +48,7 @@ class PlanCostSummary:
             (other.skill_books, self.skill_books),
             (other.ex_ooparts, self.ex_ooparts),
             (other.skill_ooparts, self.skill_ooparts),
+            (other.favorite_item_materials, self.favorite_item_materials),
             (other.stat_materials, self.stat_materials),
             (other.stat_levels, self.stat_levels),
         ):
@@ -55,6 +57,7 @@ class PlanCostSummary:
 
 
 STAT_WORKBOOK_NAME = "Item_Icon_WorkBook_PotentialMaxHP"
+FAVORITE_GIFT_SELECTION_NAME = "Item_Icon_Favor_Selection"
 LEVEL_EXP_ITEM_NAME = "Item_Icon_ExpItem_0"
 EQUIPMENT_EXP_ITEM_NAME = "Equipment_Icon_Exp_0"
 WEAPON_EXP_ITEM_NAME = "Equipment_Icon_WeaponExpGrowthA_0"
@@ -108,6 +111,16 @@ _SKILL_NOTE_CUMULATIVE: dict[int, tuple[int, int, int, int, int]] = {
     8: (25, 25, 25, 8, 0),
     9: (25, 25, 25, 20, 0),
     10: (25, 25, 25, 20, 1),
+}
+_SKILL_OOPART_TIER_BY_TARGET_LEVEL = {
+    3: 1,
+    4: 1,
+    5: 2,
+    6: 2,
+    7: 3,
+    8: 3,
+    9: 4,
+    10: 4,
 }
 _EQUIPMENT_TIER_MATERIALS_CUMULATIVE: dict[int, tuple[int, ...]] = {
     0: (0, 0, 0, 0, 0, 0, 0, 0, 0),
@@ -354,6 +367,13 @@ def _school_material_label(school_name: str | None, family: str, tier: int) -> s
     return f"{school} {family} T{tier}"
 
 
+def _skill_book_school_name(school_name: str | None) -> str:
+    school = (school_name or "ETC").strip() or "ETC"
+    if school == "SRT":
+        return "Valkyrie"
+    return school
+
+
 def _equipment_material_label(slot_name: str | None, tier: int) -> str:
     series = EQUIPMENT_SERIES_BY_KEY.get(slot_name or "")
     if series and 1 <= tier <= len(series.tier_names):
@@ -439,6 +459,19 @@ def _calculate_single_stat_cost(
     return credits, materials
 
 
+def _calculate_favorite_item_cost(record, goal: StudentGoal) -> tuple[int, dict[str, int]]:
+    current_tier = _parse_tier_number(getattr(record, "equip4", None))
+    target_tier = max(current_tier, min(2, _safe_int(goal.target_equip4_tier, current_tier)))
+    if target_tier < 2 or current_tier >= 2:
+        return 0, {}
+
+    main_name = student_meta.growth_material_main(getattr(record, "student_id", "") or "")
+    materials: dict[str, int] = {FAVORITE_GIFT_SELECTION_NAME: 4}
+    _add_material_value(materials, main_name, 1, 80)
+    _add_material_value(materials, main_name, 2, 25)
+    return 500_000, materials
+
+
 def _current_weapon_star(record) -> int:
     state = getattr(record, "weapon_state", None)
     raw_star = _safe_int(getattr(record, "weapon_star", 0), 0)
@@ -492,17 +525,17 @@ def _diff_cumulative_tuple(current_level: int, target_level: int, table: dict[in
 
 
 def _calculate_skill_book_cost(student_id: str, current_ex: int, target_ex: int, current_skills: list[int], target_skills: list[int]) -> dict[str, int]:
-    school_name = student_meta.school(student_id)
+    school_name = _skill_book_school_name(student_meta.school(student_id))
     materials: dict[str, int] = {}
 
     ex_delta = _diff_cumulative_tuple(current_ex, target_ex, _EX_BD_CUMULATIVE)
     for tier, amount in enumerate(ex_delta, start=1):
-        _add_material_value(materials, f"{(school_name or 'ETC').strip() or 'ETC'} BD", tier, amount)
+        _add_material_value(materials, f"{school_name} BD", tier, amount)
 
     for current_level, target_level in zip(current_skills, target_skills):
         skill_delta = _diff_cumulative_tuple(current_level, target_level, _SKILL_NOTE_CUMULATIVE)
         for tier, amount in enumerate(skill_delta, start=1):
-            _add_material_value(materials, f"{(school_name or 'ETC').strip() or 'ETC'} Note", tier, amount)
+            _add_material_value(materials, f"{school_name} Note", tier, amount)
 
     return materials
 
@@ -521,6 +554,44 @@ def _exp_item_breakdown(item_name: str, total_exp: int, yields: tuple[int, int, 
         if count > 0:
             materials[f"{item_name} T{tier}"] = count
     return materials
+
+
+_EQUIPMENT_FULL_TIER_EXP_ITEM_COUNTS: dict[int, tuple[int, int, int, int]] = {
+    1: (0, 0, 1, 1),
+    2: (0, 1, 1, 1),
+    3: (0, 3, 3, 1),
+    4: (2, 0, 2, 1),
+    5: (3, 0, 0, 1),
+    6: (4, 0, 1, 2),
+    7: (5, 1, 2, 3),
+    8: (6, 3, 3, 4),
+    9: (8, 3, 1, 3),
+    10: (11, 0, 0, 2),
+}
+
+
+def _merge_counts(target: dict[str, int], source: dict[str, int]) -> None:
+    for key, value in source.items():
+        target[key] = target.get(key, 0) + value
+
+
+def _equipment_full_tier_exp_items(tier: int) -> dict[str, int]:
+    counts = _EQUIPMENT_FULL_TIER_EXP_ITEM_COUNTS.get(tier)
+    if not counts:
+        return {}
+    items: dict[str, int] = {}
+    for item_tier, count in zip((4, 3, 2, 1), counts):
+        if count > 0:
+            items[f"{EQUIPMENT_EXP_ITEM_NAME} T{item_tier}"] = count
+    return items
+
+
+def _equipment_exp_segment_items(start_level: int, end_level: int) -> dict[str, int]:
+    if end_level <= start_level:
+        return {}
+    exp_map, _credit_map = _equipment_level_cumulative_maps()
+    exp = max(0, exp_map.get(end_level, 0) - exp_map.get(start_level, 0))
+    return _exp_item_breakdown(EQUIPMENT_EXP_ITEM_NAME, exp, (90, 360, 1_440, 5_760))
 
 
 def _build_cumulative_maps(rows: tuple[tuple[int, int, int, int], ...]) -> tuple[dict[int, int], dict[int, int]]:
@@ -591,13 +662,13 @@ def _calculate_single_equipment_cost(
     current_level: int,
     target_tier: int,
     target_level: int,
-) -> tuple[int, int, dict[str, int]]:
+) -> tuple[int, int, dict[str, int], dict[str, int]]:
     current = min(max(current_tier, 0), 10)
     effective_target_level = min(max(target_level, current_level), _EQUIPMENT_TIER_MAX_LEVEL[10])
     required_tier = _minimum_equipment_tier_for_level(effective_target_level)
     target = min(max(target_tier, required_tier, current), 10)
     if target <= 0:
-        return 0, 0, {}
+        return 0, 0, {}, {}
 
     exp_map, credit_map = _equipment_level_cumulative_maps()
     full_level_costs = _equipment_tier_level_full_costs()
@@ -609,11 +680,18 @@ def _calculate_single_equipment_cost(
 
     equipment_exp = 0
     credits = 0
+    exp_items: dict[str, int] = {}
 
     if current > 0:
         bridge_level = current_max_level if target > current else effective_target_level
-        equipment_exp += max(0, exp_map.get(bridge_level, 0) - exp_map.get(effective_current_level, 0))
+        segment_exp = max(0, exp_map.get(bridge_level, 0) - exp_map.get(effective_current_level, 0))
+        equipment_exp += segment_exp
         credits += max(0, credit_map.get(bridge_level, 0) - credit_map.get(effective_current_level, 0))
+        if segment_exp > 0:
+            if effective_current_level <= 1 and bridge_level == current_max_level:
+                _merge_counts(exp_items, _equipment_full_tier_exp_items(current))
+            else:
+                _merge_counts(exp_items, _equipment_exp_segment_items(effective_current_level, bridge_level))
 
     for tier in range(max(current + 1, 1), target + 1):
         credits += tier_up_costs.get(tier, 0)
@@ -622,9 +700,15 @@ def _calculate_single_equipment_cost(
             tier_exp = exp_map.get(tier_target_level, 0)
             tier_credit = credit_map.get(tier_target_level, 0)
         else:
+            tier_target_level = _EQUIPMENT_TIER_MAX_LEVEL[tier]
             tier_exp, tier_credit = full_level_costs.get(tier, (0, 0))
         equipment_exp += tier_exp
         credits += tier_credit
+        if tier_exp > 0:
+            if tier_target_level == _EQUIPMENT_TIER_MAX_LEVEL[tier]:
+                _merge_counts(exp_items, _equipment_full_tier_exp_items(tier))
+            else:
+                _merge_counts(exp_items, _equipment_exp_segment_items(1, tier_target_level))
 
     materials: dict[str, int] = {}
     target_materials = _EQUIPMENT_TIER_MATERIALS_CUMULATIVE.get(target, tuple())
@@ -634,7 +718,7 @@ def _calculate_single_equipment_cost(
         if target_amount > current_amount:
             materials[_equipment_material_label(slot_name, offset)] = target_amount - current_amount
 
-    return credits, equipment_exp, materials
+    return credits, equipment_exp, materials, exp_items
 
 
 def _current_weapon_level(record, target_weapon_level: int) -> int:
@@ -696,10 +780,13 @@ def _calculate_skill_ooparts(student_id: str, current_levels: list[int], target_
     for current_level, target_level in zip(current_levels, target_levels):
         for target in range(max(current_level + 1, 3), target_level + 1):
             index = target - 3
+            tier = _SKILL_OOPART_TIER_BY_TARGET_LEVEL.get(target)
+            if tier is None:
+                continue
             if 0 <= index < len(main_costs):
-                _add_material_value(total, main_name, index + 1, main_costs[index])
+                _add_material_value(total, main_name, tier, main_costs[index])
             if 0 <= index < len(sub_costs):
-                _add_material_value(total, sub_name, index + 1, sub_costs[index])
+                _add_material_value(total, sub_name, tier, sub_costs[index])
     return total
 
 
@@ -726,6 +813,10 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     summary.credits += star_credits
     summary.star_materials = star_materials
 
+    favorite_item_credits, favorite_item_materials = _calculate_favorite_item_cost(record, goal)
+    summary.credits += favorite_item_credits
+    summary.favorite_item_materials = favorite_item_materials
+
     slot_names = student_meta.equipment_slots(getattr(record, "student_id", "")) if getattr(record, "student_id", None) else (None, None, None)
     for slot_index, (equip_slot, equip_level_field, goal_target, goal_target_level) in enumerate((
         ("equip1", "equip1_level", goal.target_equip1_tier, goal.target_equip1_level),
@@ -737,7 +828,7 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
         target_tier = max(current_tier, _safe_int(goal_target, current_tier))
         current_equip_level = _equipment_current_level(current_tier, getattr(record, equip_level_field, 0))
         target_equip_level = max(current_equip_level, _safe_int(goal_target_level, current_equip_level))
-        equip_credits, equip_exp, equip_materials = _calculate_single_equipment_cost(
+        equip_credits, equip_exp, equip_materials, equip_exp_items = _calculate_single_equipment_cost(
             slot_name,
             current_tier,
             current_equip_level,
@@ -748,11 +839,7 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
         summary.equipment_exp += equip_exp
         for key, value in equip_materials.items():
             summary.equipment_materials[key] = summary.equipment_materials.get(key, 0) + value
-    summary.equipment_exp_items = _exp_item_breakdown(
-        EQUIPMENT_EXP_ITEM_NAME,
-        summary.equipment_exp,
-        (90, 360, 1_440, 5_760),
-    )
+        _merge_counts(summary.equipment_exp_items, equip_exp_items)
 
     current_ex = _safe_int(getattr(record, "ex_skill", 0))
     target_ex = max(current_ex, _safe_int(goal.target_ex_skill, current_ex))

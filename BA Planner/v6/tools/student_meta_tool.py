@@ -101,6 +101,7 @@ LIST_FIELDS = {
     "skill_cc", "skill_special", "skill_heal_targets", "skill_dispel_targets",
     "skill_reposition_targets", "skill_summon_types", "skill_buff_specials",
 }
+FREE_TEXT_COMBO_FIELDS = {"student_id", "display_name", "group"}
 ANALYTICS_FIELDS = (
     "search_tags", "school", "rarity", "recruit_type", "attack_type", "attack_type_trait", "defense_type",
     "growth_material_main", "growth_material_sub", "equipment_slot_1", "equipment_slot_2",
@@ -751,7 +752,13 @@ class StudentMetaToolApp:
             if name in LIST_FIELDS:
                 widget = ttk.Entry(form, textvariable=var)
             else:
-                widget = ttk.Combobox(form, textvariable=var, values=self.field_options.get(name, ("",)), state="readonly")
+                combo_state = "normal" if name in FREE_TEXT_COMBO_FIELDS else "readonly"
+                widget = ttk.Combobox(
+                    form,
+                    textvariable=var,
+                    values=self.field_options.get(name, ("",)),
+                    state=combo_state,
+                )
             widget.grid(row=row, column=1, sticky="ew", pady=4)
             self.widgets[name] = widget
         action_bar = ttk.Frame(right)
