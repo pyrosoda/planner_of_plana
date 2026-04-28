@@ -85,6 +85,7 @@ class FloatingOverlay(tk.Toplevel):
         self,
         master,
         on_scan_items: Callable,
+        on_scan_resources: Callable,
         on_scan_equipment: Callable,
         on_scan_students: Callable,
         on_scan_current_student: Callable,
@@ -99,6 +100,7 @@ class FloatingOverlay(tk.Toplevel):
 
         self._cbs = {
             "items": on_scan_items,
+            "resources": on_scan_resources,
             "equipment": on_scan_equipment,
             "students": on_scan_students,
             "current_student": on_scan_current_student,
@@ -404,6 +406,7 @@ class FloatingOverlay(tk.Toplevel):
                 ]
             return [
                 ("아이템 스캔", LBLUE, BG, "items"),
+                ("자원 스캔", YELLOW, BG, "resources"),
                 ("장비 스캔", PURPLE, BG, "equipment"),
                 ("학생 스캔", GREEN, BG, "students"),
                 ("현재 학생 스캔", BLUE, TEXT, "current_student"),
@@ -421,13 +424,20 @@ class FloatingOverlay(tk.Toplevel):
         for text, color, fg, key in self._action_specs():
             self._action_button(self._actions_frame, text, color, fg, key)
 
+    def _resource_value(self, *keys: str) -> object:
+        for key in keys:
+            value = self._resources.get(key)
+            if value not in (None, ""):
+                return value
+        return "-"
+
     def _refresh_dynamic_content(self) -> None:
         if _widget_alive(self._status_label):
             self._status_label.config(text=self._state_text())
         if _widget_alive(self._pyrox_label):
-            self._pyrox_label.config(text=f"청휘석 {self._resources.get('청휘석') or '-'}")
+            self._pyrox_label.config(text=f"청휘석 {self._resource_value('pyroxene', '청휘석')}")
         if _widget_alive(self._credit_label):
-            self._credit_label.config(text=f"크레딧 {self._resources.get('크레딧') or '-'}")
+            self._credit_label.config(text=f"크레딧 {self._resource_value('credit', '크레딧')}")
         if _widget_alive(self._log_label):
             self._log_label.config(text="\n".join(self._log_lines[-3:]) if self._log_lines else "대기 중...")
         if _widget_alive(self._scan_title_label):

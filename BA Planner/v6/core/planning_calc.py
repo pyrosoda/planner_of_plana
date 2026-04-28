@@ -328,8 +328,11 @@ def _material_label(family: str, index: int) -> str:
 
 
 def _eleph_label(student_name: object, student_id: str) -> str:
+    normalized_id = str(student_id or "").strip()
+    if normalized_id:
+        return f"Item_Icon_SecretStone_{normalized_id}"
     name = str(student_name or "").strip()
-    return f"{name or student_id} Eleph"
+    return f"{name}의 엘레프" if name else "엘레프"
 
 
 def _equipment_material_label(slot_name: str | None, tier: int) -> str:

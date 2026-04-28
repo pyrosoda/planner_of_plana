@@ -12,6 +12,7 @@ student_meta.py — 블루아카이브 학생 메타데이터 DB  (V6)
 """
 
 from __future__ import annotations
+from functools import lru_cache
 from typing import Any, NotRequired, TypedDict
 
 
@@ -2359,7 +2360,7 @@ STUDENTS: dict[str, StudentMeta] = {'ayane': {'display_name': '아야네',
                                                     'Atlantis Medal T4': 5,
                                                     'Ancient Battery T3': 13},
                                                    {'Arius Note T5': 1}],
-                    'kr_search_tags': ['수오리', '스쿼드'],
+                    'kr_search_tags': ['수오리', '스쿼드', '디오리'],
                     'has_favorite_item': 'no'},
  'hiyori': {'display_name': '히요리',
             'template_name': 'hiyori.png',
@@ -26915,12 +26916,22 @@ def kr_search_tags(student_id: str) -> list[str]:
     return []
 
 
-def search_blob(student_id: str, *extra_terms: object) -> str:
+@lru_cache(maxsize=None)
+def _base_search_blob(student_id: str) -> str:
     terms = [student_id, display_name(student_id)]
-    terms.extend(str(term) for term in extra_terms if term)
     terms.extend(search_tags(student_id))
     terms.extend(kr_search_tags(student_id))
     return " ".join(term for term in terms if term).casefold()
+
+
+def search_blob(student_id: str, *extra_terms: object) -> str:
+    base = _base_search_blob(student_id)
+    extras = " ".join(str(term) for term in extra_terms if term).casefold().strip()
+    if not extras:
+        return base
+    if not base:
+        return extras
+    return f"{base} {extras}"
 
 
 def school(student_id: str) -> str | None:

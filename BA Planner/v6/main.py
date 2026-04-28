@@ -402,6 +402,7 @@ class App(tk.Tk):
         self._overlay = FloatingOverlay(
             self,
             on_scan_items=lambda: self._request_scan("items"),
+            on_scan_resources=lambda: self._request_scan("resources"),
             on_scan_equipment=lambda: self._request_scan("equipment"),
             on_scan_students=lambda: self._request_scan("students"),
             on_scan_current_student=lambda: self._request_scan("student_current"),
@@ -930,12 +931,15 @@ class App(tk.Tk):
             return not scanner._stop
 
         try:
+            if mode in ("resources", "all"):
+                result.resources = scanner.scan_resources()
+                self._dispatch_ui(self._overlay.update_resources, result.resources)
+                self._dispatch_ui(self._overlay.add_log, "자원 스캔 완료")
+
             if mode in ("items", "all"):
                 selected_filter = meta.get("item_scan_filter_label")
                 if selected_filter:
                     self._dispatch_ui(self._overlay.add_log, f"아이템 필터: {selected_filter}")
-                result.resources = scanner.scan_resources()
-                self._dispatch_ui(self._overlay.update_resources, result.resources)
                 result.items = scanner.scan_items(meta.get("item_scan_filter_profile"))
                 self._dispatch_ui(self._overlay.add_log, f"아이템 {len(result.items)}개")
 
