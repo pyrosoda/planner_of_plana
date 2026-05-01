@@ -1,15 +1,90 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import tkinter as tk
 
 from gui.ui_scale import get_ui_scale, scale_font, scale_px
 
+try:
+    from PIL import Image, ImageOps, ImageTk
+
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+PORTRAIT_DIR = BASE_DIR / "templates" / "students_portraits"
+POLI_BG_DIR = BASE_DIR / "templates" / "icons" / "temp"
+POLI_BG_TEXTURES = sorted(POLI_BG_DIR.glob("UITex_BGPoliLight_*.png"))
+GRID_COLUMNS = 6
+_PHOTO_CACHE: dict[str, object | None] = {}
+
 
 @dataclass(slots=True)
 class FastScanDialogResult:
     action: str
+
+
+def _portrait_path(student_id: str) -> Path | None:
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        path = PORTRAIT_DIR / f"{student_id}{ext}"
+        if path.exists():
+            return path
+    return None
+
+
+def _load_card_photo(student_id: str, size: tuple[int, int]) -> object | None:
+    if not HAS_PIL:
+        return None
+
+    width, height = size
+    key = f"{student_id}:{width}x{height}"
+    cached = _PHOTO_CACHE.get(key)
+    if key in _PHOTO_CACHE:
+        return cached
+
+    path = _portrait_path(student_id)
+    if path is None:
+        _PHOTO_CACHE[key] = None
+        return None
+
+    try:
+        background = Image.new("RGBA", size, (17, 25, 39, 255))
+        if POLI_BG_TEXTURES:
+            texture_index = sum(student_id.encode("utf-8")) % len(POLI_BG_TEXTURES)
+            with Image.open(POLI_BG_TEXTURES[texture_index]) as tex:
+                texture = ImageOps.fit(tex.convert("RGBA"), size, Image.LANCZOS, centering=(0.5, 0.5))
+                texture.putalpha(40)
+                background.alpha_composite(texture)
+        background.alpha_composite(Image.new("RGBA", size, (8, 12, 18, 84)))
+
+        with Image.open(path) as raw:
+            portrait = raw.convert("RGBA")
+        alpha = portrait.getchannel("A")
+        bbox = alpha.getbbox()
+        if bbox:
+            portrait = portrait.crop(bbox)
+        if portrait.width > 0 and portrait.height > 0:
+            scale = min((width * 0.98) / portrait.width, (height * 0.98) / portrait.height)
+            portrait = portrait.resize(
+                (
+                    max(1, int(round(portrait.width * scale))),
+                    max(1, int(round(portrait.height * scale))),
+                ),
+                Image.LANCZOS,
+            )
+            offset = ((width - portrait.width) // 2, height - portrait.height)
+            background.alpha_composite(portrait, offset)
+
+        photo = ImageTk.PhotoImage(background.convert("RGB"))
+        _PHOTO_CACHE[key] = photo
+        return photo
+    except Exception:
+        _PHOTO_CACHE[key] = None
+        return None
 
 
 class FastScanDialog(tk.Toplevel):
@@ -32,7 +107,7 @@ class FastScanDialog(tk.Toplevel):
         self._mode_label = mode_label
         self._roster_source_label = roster_source_label
         self._saved_student_count = saved_student_count
-        self._ui_scale = get_ui_scale(self, base_width=760, base_height=760)
+        self._ui_scale = get_ui_scale(self, base_width=820, base_height=760)
         self._same_order = tk.BooleanVar(value=False)
         self._same_owned = tk.BooleanVar(value=False)
 
@@ -51,7 +126,7 @@ class FastScanDialog(tk.Toplevel):
 
     def _show_dialog(self) -> None:
         self.update_idletasks()
-        width = scale_px(720, self._ui_scale)
+        width = scale_px(780, self._ui_scale)
         height = scale_px(720, self._ui_scale)
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
@@ -128,39 +203,14 @@ class FastScanDialog(tk.Toplevel):
 
         tk.Label(
             list_frame,
-            text="이름순 기준 목록",
+            text=f"이름순 기준 목록 ({GRID_COLUMNS}칸 고정)",
             bg="#101722",
             fg="#8aa4bf",
             anchor="w",
             font=scale_font(("Malgun Gothic", 9), self._ui_scale),
         ).pack(anchor="w")
 
-        body = tk.Frame(list_frame, bg="#101722")
-        body.pack(fill="both", expand=True, pady=(scale_px(6, self._ui_scale), 0))
-
-        scrollbar = tk.Scrollbar(body)
-        scrollbar.pack(side="right", fill="y")
-
-        self._listbox = tk.Listbox(
-            body,
-            bg="#162130",
-            fg="#e4f1ff",
-            selectbackground="#2d8cff",
-            selectforeground="#ffffff",
-            activestyle="none",
-            relief="flat",
-            exportselection=False,
-            font=scale_font(("Malgun Gothic", 10), self._ui_scale),
-            yscrollcommand=scrollbar.set,
-        )
-        self._listbox.pack(side="left", fill="both", expand=True)
-        scrollbar.configure(command=self._listbox.yview)
-
-        for index, (_student_id, name) in enumerate(self._ordered_students, start=1):
-            self._listbox.insert("end", f"{index:>3}. {name}")
-
-        if not self._ordered_students:
-            self._listbox.insert("end", "저장된 기준 목록이 없습니다. 먼저 목록 편집을 눌러 설정해 주세요.")
+        self._build_roster_grid(list_frame)
 
         check_wrap = tk.Frame(wrap, bg="#101722")
         check_wrap.pack(fill="x")
@@ -277,6 +327,121 @@ class FastScanDialog(tk.Toplevel):
         )
         self._fast_button.pack(side="right", padx=(0, scale_px(8, self._ui_scale)))
         self._refresh_state()
+
+    def _build_roster_grid(self, parent: tk.Widget) -> None:
+        body = tk.Frame(parent, bg="#101722")
+        body.pack(fill="both", expand=True, pady=(scale_px(6, self._ui_scale), 0))
+
+        canvas = tk.Canvas(body, bg="#162130", highlightthickness=0)
+        scrollbar = tk.Scrollbar(body, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        inner = tk.Frame(canvas, bg="#162130")
+        inner_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        card_width = scale_px(102, self._ui_scale)
+        card_height = scale_px(138, self._ui_scale)
+        gap = scale_px(8, self._ui_scale)
+        pad = scale_px(10, self._ui_scale)
+        grid_width = pad * 2 + GRID_COLUMNS * card_width + (GRID_COLUMNS - 1) * gap
+
+        def sync_scroll_region(_event=None) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def center_grid(event) -> None:
+            x = max(0, (event.width - grid_width) // 2)
+            canvas.coords(inner_window, x, 0)
+            canvas.itemconfigure(inner_window, width=grid_width)
+
+        def on_mousewheel(event) -> None:
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        inner.bind("<Configure>", sync_scroll_region)
+        canvas.bind("<Configure>", center_grid)
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        inner.bind("<MouseWheel>", on_mousewheel)
+
+        if not self._ordered_students:
+            empty = tk.Label(
+                inner,
+                text="저장된 기준 목록이 없습니다.\n먼저 목록 편집을 눌러 설정해 주세요.",
+                bg="#162130",
+                fg="#8aa4bf",
+                justify="center",
+                font=scale_font(("Malgun Gothic", 10), self._ui_scale),
+            )
+            empty.grid(row=0, column=0, columnspan=GRID_COLUMNS, sticky="nsew", padx=pad, pady=scale_px(28, self._ui_scale))
+            empty.bind("<MouseWheel>", on_mousewheel)
+            return
+
+        for index, (student_id, name) in enumerate(self._ordered_students, start=1):
+            row = (index - 1) // GRID_COLUMNS
+            col = (index - 1) % GRID_COLUMNS
+            card = self._build_student_card(inner, index, student_id, name, card_width, card_height)
+            card.bind("<MouseWheel>", on_mousewheel)
+            card.grid(
+                row=row,
+                column=col,
+                padx=(pad if col == 0 else gap, 0),
+                pady=(pad if row == 0 else gap, 0),
+                sticky="nw",
+            )
+
+        for col in range(GRID_COLUMNS):
+            inner.grid_columnconfigure(col, minsize=card_width)
+
+    def _build_student_card(self, parent: tk.Widget, index: int, student_id: str, name: str, width: int, height: int) -> tk.Canvas:
+        image_height = max(scale_px(86, self._ui_scale), height - scale_px(38, self._ui_scale))
+        canvas = tk.Canvas(
+            parent,
+            width=width,
+            height=height,
+            bg="#111927",
+            highlightthickness=1,
+            highlightbackground="#22364a",
+            highlightcolor="#4aa8e0",
+        )
+        photo = _load_card_photo(student_id, (width, image_height))
+        if photo is not None:
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas.image = photo
+        else:
+            canvas.create_rectangle(0, 0, width, image_height, fill="#1b2a3d", outline="")
+            initials = (name or student_id or "?")[:2]
+            canvas.create_text(
+                width // 2,
+                image_height // 2,
+                text=initials,
+                fill="#d6e6f5",
+                font=scale_font(("Malgun Gothic", 18, "bold"), self._ui_scale),
+            )
+
+        badge_w = scale_px(32, self._ui_scale)
+        badge_h = scale_px(18, self._ui_scale)
+        canvas.create_rectangle(0, 0, badge_w, badge_h, fill="#2d8cff", outline="")
+        canvas.create_text(
+            badge_w // 2,
+            badge_h // 2,
+            text=str(index),
+            fill="#ffffff",
+            font=scale_font(("Malgun Gothic", 8, "bold"), self._ui_scale),
+        )
+
+        panel_top = image_height
+        canvas.create_rectangle(0, panel_top, width, height, fill="#0a0f18", outline="")
+        canvas.create_rectangle(0, panel_top, width // 2, panel_top + scale_px(3, self._ui_scale), fill="#4aa8e0", outline="")
+        canvas.create_rectangle(width // 2, panel_top, width, panel_top + scale_px(3, self._ui_scale), fill="#f266b3", outline="")
+        canvas.create_text(
+            width // 2,
+            panel_top + max(scale_px(20, self._ui_scale), (height - panel_top) // 2),
+            text=name,
+            width=width - scale_px(10, self._ui_scale),
+            fill="#f2f7ff",
+            justify="center",
+            font=scale_font(("Malgun Gothic", 9, "bold"), self._ui_scale),
+        )
+        return canvas
 
     def _refresh_state(self) -> None:
         can_fast = self._same_order.get() and self._same_owned.get() and bool(self._ordered_students)

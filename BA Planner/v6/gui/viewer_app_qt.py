@@ -11,8 +11,11 @@ import os
 import re
 import sqlite3
 import sys
-from dataclasses import dataclass, fields
+from collections import OrderedDict
+from dataclasses import dataclass, field, fields
+from datetime import date, datetime
 from pathlib import Path
+from uuid import uuid4
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
@@ -27,6 +30,7 @@ from core.oparts import OPART_DEFINITIONS, OPART_ITEM_ID_TO_NAME, OPART_LEGACY_W
 from core.planning import (
     MAX_TARGET_EQUIP_LEVEL,
     MAX_TARGET_EQUIP_TIER,
+    MAX_TARGET_EQUIP4_TIER,
     MAX_TARGET_EX_SKILL,
     MAX_TARGET_LEVEL,
     MAX_TARGET_SKILL,
@@ -38,6 +42,21 @@ from core.planning import (
     save_plan,
 )
 from core.planning_calc import PlanCostSummary, calculate_goal_cost
+from core.tactical_challenge import (
+    TACTICAL_STRIKER_SLOTS,
+    TACTICAL_SUPPORT_SLOTS,
+    TacticalDeck,
+    TacticalJokboEntry,
+    TacticalMatch,
+    deck_label,
+    deck_template,
+    filter_matches,
+    load_tactical_challenge,
+    opponent_report,
+    parse_deck_template,
+    save_tactical_challenge,
+    search_jokbo,
+)
 from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -53,9 +72,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QPlainTextEdit,
     QPushButton,
     QSpinBox,
     QSplitter,
@@ -943,7 +964,6 @@ class PlanOptionStrip(QWidget):
                 clickable=enabled,
             )
 
-
 class LiveSearchLineEdit(QLineEdit):
     liveTextChanged = Signal(str)
 
@@ -1829,7 +1849,7 @@ class FilterDialog(QDialog):
         ui_scale: float,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Student Filters")
+        self.setWindowTitle("학생 필터")
         self.resize(scale_px(740, ui_scale), scale_px(760, ui_scale))
         self._checkboxes: dict[str, list[tuple[str, QCheckBox]]] = {}
 
@@ -1842,7 +1862,7 @@ class FilterDialog(QDialog):
         )
         layout.setSpacing(scale_px(12, ui_scale))
 
-        intro = QLabel("Select one or more values in each attribute. Students must match every populated attribute.")
+        intro = QLabel("각 항목에서 하나 이상의 값을 선택하세요. 선택한 항목은 모두 만족하는 학생만 표시됩니다.")
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
@@ -1889,6 +1909,9 @@ class FilterDialog(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.accept)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).clicked.connect(self.reject)
         buttons.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(self._reset)
+        buttons.button(QDialogButtonBox.StandardButton.Apply).setText("적용")
+        buttons.button(QDialogButtonBox.StandardButton.Reset).setText("초기화")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("취소")
         layout.addWidget(buttons)
 
     def selected_filters(self) -> dict[str, set[str]]:
@@ -1901,61 +1924,6 @@ class FilterDialog(QDialog):
         for pairs in self._checkboxes.values():
             for _value, checkbox in pairs:
                 checkbox.setChecked(False)
-
-
-class ResourceStudentListItem(QWidget):
-    toggled = Signal(str, bool)
-
-    def __init__(self, student_id: str, *, ui_scale: float, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.student_id = student_id
-        self._ui_scale = ui_scale
-        self.setObjectName("planBand")
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(
-            scale_px(12, self._ui_scale),
-            scale_px(10, self._ui_scale),
-            scale_px(12, self._ui_scale),
-            scale_px(10, self._ui_scale),
-        )
-        layout.setSpacing(scale_px(10, self._ui_scale))
-
-        self._check = QCheckBox()
-        self._check.stateChanged.connect(lambda state: self.toggled.emit(self.student_id, state == Qt.Checked))
-        layout.addWidget(self._check, 0, Qt.AlignTop)
-
-        text_wrap = QVBoxLayout()
-        text_wrap.setContentsMargins(0, 0, 0, 0)
-        text_wrap.setSpacing(scale_px(3, self._ui_scale))
-
-        self._title = QLabel(student_id)
-        self._title.setObjectName("sectionTitle")
-        text_wrap.addWidget(self._title)
-
-        self._status = QLabel("")
-        self._status.setObjectName("detailSub")
-        self._status.setWordWrap(True)
-        text_wrap.addWidget(self._status)
-
-        self._cost = QLabel("")
-        self._cost.setObjectName("detailMiniSub")
-        self._cost.setWordWrap(True)
-        text_wrap.addWidget(self._cost)
-
-        layout.addLayout(text_wrap, 1)
-
-    def setChecked(self, checked: bool) -> None:
-        previous = self._check.blockSignals(True)
-        try:
-            self._check.setChecked(checked)
-        finally:
-            self._check.blockSignals(previous)
-
-    def setTexts(self, *, title: str, status: str, cost: str) -> None:
-        self._title.setText(title)
-        self._status.setText(status)
-        self._cost.setText(cost)
 
 
 class InventoryListItem(QFrame):
@@ -1998,10 +1966,14 @@ class InventoryListItem(QFrame):
         self._quantity.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self._quantity, 0, Qt.AlignVCenter)
 
-    def setData(self, *, icon_path: Path | None, name: str, quantity: str, meta: str = "") -> None:
+    def setData(self, *, icon_path: Path | None, name: str, quantity: str, meta: str = "", shortage: bool = False) -> None:
         self._name.setText(name)
         self._quantity.setText(quantity)
         self._meta.setText(meta)
+        warning_style = "color: #ff6b6b;" if shortage else ""
+        self._name.setStyleSheet(warning_style)
+        self._quantity.setStyleSheet(warning_style)
+        self._meta.setStyleSheet(warning_style if shortage else "")
 
         if icon_path is not None and icon_path.exists():
             pixmap = QPixmap(str(icon_path))
@@ -2021,6 +1993,95 @@ class PlanResourceRequirement:
     icon_path: Path | None
     category: str
     icon: QPixmap | None = None
+
+
+@dataclass(slots=True)
+class InventoryOpartStudentImpact:
+    student_id: str
+    title: str
+    ex_required: int = 0
+    skill_required: int = 0
+
+    @property
+    def total_required(self) -> int:
+        return self.ex_required + self.skill_required
+
+
+@dataclass(slots=True)
+class InventoryOpartPlanUsage:
+    item_id: str
+    name: str
+    required: int = 0
+    owned: int = 0
+    ex_required: int = 0
+    skill_required: int = 0
+    impacts: list[InventoryOpartStudentImpact] = field(default_factory=list)
+    pool_required: int = 0
+    pool_ex_required: int = 0
+    pool_skill_required: int = 0
+    pool_impacts: list[InventoryOpartStudentImpact] = field(default_factory=list)
+
+    @property
+    def shortage(self) -> int:
+        return max(0, self.required - self.owned)
+
+    @property
+    def pool_shortage(self) -> int:
+        return max(0, self.pool_required - self.owned)
+
+
+class InventoryOpartFamilyRow(QFrame):
+    selected = Signal(str)
+
+    def __init__(
+        self,
+        *,
+        family_name: str,
+        tier_items: list[tuple[int, str, str, int, str, Path | None]],
+        selected_item_id: str | None,
+        ui_scale: float,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self._buttons: dict[str, QPushButton] = {}
+        self.setObjectName("planBand")
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(
+            scale_px(8, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(8, self._ui_scale),
+        )
+        layout.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        layout.setVerticalSpacing(0)
+
+        for column, (tier, item_id, name, owned, status, icon_path) in enumerate(tier_items):
+            button = QPushButton(f"T{tier}  {owned:,}\n{status}")
+            button.setObjectName("planQuickButton")
+            button.setToolTip(f"{family_name} T{tier}\n{name}\n{owned:,} - {status}")
+            button.setMinimumHeight(scale_px(74, self._ui_scale))
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            if icon_path is not None and icon_path.exists():
+                icon = QIcon(str(icon_path))
+                if not icon.isNull():
+                    button.setIcon(icon)
+                    button.setIconSize(QSize(scale_px(34, self._ui_scale), scale_px(34, self._ui_scale)))
+            button.clicked.connect(lambda _checked=False, value=item_id: self.selected.emit(value))
+            self._buttons[item_id] = button
+            layout.addWidget(button, 0, column)
+            layout.setColumnStretch(column, 1)
+
+        self.setSelectedItem(selected_item_id)
+
+    def setSelectedItem(self, item_id: str | None) -> None:
+        for button_item_id, button in self._buttons.items():
+            button.setProperty("selectedOpart", button_item_id == item_id)
+            if button_item_id == item_id:
+                button.setStyleSheet("border: 2px solid #f266b3;")
+            else:
+                button.setStyleSheet("")
 
 
 class PlanResourceChip(QFrame):
@@ -2086,6 +2147,164 @@ class PlanResourceChip(QFrame):
         self._icon.setPixmap(QPixmap())
 
 
+class TacticalDeckSlot(QWidget):
+    def __init__(self, *, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self._pixmap = QPixmap()
+        self._text = ""
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
+    def setData(self, *, name: str, pixmap: QPixmap) -> None:
+        self._text = name
+        self._pixmap = pixmap
+        self.setToolTip(name)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        slant = int(rect.width() * 0.18)
+        path = QPainterPath()
+        path.moveTo(rect.left() + slant, rect.top())
+        path.lineTo(rect.right(), rect.top())
+        path.lineTo(rect.right() - slant, rect.bottom())
+        path.lineTo(rect.left(), rect.bottom())
+        path.closeSubpath()
+        painter.fillPath(path, QColor(SURFACE_ALT))
+        painter.setPen(QPen(QColor(BORDER), 1))
+        painter.drawPath(path)
+        if not self._pixmap.isNull():
+            painter.setClipPath(path)
+            scaled = self._pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            painter.drawPixmap((self.width() - scaled.width()) // 2, (self.height() - scaled.height()) // 2, scaled)
+            painter.setClipping(False)
+        elif self._text:
+            painter.setPen(QColor(MUTED))
+            painter.drawText(rect, Qt.AlignCenter, "?")
+        painter.end()
+
+
+class TacticalDeckEditor(QWidget):
+    def __init__(self, title: str, *, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self._icon_provider = icon_provider
+        self._slot_size = scale_px(52, self._ui_scale)
+        self._icons: list[TacticalDeckSlot] = []
+        self._deck = TacticalDeck()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(7, self._ui_scale))
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        title_label = QLabel(title)
+        title_label.setObjectName("detailSectionTitle")
+        header.addWidget(title_label)
+        header.addStretch(1)
+        copy_button = QPushButton("Copy")
+        copy_button.clicked.connect(self.copyTemplate)
+        import_button = QPushButton("Import")
+        import_button.clicked.connect(self.importTemplate)
+        header.addWidget(copy_button)
+        header.addWidget(import_button)
+        layout.addLayout(header)
+
+        icon_row = QHBoxLayout()
+        icon_row.setContentsMargins(0, 0, 0, 0)
+        icon_row.setSpacing(scale_px(5, self._ui_scale))
+        for index in range(TACTICAL_STRIKER_SLOTS + TACTICAL_SUPPORT_SLOTS):
+            if index == TACTICAL_STRIKER_SLOTS:
+                divider = QLabel("|")
+                divider.setObjectName("sectionTitle")
+                divider.setAlignment(Qt.AlignCenter)
+                icon_row.addWidget(divider)
+            label = TacticalDeckSlot(ui_scale=self._ui_scale)
+            label.setFixedSize(self._slot_size, self._slot_size)
+            self._icons.append(label)
+            icon_row.addWidget(label)
+        icon_row.addStretch(1)
+        layout.addLayout(icon_row)
+
+        self._template_input = QLineEdit()
+        self._template_input.setPlaceholderText("student1,student2,student3,student4|support1,support2")
+        self._template_input.returnPressed.connect(self.importTemplate)
+        layout.addWidget(self._template_input)
+        self._syncIcons()
+
+    def deck(self) -> TacticalDeck:
+        text = self._template_input.text().strip()
+        if text and text != deck_template(self._deck):
+            return parse_deck_template(text)
+        return self._deck
+
+    def setDeck(self, deck: TacticalDeck) -> None:
+        self._deck = deck
+        self._template_input.setText(deck_template(self._deck))
+        self._syncIcons()
+
+    def clearDeck(self) -> None:
+        self.setDeck(TacticalDeck())
+        self._template_input.clear()
+
+    def copyTemplate(self) -> None:
+        self._deck = self.deck()
+        self._syncIcons()
+        text = deck_template(self._deck)
+        self._template_input.setText(text)
+        QApplication.clipboard().setText(text)
+
+    def importTemplate(self) -> None:
+        text = self._template_input.text().strip() or QApplication.clipboard().text().strip()
+        if text:
+            self.setDeck(parse_deck_template(text))
+
+    def _syncIcons(self) -> None:
+        deck = self._deck
+        names = deck.strikers[:TACTICAL_STRIKER_SLOTS]
+        names += [""] * max(0, TACTICAL_STRIKER_SLOTS - len(names))
+        names += deck.supports[:TACTICAL_SUPPORT_SLOTS]
+        for index, label in enumerate(self._icons):
+            name = names[index] if index < len(names) else ""
+            pixmap = self._icon_provider(name, self._slot_size) if name else QPixmap()
+            label.setData(name=name, pixmap=pixmap if pixmap is not None else QPixmap())
+
+
+class TacticalDeckPreview(QWidget):
+    def __init__(self, *, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self._icon_provider = icon_provider
+        self._slot_size = scale_px(34, self._ui_scale)
+        self._icons: list[TacticalDeckSlot] = []
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(4, self._ui_scale))
+        for index in range(TACTICAL_STRIKER_SLOTS + TACTICAL_SUPPORT_SLOTS):
+            if index == TACTICAL_STRIKER_SLOTS:
+                divider = QLabel("|")
+                divider.setObjectName("detailSub")
+                layout.addWidget(divider)
+            label = TacticalDeckSlot(ui_scale=self._ui_scale)
+            label.setFixedSize(self._slot_size, self._slot_size)
+            self._icons.append(label)
+            layout.addWidget(label)
+        layout.addStretch(1)
+
+    def setDeck(self, deck: TacticalDeck) -> None:
+        names = deck.strikers[:TACTICAL_STRIKER_SLOTS]
+        names += [""] * max(0, TACTICAL_STRIKER_SLOTS - len(names))
+        names += deck.supports[:TACTICAL_SUPPORT_SLOTS]
+        for index, label in enumerate(self._icons):
+            name = names[index] if index < len(names) else ""
+            pixmap = self._icon_provider(name, self._slot_size) if name else QPixmap()
+            label.setData(name=name, pixmap=pixmap if pixmap is not None else QPixmap())
+
+
 
 
 class StudentViewerWindow(QMainWindow):
@@ -2114,10 +2333,15 @@ class StudentViewerWindow(QMainWindow):
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, StudentCardWidget] = {}
         self._plan_card_by_id: dict[str, StudentCardWidget] = {}
+        self._resource_scope_card_by_id: dict[str, StudentCardWidget] = {}
+        self._resource_search_card_by_id: dict[str, StudentCardWidget] = {}
         self._thumb_loading: set[tuple[str, int, int]] = set()
         self._pending_thumb_requests: list[tuple[str, int, int]] = []
         self._pending_thumb_lookup: set[tuple[str, int, int]] = set()
         self._thumb_batch_size = 16
+        self._thumb_max_in_flight = 48
+        self._thumb_pixmap_cache: OrderedDict[tuple[str, int, int], QPixmap] = OrderedDict()
+        self._thumb_pixmap_cache_limit = 640
         self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
         self._unowned_icon_cache: dict[str, QIcon] = {}
         self._large_pixmap: QPixmap | None = None
@@ -2125,6 +2349,8 @@ class StudentViewerWindow(QMainWindow):
         self._filter_options = build_filter_options(self._all_students)
         self._plan_path = get_storage_paths().current_dir / "growth_plan.json"
         self._plan = load_plan(self._plan_path)
+        self._tactical_path = get_storage_paths().current_dir / "tactical_challenge.json"
+        self._tactical_data = load_tactical_challenge(self._tactical_path)
         self._plan_editor_guard = False
         self._selected_plan_student_id: str | None = None
         self._plan_segment_inputs: dict[str, PlanSegmentSelector] = {}
@@ -2135,7 +2361,11 @@ class StudentViewerWindow(QMainWindow):
         self._plan_stat_rows: dict[str, QWidget] = {}
         self._plan_ability_release_expanded = False
         self._resource_selected_ids: set[str] = set()
+        self._resource_search_pending_ids: set[str] = set()
         self._resource_current_student_id: str | None = None
+        self._resource_include_unplanned_level = True
+        self._resource_include_unplanned_equipment = True
+        self._resource_include_unplanned_skills = True
         self._resource_syncing_controls = False
         self._main_tabs: QTabWidget | None = None
         self._resource_tab: QWidget | None = None
@@ -2151,6 +2381,7 @@ class StudentViewerWindow(QMainWindow):
             storage_paths.current_students_json,
             storage_paths.current_inventory_json,
             self._plan_path,
+            self._tactical_path,
         )
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._stats_cards_layout: QGridLayout | None = None
@@ -2158,6 +2389,7 @@ class StudentViewerWindow(QMainWindow):
         self._stats_sunburst: SunburstWidget | None = None
         self._stats_sunburst_mode: QComboBox | None = None
         self._stats_sunburst_detail: QLabel | None = None
+        self._tactical_selected_match_id: str | None = None
         self._card_layout_guard = False
         self._thumb_pump = QTimer(self)
         self._thumb_pump.setSingleShot(False)
@@ -2184,6 +2416,7 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_stats_tab()
         self._refresh_resource_students_list()
         self._refresh_resource_view()
+        self._refresh_tactical_tab()
         self._resources_dirty = False
 
     def showEvent(self, event) -> None:
@@ -2264,12 +2497,16 @@ class StudentViewerWindow(QMainWindow):
 
         resource_tab = QWidget()
         self._resource_tab = resource_tab
-        tabs.addTab(resource_tab, "Resources")
+        tabs.addTab(resource_tab, "Requirements")
         self._build_resource_tab(resource_tab)
 
         inventory_tab = QWidget()
         tabs.addTab(inventory_tab, "Inventory")
         self._build_inventory_tab(inventory_tab)
+
+        tactical_tab = QWidget()
+        tabs.addTab(tactical_tab, "Tactical Challenge")
+        self._build_tactical_tab(tactical_tab)
 
         stats_tab = QWidget()
         tabs.addTab(stats_tab, "Statistics")
@@ -2325,7 +2562,7 @@ class StudentViewerWindow(QMainWindow):
             }}
             QLabel#metricValue {{ font-size: {scale_px(22, self._ui_scale)}px; font-weight: 800; color: {INK}; }}
             QLabel#metricLabel {{ color: {MUTED}; font-size: {scale_px(11, self._ui_scale)}px; text-transform: uppercase; }}
-            QLineEdit, QComboBox, QPushButton {{
+            QLineEdit, QComboBox, QPushButton, QPlainTextEdit {{
                 background: {SURFACE};
                 border: 1px solid {BORDER};
                 border-radius: {scale_px(9, self._ui_scale)}px;
@@ -2339,7 +2576,7 @@ class StudentViewerWindow(QMainWindow):
                 font-weight: 700;
             }}
             QPushButton:hover {{ background: {ACCENT_STRONG}; }}
-            QComboBox, QLineEdit {{
+            QComboBox, QLineEdit, QPlainTextEdit {{
                 background: {SURFACE_ALT};
                 color: {INK};
             }}
@@ -2597,7 +2834,7 @@ class StudentViewerWindow(QMainWindow):
         toolbar_layout.addWidget(self._hide_jp_only)
 
         toolbar_buttons = ParallelogramButtonRow()
-        self._filter_button = ParallelogramButton("Filters", style=self._card_button_style)
+        self._filter_button = ParallelogramButton("필터", style=self._card_button_style)
         self._filter_button.clicked.connect(self._open_filter_dialog)
         toolbar_buttons.addButton(self._filter_button)
 
@@ -2607,7 +2844,7 @@ class StudentViewerWindow(QMainWindow):
         toolbar_layout.addWidget(toolbar_buttons, 0, Qt.AlignVCenter)
         layout.addWidget(toolbar)
 
-        self._filter_summary = QLabel("No filters applied")
+        self._filter_summary = QLabel("적용된 필터 없음")
         self._filter_summary.setWordWrap(True)
         self._filter_summary.setObjectName("filterSummary")
         layout.addWidget(self._filter_summary)
@@ -2895,6 +3132,10 @@ class StudentViewerWindow(QMainWindow):
         sizes = [self._student_grid.current_card_size()]
         if hasattr(self, "_plan_grid"):
             sizes.append(self._plan_grid.current_card_size())
+        if hasattr(self, "_resource_scope_grid"):
+            sizes.append(self._resource_scope_grid.current_card_size())
+        if hasattr(self, "_resource_search_grid"):
+            sizes.append(self._resource_search_grid.current_card_size())
         thumb_width = max(size.width() for size in sizes)
         thumb_height = max(size.height() for size in sizes)
         outer_margin = self._student_card_asset.style.outer_margin * 2
@@ -2921,7 +3162,12 @@ class StudentViewerWindow(QMainWindow):
             self._placeholder_icon = make_placeholder_icon(self._thumb_width, self._thumb_height)
             self._unowned_icon_cache.clear()
             self._clear_thumb_requests()
-            for student_id in sorted(set(self._item_by_id) | set(self._plan_card_by_id)):
+            for student_id in sorted(
+                set(self._item_by_id)
+                | set(self._plan_card_by_id)
+                | set(getattr(self, "_resource_scope_card_by_id", {}))
+                | set(getattr(self, "_resource_search_card_by_id", {}))
+            ):
                 self._enqueue_thumb(student_id)
         finally:
             self._card_layout_guard = False
@@ -2944,10 +3190,10 @@ class StudentViewerWindow(QMainWindow):
 
         title_wrap = QVBoxLayout()
         title_wrap.setSpacing(scale_px(4, self._ui_scale))
-        title = QLabel("Resource Manager")
+        title = QLabel("Requirement Scope")
         title.setObjectName("title")
         title_wrap.addWidget(title)
-        subtitle = QLabel("Inspect single-student costs or aggregate growth requirements for the students currently in view.")
+        subtitle = QLabel("Build a student scope, check who is already planned, and inspect the combined growth requirements.")
         subtitle.setObjectName("count")
         subtitle.setWordWrap(True)
         title_wrap.addWidget(subtitle)
@@ -2966,7 +3212,7 @@ class StudentViewerWindow(QMainWindow):
         toolbar_layout.setSpacing(scale_px(10, self._ui_scale))
 
         self._resource_search = LiveSearchLineEdit()
-        self._resource_search.setPlaceholderText("Search the same filtered student set")
+        self._resource_search.setPlaceholderText("Search by student name, id, or tag; filters narrow groups")
         self._resource_search.textChanged.connect(self._on_resource_search_changed)
         self._resource_search.liveTextChanged.connect(self._schedule_filter_refresh)
         toolbar_layout.addWidget(self._resource_search, 3)
@@ -2988,19 +3234,17 @@ class StudentViewerWindow(QMainWindow):
         toolbar_layout.addWidget(self._resource_hide_jp_only)
 
         resource_toolbar_buttons = ParallelogramButtonRow()
-        self._resource_filter_button = ParallelogramButton("Filters", style=self._card_button_style)
+        self._resource_filter_button = ParallelogramButton("필터", style=self._card_button_style)
         self._resource_filter_button.clicked.connect(self._open_filter_dialog)
         resource_toolbar_buttons.addButton(self._resource_filter_button)
         resource_refresh_button = ParallelogramButton("Refresh", style=self._card_button_style)
         resource_refresh_button.clicked.connect(self._reload_data)
         resource_toolbar_buttons.addButton(resource_refresh_button)
         toolbar_layout.addWidget(resource_toolbar_buttons, 0, Qt.AlignVCenter)
-        layout.addWidget(toolbar)
 
-        self._resource_filter_summary = QLabel("No filters applied")
+        self._resource_filter_summary = QLabel("적용된 필터 없음")
         self._resource_filter_summary.setWordWrap(True)
         self._resource_filter_summary.setObjectName("filterSummary")
-        layout.addWidget(self._resource_filter_summary)
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
@@ -3016,17 +3260,131 @@ class StudentViewerWindow(QMainWindow):
         )
         left_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        left_title = QLabel("Students in scope")
+        self._resource_left_tabs = QTabBar()
+        self._resource_left_tabs.setObjectName("planEditorTabs")
+        self._resource_left_tabs.setExpanding(False)
+        self._resource_left_tabs.setUsesScrollButtons(False)
+        self._resource_left_tabs.addTab("Scope")
+        self._resource_left_tabs.addTab("Search")
+        left_layout.addWidget(self._resource_left_tabs, 0, Qt.AlignLeft)
+
+        self._resource_left_stack = QStackedWidget()
+        left_layout.addWidget(self._resource_left_stack, 1)
+        self._resource_left_tabs.currentChanged.connect(self._resource_left_stack.setCurrentIndex)
+
+        scope_tab = QWidget()
+        scope_layout = QVBoxLayout(scope_tab)
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        scope_header = QHBoxLayout()
+        scope_header.setContentsMargins(0, 0, 0, 0)
+        scope_header.setSpacing(scale_px(8, self._ui_scale))
+        left_title = QLabel("Scope Students")
         left_title.setObjectName("sectionTitle")
-        left_layout.addWidget(left_title)
+        scope_header.addWidget(left_title)
+        self._resource_scope_count = QLabel("")
+        self._resource_scope_count.setObjectName("count")
+        scope_header.addWidget(self._resource_scope_count, 1, Qt.AlignRight)
+        scope_layout.addLayout(scope_header)
+
         self._resource_list_summary = QLabel("")
         self._resource_list_summary.setObjectName("detailSub")
         self._resource_list_summary.setWordWrap(True)
-        left_layout.addWidget(self._resource_list_summary)
+        scope_layout.addWidget(self._resource_list_summary)
 
-        self._resource_list = QListWidget()
-        self._resource_list.currentItemChanged.connect(self._on_resource_item_changed)
-        left_layout.addWidget(self._resource_list, 1)
+        unplanned_options = QFrame()
+        unplanned_options.setObjectName("planSectionPanel")
+        unplanned_layout = QVBoxLayout(unplanned_options)
+        unplanned_layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        unplanned_layout.setSpacing(scale_px(8, self._ui_scale))
+        unplanned_title = QLabel("Not Planned Calculation")
+        unplanned_title.setObjectName("detailSectionTitle")
+        unplanned_layout.addWidget(unplanned_title)
+        unplanned_row = QHBoxLayout()
+        unplanned_row.setSpacing(scale_px(10, self._ui_scale))
+        self._resource_unplanned_level = QCheckBox("Level")
+        self._resource_unplanned_level.setChecked(True)
+        self._resource_unplanned_level.stateChanged.connect(self._on_resource_unplanned_options_changed)
+        unplanned_row.addWidget(self._resource_unplanned_level)
+        self._resource_unplanned_equipment = QCheckBox("Equipment")
+        self._resource_unplanned_equipment.setChecked(True)
+        self._resource_unplanned_equipment.stateChanged.connect(self._on_resource_unplanned_options_changed)
+        unplanned_row.addWidget(self._resource_unplanned_equipment)
+        self._resource_unplanned_skills = QCheckBox("Skills")
+        self._resource_unplanned_skills.setChecked(True)
+        self._resource_unplanned_skills.stateChanged.connect(self._on_resource_unplanned_options_changed)
+        unplanned_row.addWidget(self._resource_unplanned_skills)
+        unplanned_row.addStretch(1)
+        unplanned_layout.addLayout(unplanned_row)
+        scope_layout.addWidget(unplanned_options, 0)
+
+        self._resource_scope_grid = ParallelogramCardGrid(self._student_card_asset, self._ui_scale)
+        self._resource_scope_grid.setObjectName("studentGrid")
+        self._resource_scope_grid.current_changed.connect(self._on_resource_scope_card_changed)
+        self._resource_scope_grid.layout_changed.connect(lambda *_: self._refresh_card_layout())
+        scope_layout.addWidget(self._resource_scope_grid, 1)
+
+        scope_buttons = QHBoxLayout()
+        scope_buttons.setSpacing(scale_px(8, self._ui_scale))
+        for label, handler in (
+            ("Remove selected", self._resource_remove_scope_selected),
+            ("Clear", self._resource_clear_checked),
+        ):
+            button = QPushButton(label)
+            button.setObjectName("planQuickButton")
+            button.clicked.connect(handler)
+            if label == "Remove selected":
+                self._resource_remove_scope_button = button
+            scope_buttons.addWidget(button)
+        scope_buttons.addStretch(1)
+        scope_layout.addLayout(scope_buttons)
+        self._resource_left_stack.addWidget(scope_tab)
+
+        search_tab = QWidget()
+        search_layout = QVBoxLayout(search_tab)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(scale_px(10, self._ui_scale))
+        search_layout.addWidget(toolbar, 0)
+        search_layout.addWidget(self._resource_filter_summary, 0)
+
+        result_title = QLabel("Search Results")
+        result_title.setObjectName("sectionTitle")
+        search_layout.addWidget(result_title)
+        self._resource_search_summary = QLabel("")
+        self._resource_search_summary.setObjectName("detailSub")
+        self._resource_search_summary.setWordWrap(True)
+        search_layout.addWidget(self._resource_search_summary)
+
+        self._resource_search_grid = ParallelogramCardGrid(self._student_card_asset, self._ui_scale, multi_select=True)
+        self._resource_search_grid.setObjectName("studentGrid")
+        self._resource_search_grid.selection_changed.connect(self._on_resource_search_selection_changed)
+        self._resource_search_grid.layout_changed.connect(lambda *_: self._refresh_card_layout())
+        search_layout.addWidget(self._resource_search_grid, 1)
+
+        search_buttons = QHBoxLayout()
+        search_buttons.setSpacing(scale_px(8, self._ui_scale))
+        self._resource_add_selected_button = QPushButton("Add selected")
+        self._resource_add_selected_button.setObjectName("planQuickButton")
+        self._resource_add_selected_button.clicked.connect(self._resource_add_pending_to_scope)
+        search_buttons.addWidget(self._resource_add_selected_button)
+        for label, handler in (
+            ("Add results", self._resource_check_visible),
+            ("Add planned", self._resource_check_visible_planned),
+            ("Clear selection", self._resource_clear_search_selection),
+        ):
+            button = QPushButton(label)
+            button.setObjectName("planQuickButton")
+            button.clicked.connect(handler)
+            search_buttons.addWidget(button)
+        search_buttons.addStretch(1)
+        search_layout.addLayout(search_buttons)
+        self._resource_left_stack.addWidget(search_tab)
 
         right_panel = QFrame()
         right_panel.setObjectName("panel")
@@ -3039,38 +3397,6 @@ class StudentViewerWindow(QMainWindow):
         )
         right_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        self._resource_mode_tabs = QTabWidget()
-
-        single_tab = QWidget()
-        single_layout = QVBoxLayout(single_tab)
-        single_layout.setContentsMargins(0, 0, 0, 0)
-        single_layout.setSpacing(scale_px(10, self._ui_scale))
-        single_options = QFrame()
-        single_options.setObjectName("planSectionPanel")
-        single_options_layout = QVBoxLayout(single_options)
-        single_options_layout.setContentsMargins(
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(14, self._ui_scale),
-        )
-        single_options_layout.setSpacing(scale_px(8, self._ui_scale))
-        single_title = QLabel("Single student mode")
-        single_title.setObjectName("sectionTitle")
-        single_options_layout.addWidget(single_title)
-        self._resource_single_summary = QLabel("Select a student from the left list.")
-        self._resource_single_summary.setObjectName("detailSub")
-        self._resource_single_summary.setWordWrap(True)
-        single_options_layout.addWidget(self._resource_single_summary)
-        single_layout.addWidget(single_options, 0)
-        self._resource_single_output = QListWidget()
-        single_layout.addWidget(self._resource_single_output, 1)
-        self._resource_mode_tabs.addTab(single_tab, "Single")
-
-        aggregate_tab = QWidget()
-        aggregate_layout = QVBoxLayout(aggregate_tab)
-        aggregate_layout.setContentsMargins(0, 0, 0, 0)
-        aggregate_layout.setSpacing(scale_px(10, self._ui_scale))
         aggregate_options = QFrame()
         aggregate_options.setObjectName("planSectionPanel")
         aggregate_options_layout = QVBoxLayout(aggregate_options)
@@ -3081,48 +3407,53 @@ class StudentViewerWindow(QMainWindow):
             scale_px(14, self._ui_scale),
         )
         aggregate_options_layout.setSpacing(scale_px(8, self._ui_scale))
-        aggregate_title = QLabel("Aggregate mode")
+        aggregate_title = QLabel("Combined Requirements")
         aggregate_title.setObjectName("sectionTitle")
         aggregate_options_layout.addWidget(aggregate_title)
-        aggregate_row = QHBoxLayout()
-        aggregate_row.setSpacing(scale_px(8, self._ui_scale))
-        aggregate_label = QLabel("Combine:")
-        aggregate_label.setObjectName("detailSub")
-        aggregate_row.addWidget(aggregate_label)
-        self._resource_aggregate_scope = QComboBox()
-        self._resource_aggregate_scope.addItem("Checked students", "checked")
-        self._resource_aggregate_scope.addItem("Planned students", "planned")
-        self._resource_aggregate_scope.addItem("Visible planned students", "visible_planned")
-        self._resource_aggregate_scope.currentIndexChanged.connect(self._refresh_resource_view)
-        aggregate_row.addWidget(self._resource_aggregate_scope, 1)
-        aggregate_options_layout.addLayout(aggregate_row)
 
-        aggregate_buttons = QHBoxLayout()
-        aggregate_buttons.setSpacing(scale_px(8, self._ui_scale))
-        for label, handler in (("Check visible", self._resource_check_visible), ("Check planned", self._resource_check_visible_planned), ("Clear", self._resource_clear_checked)):
-            button = QPushButton(label)
-            button.setObjectName("planQuickButton")
-            button.clicked.connect(handler)
-            aggregate_buttons.addWidget(button)
-        aggregate_buttons.addStretch(1)
-        aggregate_options_layout.addLayout(aggregate_buttons)
-
-        self._resource_aggregate_summary = QLabel("Choose a scope to combine growth costs.")
+        self._resource_aggregate_summary = QLabel("Add students to scope to combine growth costs.")
         self._resource_aggregate_summary.setObjectName("detailSub")
         self._resource_aggregate_summary.setWordWrap(True)
         aggregate_options_layout.addWidget(self._resource_aggregate_summary)
-        aggregate_layout.addWidget(aggregate_options, 0)
-        self._resource_aggregate_output = QListWidget()
-        aggregate_layout.addWidget(self._resource_aggregate_output, 1)
-        self._resource_mode_tabs.addTab(aggregate_tab, "Aggregate")
+        right_layout.addWidget(aggregate_options, 0)
 
-        self._resource_mode_tabs.currentChanged.connect(self._refresh_resource_view)
-        right_layout.addWidget(self._resource_mode_tabs, 1)
+        self._resource_requirement_empty = QLabel("Add students to scope to preview required resources.")
+        self._resource_requirement_empty.setObjectName("filterSummary")
+        self._resource_requirement_empty.setWordWrap(True)
+        self._resource_requirement_empty.setMinimumHeight(scale_px(22, self._ui_scale))
+        right_layout.addWidget(self._resource_requirement_empty)
+
+        self._resource_requirement_scroll = QScrollArea()
+        self._resource_requirement_scroll.setFrameShape(QFrame.NoFrame)
+        self._resource_requirement_scroll.setWidgetResizable(True)
+        self._resource_requirement_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._resource_requirement_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._resource_requirement_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._resource_requirement_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
+
+        self._resource_requirement_grid_host = QWidget()
+        self._resource_requirement_grid_host.setObjectName("planTransparent")
+        self._resource_requirement_grid_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._resource_requirement_grid = QGridLayout(self._resource_requirement_grid_host)
+        self._resource_requirement_grid.setContentsMargins(
+            scale_px(6, self._ui_scale),
+            scale_px(6, self._ui_scale),
+            scale_px(6, self._ui_scale),
+            scale_px(6, self._ui_scale),
+        )
+        self._resource_requirement_grid.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        self._resource_requirement_grid.setVerticalSpacing(scale_px(8, self._ui_scale))
+        self._resource_requirement_grid.setAlignment(Qt.AlignTop)
+        for column in range(3):
+            self._resource_requirement_grid.setColumnStretch(column, 1)
+        self._resource_requirement_scroll.setWidget(self._resource_requirement_grid_host)
+        right_layout.addWidget(self._resource_requirement_scroll, 1)
 
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
+        splitter.setSizes([scale_px(720, self._ui_scale), scale_px(720, self._ui_scale)])
         layout.addWidget(splitter, 1)
 
         self._sync_resource_controls_from_students()
@@ -3166,6 +3497,8 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_equipment_summaries: dict[str, QLabel] = {}
         self._inventory_item_lists: dict[str, QListWidget] = {}
         self._inventory_item_summaries: dict[str, QLabel] = {}
+        self._inventory_oopart_plan_usage: dict[str, InventoryOpartPlanUsage] = {}
+        self._inventory_oopart_selected_id: str | None = None
 
         equipment_root = QWidget()
         equipment_layout = QVBoxLayout(equipment_root)
@@ -3248,6 +3581,8 @@ class StudentViewerWindow(QMainWindow):
             tab_layout.addWidget(panel, 0)
 
             item_list = QListWidget()
+            if key == "ooparts":
+                item_list.currentItemChanged.connect(self._on_inventory_oopart_changed)
             tab_layout.addWidget(item_list, 1)
             self._inventory_item_tabs.addTab(tab, label)
             self._inventory_item_lists[key] = item_list
@@ -3256,7 +3591,133 @@ class StudentViewerWindow(QMainWindow):
         item_layout.addWidget(self._inventory_item_tabs, 1)
         self._inventory_root_tabs.addTab(item_root, "Items")
 
-        layout.addWidget(self._inventory_root_tabs, 1)
+        inventory_splitter = QSplitter(Qt.Horizontal)
+        inventory_splitter.setChildrenCollapsible(False)
+
+        overview_panel = QFrame()
+        overview_panel.setObjectName("planSectionPanel")
+        overview_panel.setMinimumWidth(scale_px(300, self._ui_scale))
+        overview_layout = QVBoxLayout(overview_panel)
+        overview_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        overview_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        insight_title = QLabel("Inventory Insights")
+        insight_title.setObjectName("sectionTitle")
+        overview_layout.addWidget(insight_title)
+
+        self._inventory_insight_summary = QLabel("Scan inventory and select Ooparts to inspect plan pressure.")
+        self._inventory_insight_summary.setObjectName("detailSub")
+        self._inventory_insight_summary.setWordWrap(True)
+        overview_layout.addWidget(self._inventory_insight_summary)
+
+        plan_priority_panel = QFrame()
+        plan_priority_panel.setObjectName("planBand")
+        plan_priority_panel.setMinimumHeight(scale_px(150, self._ui_scale))
+        plan_priority_layout = QVBoxLayout(plan_priority_panel)
+        plan_priority_layout.setContentsMargins(
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+        )
+        plan_priority_layout.setSpacing(scale_px(6, self._ui_scale))
+        plan_priority_title = QLabel("Plan Priority")
+        plan_priority_title.setObjectName("detailSectionTitle")
+        plan_priority_layout.addWidget(plan_priority_title)
+        self._inventory_plan_priority_list = QListWidget()
+        self._configure_inventory_priority_cards(self._inventory_plan_priority_list)
+        self._inventory_plan_priority_list.currentItemChanged.connect(self._on_inventory_priority_changed)
+        plan_priority_layout.addWidget(self._inventory_plan_priority_list, 1)
+        overview_layout.addWidget(plan_priority_panel, 1)
+
+        pool_pressure_panel = QFrame()
+        pool_pressure_panel.setObjectName("planBand")
+        pool_pressure_panel.setMinimumHeight(scale_px(150, self._ui_scale))
+        pool_pressure_layout = QVBoxLayout(pool_pressure_panel)
+        pool_pressure_layout.setContentsMargins(
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+        )
+        pool_pressure_layout.setSpacing(scale_px(6, self._ui_scale))
+        pool_pressure_title = QLabel("Full Pool Pressure")
+        pool_pressure_title.setObjectName("detailSectionTitle")
+        pool_pressure_layout.addWidget(pool_pressure_title)
+        self._inventory_pool_pressure_list = QListWidget()
+        self._configure_inventory_priority_cards(self._inventory_pool_pressure_list)
+        self._inventory_pool_pressure_list.currentItemChanged.connect(self._on_inventory_priority_changed)
+        pool_pressure_layout.addWidget(self._inventory_pool_pressure_list, 1)
+        overview_layout.addWidget(pool_pressure_panel, 1)
+        overview_layout.addStretch(3)
+
+        detail_panel = QFrame()
+        detail_panel.setObjectName("planSectionPanel")
+        detail_panel.setMinimumWidth(scale_px(320, self._ui_scale))
+        detail_layout = QVBoxLayout(detail_panel)
+        detail_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        detail_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._inventory_oopart_detail_title = QLabel("Select an oopart")
+        self._inventory_oopart_detail_title.setObjectName("sectionTitle")
+        detail_layout.addWidget(self._inventory_oopart_detail_title)
+
+        self._inventory_oopart_detail_table = QGridLayout()
+        self._inventory_oopart_detail_table.setContentsMargins(0, 0, 0, 0)
+        self._inventory_oopart_detail_table.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        self._inventory_oopart_detail_table.setVerticalSpacing(scale_px(6, self._ui_scale))
+        self._inventory_oopart_metric_labels: dict[str, QLabel] = {}
+        for row, (key, label) in enumerate(
+            (
+                ("required", "Plan Need"),
+                ("shortage", "Plan Short"),
+                ("coverage", "Plan Coverage"),
+                ("pool_required", "Full Pool Need"),
+                ("pool_shortage", "Pool Left"),
+                ("pool_coverage", "Full Coverage"),
+            )
+        ):
+            name_label = QLabel(label)
+            name_label.setObjectName("detailMiniSub")
+            value_label = QLabel("-")
+            value_label.setObjectName("detailMiniValue")
+            value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self._inventory_oopart_metric_labels[key] = value_label
+            self._inventory_oopart_detail_table.addWidget(name_label, row, 0)
+            self._inventory_oopart_detail_table.addWidget(value_label, row, 1)
+        detail_layout.addLayout(self._inventory_oopart_detail_table)
+
+        self._inventory_oopart_detail_summary = QLabel("Pick an item in Items > Ooparts to see planned use and affected students.")
+        self._inventory_oopart_detail_summary.setObjectName("detailSub")
+        self._inventory_oopart_detail_summary.setWordWrap(True)
+        detail_layout.addWidget(self._inventory_oopart_detail_summary)
+
+        self._inventory_oopart_impact_list = QListWidget()
+        self._inventory_oopart_impact_list.setMinimumHeight(scale_px(160, self._ui_scale))
+        detail_layout.addWidget(self._inventory_oopart_impact_list, 1)
+
+        inventory_splitter.addWidget(overview_panel)
+        inventory_splitter.addWidget(self._inventory_root_tabs)
+        inventory_splitter.addWidget(detail_panel)
+        inventory_splitter.setStretchFactor(0, 1)
+        inventory_splitter.setStretchFactor(1, 2)
+        inventory_splitter.setStretchFactor(2, 1)
+        inventory_splitter.setSizes([
+            scale_px(360, self._ui_scale),
+            scale_px(720, self._ui_scale),
+            scale_px(420, self._ui_scale),
+        ])
+        layout.addWidget(inventory_splitter, 1)
         self._refresh_inventory_tab()
 
     def _sync_resource_controls_from_students(self) -> None:
@@ -3358,68 +3819,202 @@ class StudentViewerWindow(QMainWindow):
             return None
         return self._cached_goal_cost(student_id, record=record, goal=goal)
 
+    def _resource_unplanned_goal_for_student(self, student_id: str) -> StudentGoal | None:
+        if not (
+            self._resource_include_unplanned_level
+            or self._resource_include_unplanned_equipment
+            or self._resource_include_unplanned_skills
+        ):
+            return None
+        record = self._records_by_id.get(student_id)
+        if record is None:
+            return None
+        goal = StudentGoal(student_id=student_id)
+        if self._resource_include_unplanned_level:
+            goal.target_level = MAX_TARGET_LEVEL
+        if self._resource_include_unplanned_equipment:
+            goal.target_equip1_tier = MAX_TARGET_EQUIP_TIER
+            goal.target_equip2_tier = MAX_TARGET_EQUIP_TIER
+            goal.target_equip3_tier = MAX_TARGET_EQUIP_TIER
+            goal.target_equip1_level = MAX_TARGET_EQUIP_LEVEL
+            goal.target_equip2_level = MAX_TARGET_EQUIP_LEVEL
+            goal.target_equip3_level = MAX_TARGET_EQUIP_LEVEL
+            if self._record_supports_unique_item(record):
+                goal.target_equip4_tier = MAX_TARGET_EQUIP4_TIER
+        if self._resource_include_unplanned_skills:
+            goal.target_ex_skill = MAX_TARGET_EX_SKILL
+            goal.target_skill1 = MAX_TARGET_SKILL
+            goal.target_skill2 = MAX_TARGET_SKILL
+            goal.target_skill3 = MAX_TARGET_SKILL
+        return goal
+
     def _resource_current_student(self) -> str | None:
-        item = self._resource_list.currentItem() if hasattr(self, "_resource_list") else None
-        return str(item.data(Qt.UserRole)) if item is not None else None
+        if hasattr(self, "_resource_scope_grid"):
+            return self._resource_scope_grid.current_card_id()
+        return None
 
     def _refresh_resource_students_list(self) -> None:
-        if not hasattr(self, "_resource_list"):
+        if not hasattr(self, "_resource_scope_grid"):
             return
         current_id = self._resource_current_student_id or self._resource_current_student()
-        self._resource_list.clear()
-        goal_map = self._plan_goal_map()
-        visible_planned = 0
-        for record in self._filtered_students:
-            summary = self._resource_summary_for_student(record.student_id, goal_map)
-            if record.student_id in goal_map:
-                visible_planned += 1
-            item = QListWidgetItem()
-            item.setData(Qt.UserRole, record.student_id)
-            widget = ResourceStudentListItem(record.student_id, ui_scale=self._ui_scale)
-            widget.setChecked(record.student_id in self._resource_selected_ids)
-            widget.setTexts(
-                title=record.title,
-                status=self._resource_focus_label(record, summary, goal_map),
-                cost=self._resource_compact_cost_text(summary),
-            )
-            widget.toggled.connect(self._on_resource_item_toggled)
-            item.setSizeHint(QSize(scale_px(240, self._ui_scale), scale_px(84, self._ui_scale)))
-            self._resource_list.addItem(item)
-            self._resource_list.setItemWidget(item, widget)
-            if current_id == record.student_id:
-                self._resource_list.setCurrentItem(item)
+        old_scope_cards = dict(self._resource_scope_card_by_id)
+        old_search_cards = dict(self._resource_search_card_by_id)
 
-        if self._resource_list.currentItem() is None and self._resource_list.count() > 0:
-            self._resource_list.setCurrentRow(0)
+        goal_map = self._plan_goal_map()
+        visible_ids = {record.student_id for record in self._filtered_students}
+        self._resource_search_pending_ids &= visible_ids
+        selected_records = [
+            self._records_by_id[student_id]
+            for student_id in self._resource_selected_ids
+            if student_id in self._records_by_id
+        ]
+        selected_records.sort(key=lambda record: record.title.lower())
+        planned_count = sum(1 for record in selected_records if record.student_id in goal_map)
+
+        scope_cards: list[StudentCardWidget] = []
+        next_scope_by_id: dict[str, StudentCardWidget] = {}
+        for record in selected_records:
+            card = old_scope_cards.get(record.student_id)
+            if card is None:
+                card = self._build_student_card(record)
+            else:
+                self._apply_student_card_record(card, record)
+            scope_cards.append(card)
+            next_scope_by_id[record.student_id] = card
+
+        self._resource_scope_card_by_id = next_scope_by_id
+        self._resource_scope_grid.set_cards(scope_cards)
+
+        if scope_cards:
+            restore_id = current_id if current_id in self._resource_scope_card_by_id else selected_records[0].student_id
+            self._resource_scope_grid.set_current_card(restore_id)
+            self._resource_current_student_id = restore_id
+        else:
+            self._resource_scope_grid.set_current_card(None)
+            self._resource_current_student_id = None
+
+        visible_planned = sum(1 for record in self._filtered_students if record.student_id in goal_map)
+        search_cards: list[StudentCardWidget] = []
+        next_search_by_id: dict[str, StudentCardWidget] = {}
+        for record in self._filtered_students:
+            card = old_search_cards.get(record.student_id)
+            if card is None:
+                card = self._build_student_card(record)
+            else:
+                self._apply_student_card_record(card, record)
+            if record.student_id in self._resource_selected_ids:
+                card.setToolTip(f"{record.student_id}\nAlready in scope")
+            else:
+                card.setToolTip(record.student_id)
+            search_cards.append(card)
+            next_search_by_id[record.student_id] = card
+
+        self._resource_search_card_by_id = next_search_by_id
+        self._resource_search_grid.set_cards(search_cards)
+        self._resource_search_grid.set_selected_card_ids(set(self._resource_search_pending_ids))
+
+        if hasattr(self, "_resource_scope_count"):
+            self._resource_scope_count.setText(f"{len(selected_records)} students")
         self._resource_list_summary.setText(
-            f"{len(self._filtered_students)} visible students · {visible_planned} with planner targets · {len(self._resource_selected_ids & {record.student_id for record in self._filtered_students})} checked"
+            f"{len(selected_records)} in scope - {planned_count} planned - {len(selected_records) - planned_count} not planned"
+        )
+        if hasattr(self, "_resource_search_summary"):
+            visible_selected = len(self._resource_selected_ids & {record.student_id for record in self._filtered_students})
+            pending_count = len(self._resource_search_pending_ids)
+            self._resource_search_summary.setText(
+                f"{len(self._filtered_students)} matches - {visible_planned} planned - {visible_selected} already in scope - {pending_count} selected"
+            )
+        self._update_resource_scope_actions()
+        self._update_resource_search_actions()
+        for record in selected_records:
+            self._enqueue_thumb(record.student_id)
+        for record in self._filtered_students:
+            self._enqueue_thumb(record.student_id)
+
+    def _on_resource_scope_card_changed(self, current: str | None, _previous: str | None) -> None:
+        self._resource_current_student_id = current
+        self._update_resource_scope_actions()
+
+    def _on_resource_search_selection_changed(self, selected_ids: object) -> None:
+        if isinstance(selected_ids, set):
+            self._resource_search_pending_ids = {str(student_id) for student_id in selected_ids}
+        else:
+            self._resource_search_pending_ids = set()
+        self._refresh_resource_search_summary()
+        self._update_resource_search_actions()
+
+    def _refresh_resource_search_summary(self) -> None:
+        if not hasattr(self, "_resource_search_summary"):
+            return
+        goal_map = self._plan_goal_map()
+        visible_planned = sum(1 for record in self._filtered_students if record.student_id in goal_map)
+        visible_selected = len(self._resource_selected_ids & {record.student_id for record in self._filtered_students})
+        self._resource_search_summary.setText(
+            f"{len(self._filtered_students)} matches - {visible_planned} planned - {visible_selected} already in scope - {len(self._resource_search_pending_ids)} selected"
         )
 
-    def _on_resource_item_toggled(self, student_id: str, checked: bool) -> None:
-        if checked:
-            self._resource_selected_ids.add(student_id)
-        else:
-            self._resource_selected_ids.discard(student_id)
+    def _update_resource_scope_actions(self) -> None:
+        if hasattr(self, "_resource_remove_scope_button"):
+            self._resource_remove_scope_button.setEnabled(bool(self._resource_current_student()))
+
+    def _update_resource_search_actions(self) -> None:
+        if hasattr(self, "_resource_add_selected_button"):
+            self._resource_add_selected_button.setEnabled(bool(self._resource_search_pending_ids))
+
+    def _on_resource_unplanned_options_changed(self, _state: int) -> None:
+        self._resource_include_unplanned_level = self._resource_unplanned_level.isChecked()
+        self._resource_include_unplanned_equipment = self._resource_unplanned_equipment.isChecked()
+        self._resource_include_unplanned_skills = self._resource_unplanned_skills.isChecked()
+        self._refresh_resource_view()
+
+    def _resource_add_pending_to_scope(self) -> None:
+        if not self._resource_search_pending_ids:
+            return
+        self._resource_selected_ids.update(self._resource_search_pending_ids)
+        self._resource_search_pending_ids.clear()
+        if hasattr(self, "_resource_left_tabs"):
+            self._resource_left_tabs.setCurrentIndex(0)
         self._refresh_resource_students_list()
         self._refresh_resource_view()
 
-    def _on_resource_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
-        self._resource_current_student_id = str(current.data(Qt.UserRole)) if current is not None else None
+    def _resource_remove_scope_selected(self) -> None:
+        student_id = self._resource_current_student()
+        if not student_id:
+            return
+        self._resource_selected_ids.discard(student_id)
+        self._resource_search_pending_ids.discard(student_id)
+        self._resource_current_student_id = None
+        self._refresh_resource_students_list()
         self._refresh_resource_view()
+
+    def _resource_clear_search_selection(self) -> None:
+        self._resource_search_pending_ids.clear()
+        if hasattr(self, "_resource_search_grid"):
+            self._resource_search_grid.set_selected_card_ids(set())
+        self._refresh_resource_search_summary()
+        self._update_resource_search_actions()
 
     def _resource_check_visible(self) -> None:
         self._resource_selected_ids.update(record.student_id for record in self._filtered_students)
+        self._resource_search_pending_ids.clear()
+        if hasattr(self, "_resource_left_tabs"):
+            self._resource_left_tabs.setCurrentIndex(0)
         self._refresh_resource_students_list()
         self._refresh_resource_view()
 
     def _resource_check_visible_planned(self) -> None:
         goal_map = self._plan_goal_map()
         self._resource_selected_ids.update(record.student_id for record in self._filtered_students if record.student_id in goal_map)
+        self._resource_search_pending_ids.clear()
+        if hasattr(self, "_resource_left_tabs"):
+            self._resource_left_tabs.setCurrentIndex(0)
         self._refresh_resource_students_list()
         self._refresh_resource_view()
 
     def _resource_clear_checked(self) -> None:
         self._resource_selected_ids.clear()
+        self._resource_search_pending_ids.clear()
+        self._resource_current_student_id = None
         self._refresh_resource_students_list()
         self._refresh_resource_view()
 
@@ -3433,9 +4028,12 @@ class StudentViewerWindow(QMainWindow):
         total = PlanCostSummary()
         contributing_count = 0
         for student_id in ordered_ids:
-            if student_id not in goal_map:
-                continue
-            summary = self._cached_goal_cost(student_id, record=self._records_by_id[student_id], goal=goal_map[student_id])
+            record = self._records_by_id[student_id]
+            if student_id in goal_map:
+                summary = self._cached_goal_cost(student_id, record=record, goal=goal_map[student_id])
+            else:
+                unplanned_goal = self._resource_unplanned_goal_for_student(student_id)
+                summary = calculate_goal_cost(record, unplanned_goal) if unplanned_goal is not None else None
             if summary is None:
                 continue
             total.merge(summary)
@@ -3487,10 +4085,28 @@ class StudentViewerWindow(QMainWindow):
             for warning in dict.fromkeys(summary.warnings):
                 target.addItem(f"  {warning}")
 
+    def _clear_requirement_grid(self, grid: QGridLayout) -> None:
+        while grid.count():
+            item = grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _populate_requirement_grid(
+        self,
+        grid: QGridLayout,
+        entries: list[PlanResourceRequirement],
+        *,
+        columns: int = 3,
+    ) -> None:
+        for index, requirement in enumerate(entries):
+            chip = PlanResourceChip(ui_scale=self._ui_scale)
+            chip.setData(requirement)
+            grid.addWidget(chip, index // columns, index % columns)
+
     def _refresh_resource_view(self) -> None:
-        if not hasattr(self, "_resource_mode_tabs"):
+        if not hasattr(self, "_resource_requirement_grid"):
             return
-        self._refresh_resource_single_view()
         self._refresh_resource_aggregate_view()
 
     def _is_resource_tab_current(self) -> bool:
@@ -3514,48 +4130,39 @@ class StudentViewerWindow(QMainWindow):
             self._refresh_resource_view()
             self._resources_dirty = False
 
-    def _refresh_resource_single_view(self) -> None:
-        student_id = self._resource_current_student_id or self._resource_current_student()
-        if not student_id:
-            self._resource_single_summary.setText("Select a student from the left list.")
-            self._set_output_from_summary(self._resource_single_output, None)
-            return
-        goal_map = self._plan_goal_map()
-        record = self._records_by_id.get(student_id)
-        summary = self._resource_summary_for_student(student_id, goal_map)
-        if record is None:
-            self._resource_single_summary.setText("Student data is unavailable.")
-            self._set_output_from_summary(self._resource_single_output, None)
-            return
-        if summary is None:
-            self._resource_single_summary.setText(f"{record.title} is currently not in the planner. Add a target in the Plans tab to see required resources.")
-            self._set_output_from_summary(self._resource_single_output, None)
-            return
-        self._resource_single_summary.setText(
-            f"{record.title} · {self._resource_focus_label(record, summary, goal_map)} · {self._resource_compact_cost_text(summary)}"
-        )
-        self._set_output_from_summary(self._resource_single_output, summary)
-
     def _refresh_resource_aggregate_view(self) -> None:
-        scope = self._resource_aggregate_scope.currentData() if hasattr(self, "_resource_aggregate_scope") else "checked"
         goal_map = self._plan_goal_map()
-        if scope == "planned":
-            student_ids = [goal.student_id for goal in self._plan.goals]
-            label = "all planned students"
-        elif scope == "visible_planned":
-            student_ids = [record.student_id for record in self._filtered_students if record.student_id in goal_map]
-            label = "visible planned students"
-        else:
-            student_ids = [record.student_id for record in self._filtered_students if record.student_id in self._resource_selected_ids]
-            label = "checked students"
-        summary, selected_count, contributing_count = self._resource_total_for_ids(student_ids, goal_map)
-        self._resource_aggregate_summary.setText(
-            f"Combining {selected_count} {label}. {contributing_count} of them currently have planner targets and contribute to the total."
+        student_ids = sorted(
+            self._resource_selected_ids,
+            key=lambda student_id: self._records_by_id[student_id].title.lower() if student_id in self._records_by_id else student_id,
         )
-        if contributing_count == 0:
-            self._set_output_from_summary(self._resource_aggregate_output, None)
-            return
-        self._set_output_from_summary(self._resource_aggregate_output, summary)
+        summary, selected_count, contributing_count = self._resource_total_for_ids(student_ids, goal_map)
+        planned_count = sum(1 for student_id in student_ids if student_id in goal_map)
+        unplanned_count = max(0, selected_count - planned_count)
+        unplanned_included = max(0, contributing_count - planned_count)
+        self._resource_aggregate_summary.setText(
+            f"Combining {selected_count} scoped students. {planned_count} planned and {unplanned_included}/{unplanned_count} not planned students contribute to the current total."
+        )
+        self._resource_requirement_grid_host.setUpdatesEnabled(False)
+        try:
+            self._clear_requirement_grid(self._resource_requirement_grid)
+            self._resource_requirement_scroll.setVisible(True)
+            if contributing_count == 0:
+                self._resource_requirement_empty.setText("No scoped students currently contribute required resources.")
+                self._resource_requirement_empty.setVisible(True)
+                return
+            entries = self._plan_requirement_entries(summary)
+            self._resource_requirement_empty.setText("" if entries else "The current scope does not require additional resources.")
+            self._resource_requirement_empty.setVisible(True)
+            if not entries:
+                return
+            shortages = sum(1 for entry in entries if entry.required > entry.owned)
+            self._resource_aggregate_summary.setText(
+                f"{len(entries)} items - {shortages} short - {planned_count} planned and {unplanned_included}/{unplanned_count} not planned students contributing."
+            )
+            self._populate_requirement_grid(self._resource_requirement_grid, entries)
+        finally:
+            self._resource_requirement_grid_host.setUpdatesEnabled(True)
 
     def _refresh_resource_inventory_view(self) -> None:
         self._refresh_inventory_tab()
@@ -3595,6 +4202,287 @@ class StudentViewerWindow(QMainWindow):
             quantity = payload.get("quantity") or "?"
             self._resource_inventory_output.addItem(f"{name}: {quantity}")
 
+    def _inventory_build_oopart_plan_usage(self) -> dict[str, InventoryOpartPlanUsage]:
+        usage_by_item: dict[str, InventoryOpartPlanUsage] = {}
+        impact_by_item: dict[str, dict[str, InventoryOpartStudentImpact]] = {}
+        pool_impact_by_item: dict[str, dict[str, InventoryOpartStudentImpact]] = {}
+
+        def add_summary(
+            *,
+            record: StudentRecord,
+            summary: PlanCostSummary,
+            target_usage_by_item: dict[str, InventoryOpartPlanUsage],
+            target_impact_by_item: dict[str, dict[str, InventoryOpartStudentImpact]],
+            pool: bool,
+        ) -> None:
+            for category, values, impact_field in (
+                ("ex_ooparts", summary.ex_ooparts, "ex_required"),
+                ("skill_ooparts", summary.skill_ooparts, "skill_required"),
+            ):
+                for key, raw_required in values.items():
+                    required = int(raw_required or 0)
+                    if required <= 0:
+                        continue
+                    item_id = _plan_resource_item_id(key, category)
+                    if not item_id or item_id not in _OPART_ITEM_IDS:
+                        continue
+                    name = _plan_resource_display_name(item_id, key)
+                    usage = target_usage_by_item.get(item_id)
+                    if usage is None:
+                        usage = InventoryOpartPlanUsage(item_id=item_id, name=name)
+                        target_usage_by_item[item_id] = usage
+                    if pool:
+                        usage.pool_required += required
+                        if impact_field == "ex_required":
+                            usage.pool_ex_required += required
+                        else:
+                            usage.pool_skill_required += required
+                    else:
+                        usage.required += required
+                        if impact_field == "ex_required":
+                            usage.ex_required += required
+                        else:
+                            usage.skill_required += required
+
+                    impacts = target_impact_by_item.setdefault(item_id, {})
+                    impact = impacts.get(record.student_id)
+                    if impact is None:
+                        impact = InventoryOpartStudentImpact(student_id=record.student_id, title=record.title)
+                        impacts[record.student_id] = impact
+                    if impact_field == "ex_required":
+                        impact.ex_required += required
+                    else:
+                        impact.skill_required += required
+
+        goal_map = self._plan_goal_map()
+
+        for student_id, goal in goal_map.items():
+            record = self._records_by_id.get(student_id)
+            if record is None:
+                continue
+            summary = self._cached_goal_cost(student_id, record=record, goal=goal)
+            if summary is None:
+                continue
+            add_summary(
+                record=record,
+                summary=summary,
+                target_usage_by_item=usage_by_item,
+                target_impact_by_item=impact_by_item,
+                pool=False,
+            )
+
+        for record in self._all_students:
+            goal = StudentGoal(student_id=record.student_id)
+            goal.target_ex_skill = MAX_TARGET_EX_SKILL
+            goal.target_skill1 = MAX_TARGET_SKILL
+            goal.target_skill2 = MAX_TARGET_SKILL
+            goal.target_skill3 = MAX_TARGET_SKILL
+            summary = self._cached_goal_cost(record.student_id, record=record, goal=goal)
+            if summary is None:
+                continue
+            add_summary(
+                record=record,
+                summary=summary,
+                target_usage_by_item=usage_by_item,
+                target_impact_by_item=pool_impact_by_item,
+                pool=True,
+            )
+
+        for item_id, usage in usage_by_item.items():
+            usage.owned = self._inventory_quantity_index_cache.get(item_id, 0)
+            usage.impacts = sorted(
+                impact_by_item.get(item_id, {}).values(),
+                key=lambda impact: (-impact.total_required, impact.title.lower(), impact.student_id),
+            )
+            usage.pool_impacts = sorted(
+                pool_impact_by_item.get(item_id, {}).values(),
+                key=lambda impact: (-impact.total_required, impact.title.lower(), impact.student_id),
+            )
+        return usage_by_item
+
+    def _inventory_oopart_status(self, usage: InventoryOpartPlanUsage | None) -> str:
+        if usage is None or (usage.required <= 0 and usage.pool_required <= 0):
+            return "미사용"
+        if usage.shortage > 0:
+            return "계획 부족"
+        if usage.pool_shortage > 0:
+            return "장기 압박"
+        return "충분"
+
+    @staticmethod
+    def _inventory_coverage(owned: int, required: int) -> str:
+        if required <= 0:
+            return "-"
+        return f"{min(100, int((owned / required) * 100))}%"
+
+    def _clear_inventory_oopart_metrics(self) -> None:
+        for label in getattr(self, "_inventory_oopart_metric_labels", {}).values():
+            label.setText("-")
+
+    def _on_inventory_oopart_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None = None) -> None:
+        item_id = str(current.data(Qt.UserRole) or "") if current is not None else ""
+        self._inventory_oopart_selected_id = item_id or None
+        if current is not None:
+            target = self._inventory_item_lists.get("ooparts") if hasattr(self, "_inventory_item_lists") else None
+            widget = target.itemWidget(current) if target is not None else None
+            if isinstance(widget, InventoryOpartFamilyRow):
+                widget.setSelectedItem(item_id)
+        self._update_inventory_oopart_detail(current)
+
+    def _on_inventory_oopart_cell_selected(self, item_id: str, list_item: QListWidgetItem, widget: InventoryOpartFamilyRow) -> None:
+        list_item.setData(Qt.UserRole, item_id)
+        list_item.setData(Qt.UserRole + 1, _plan_resource_display_name(item_id, item_id))
+        list_item.setData(Qt.UserRole + 2, self._inventory_quantity_index_cache.get(item_id, 0))
+        widget.setSelectedItem(item_id)
+        target = self._inventory_item_lists.get("ooparts") if hasattr(self, "_inventory_item_lists") else None
+        if target is not None:
+            target.setCurrentItem(list_item)
+        self._inventory_oopart_selected_id = item_id
+        self._update_inventory_oopart_detail(list_item)
+
+    def _on_inventory_priority_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None = None) -> None:
+        item_id = str(current.data(Qt.UserRole) or "") if current is not None else ""
+        if item_id:
+            self._select_inventory_oopart(item_id)
+
+    def _select_inventory_oopart(self, item_id: str) -> None:
+        if not hasattr(self, "_inventory_item_lists"):
+            return
+        target = self._inventory_item_lists.get("ooparts")
+        if target is None:
+            return
+        family_prefix = "_".join(item_id.rsplit("_", 1)[:-1])
+        for index in range(target.count()):
+            item = target.item(index)
+            current_id = str(item.data(Qt.UserRole) or "")
+            current_prefix = "_".join(current_id.rsplit("_", 1)[:-1])
+            if current_id == item_id or (family_prefix and current_prefix == family_prefix):
+                item.setData(Qt.UserRole, item_id)
+                item.setData(Qt.UserRole + 1, _plan_resource_display_name(item_id, item_id))
+                item.setData(Qt.UserRole + 2, self._inventory_quantity_index_cache.get(item_id, 0))
+                widget = target.itemWidget(item)
+                if isinstance(widget, InventoryOpartFamilyRow):
+                    widget.setSelectedItem(item_id)
+                self._inventory_root_tabs.setCurrentIndex(1)
+                self._inventory_item_tabs.setCurrentIndex(0)
+                target.setCurrentItem(item)
+                target.scrollToItem(item)
+                return
+
+    def _configure_inventory_priority_cards(self, target: QListWidget) -> None:
+        target.setViewMode(QListView.IconMode)
+        target.setResizeMode(QListView.Adjust)
+        target.setMovement(QListView.Static)
+        target.setFlow(QListView.LeftToRight)
+        target.setWrapping(True)
+        target.setWordWrap(False)
+        target.setSpacing(scale_px(6, self._ui_scale))
+        target.setIconSize(QSize(scale_px(46, self._ui_scale), scale_px(46, self._ui_scale)))
+        target.setGridSize(QSize(scale_px(58, self._ui_scale), scale_px(58, self._ui_scale)))
+        target.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        target.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+    def _add_inventory_usage_list_item(self, target: QListWidget, usage: InventoryOpartPlanUsage, *, pool: bool) -> None:
+        if pool:
+            text = ""
+            tooltip = f"{usage.name}\nFull pool left {usage.pool_shortage:,} / need {usage.pool_required:,}"
+        else:
+            text = ""
+            tooltip = f"{usage.name}\nPlan short {usage.shortage:,} / need {usage.required:,}"
+        item = QListWidgetItem(text)
+        icon_path = _inventory_icon_path(usage.item_id, usage.name)
+        if icon_path is not None and icon_path.exists():
+            item.setIcon(QIcon(str(icon_path)))
+        item.setToolTip(tooltip)
+        item.setData(Qt.UserRole, usage.item_id)
+        target.addItem(item)
+
+    def _refresh_inventory_insight_panel(self) -> None:
+        if not hasattr(self, "_inventory_insight_summary"):
+            return
+        self._inventory_plan_priority_list.clear()
+        self._inventory_pool_pressure_list.clear()
+
+        usages = list(self._inventory_oopart_plan_usage.values())
+        if not usages:
+            self._inventory_insight_summary.setText("No planned or full-pool Ooparts demand is available yet.")
+            self._update_inventory_oopart_detail(None)
+            return
+
+        planned_count = sum(1 for usage in usages if usage.required > 0)
+        plan_shortage_items = sum(1 for usage in usages if usage.shortage > 0)
+        plan_shortage_total = sum(usage.shortage for usage in usages)
+        pool_count = sum(1 for usage in usages if usage.pool_required > 0)
+        pool_shortage_items = sum(1 for usage in usages if usage.pool_shortage > 0)
+        pool_shortage_total = sum(usage.pool_shortage for usage in usages)
+        self._inventory_insight_summary.setText(
+            f"Plan demand uses {planned_count} Ooparts; {plan_shortage_items} are short by {plan_shortage_total:,}. "
+            f"Full pool demand uses {pool_count}; {pool_shortage_items} remain short by {pool_shortage_total:,}."
+        )
+
+        plan_top = [usage for usage in sorted(usages, key=lambda usage: (-usage.shortage, usage.name.lower())) if usage.shortage > 0][:8]
+        pool_top = [usage for usage in sorted(usages, key=lambda usage: (-usage.pool_shortage, usage.name.lower())) if usage.pool_shortage > 0][:8]
+        if plan_top:
+            for usage in plan_top:
+                self._add_inventory_usage_list_item(self._inventory_plan_priority_list, usage, pool=False)
+        else:
+            self._inventory_plan_priority_list.addItem("No current plan shortages.")
+        if pool_top:
+            for usage in pool_top:
+                self._add_inventory_usage_list_item(self._inventory_pool_pressure_list, usage, pool=True)
+        else:
+            self._inventory_pool_pressure_list.addItem("No remaining full-pool shortages.")
+
+    def _update_inventory_oopart_detail(self, current: QListWidgetItem | None) -> None:
+        if not hasattr(self, "_inventory_oopart_detail_title"):
+            return
+        self._inventory_oopart_impact_list.clear()
+        if current is None:
+            self._inventory_oopart_detail_title.setText("Select an oopart")
+            self._inventory_oopart_detail_summary.setText("Pick an item above to see planned use and affected students.")
+            self._clear_inventory_oopart_metrics()
+            return
+
+        item_id = str(current.data(Qt.UserRole) or "")
+        name = str(current.data(Qt.UserRole + 1) or item_id or "Oopart")
+        owned = int(current.data(Qt.UserRole + 2) or 0)
+        usage = self._inventory_oopart_plan_usage.get(item_id)
+        self._inventory_oopart_detail_title.setText(name)
+        if usage is None:
+            usage = InventoryOpartPlanUsage(item_id=item_id, name=name, owned=owned)
+        else:
+            usage.owned = owned
+
+        self._inventory_oopart_metric_labels["required"].setText(f"{usage.required:,}")
+        self._inventory_oopart_metric_labels["shortage"].setText(f"{usage.shortage:,}")
+        self._inventory_oopart_metric_labels["coverage"].setText(self._inventory_coverage(owned, usage.required))
+        self._inventory_oopart_metric_labels["pool_required"].setText(f"{usage.pool_required:,}")
+        self._inventory_oopart_metric_labels["pool_shortage"].setText(f"{usage.pool_shortage:,}")
+        self._inventory_oopart_metric_labels["pool_coverage"].setText(self._inventory_coverage(owned, usage.pool_required))
+
+        status = self._inventory_oopart_status(usage)
+        planned_ids = set(self._plan_goal_map())
+        planned_pool_count = sum(1 for impact in usage.pool_impacts if impact.student_id in planned_ids)
+        self._inventory_oopart_detail_summary.setText(
+            f"Status: {status}. Full pool affected students: {len(usage.pool_impacts)} "
+            f"({planned_pool_count} currently planned)."
+        )
+        if not usage.pool_impacts:
+            self._inventory_oopart_impact_list.addItem("No full-pool student demand.")
+            return
+
+        for impact in usage.pool_impacts:
+            is_planned = impact.student_id in planned_ids
+            prefix = "[Plan] " if is_planned else ""
+            item = QListWidgetItem(
+                f"{prefix}{impact.title} ({impact.student_id}) - "
+                f"EX {impact.ex_required:,} / Skill {impact.skill_required:,} / Total {impact.total_required:,}"
+            )
+            if is_planned:
+                item.setBackground(QColor("#3a2238"))
+                item.setForeground(QColor("#ffe1f0"))
+            self._inventory_oopart_impact_list.addItem(item)
+
     def _inventory_classify_item(self, item_key: str, payload: dict) -> str:
         item_id = str(payload.get("item_id") or "")
         name = _inventory_display_label(item_key, payload)
@@ -3614,11 +4502,85 @@ class StudentViewerWindow(QMainWindow):
             return "reports"
         return "other"
 
-    def _set_inventory_list_items(self, target: QListWidget, summary: QLabel, entries: list[tuple[str, dict]]) -> None:
+    def _set_inventory_oopart_family_items(
+        self,
+        target: QListWidget,
+        summary: QLabel,
+        oopart_usage: dict[str, InventoryOpartPlanUsage],
+    ) -> None:
+        target.clear()
+        if not self._inventory_oopart_selected_id and OPART_DEFINITIONS:
+            self._inventory_oopart_selected_id = f"Item_Icon_Material_{OPART_DEFINITIONS[0].icon_key}_3"
+
+        usages = list(oopart_usage.values())
+        plan_shortage_items = sum(1 for usage in usages if usage.shortage > 0)
+        plan_shortage_total = sum(usage.shortage for usage in usages)
+        pool_shortage_items = sum(1 for usage in usages if usage.pool_shortage > 0)
+        pool_shortage_total = sum(usage.pool_shortage for usage in usages)
+        summary.setText(
+            f"{len(OPART_DEFINITIONS)} families - plan short {plan_shortage_items} ({plan_shortage_total:,}) - "
+            f"full pool short {pool_shortage_items} ({pool_shortage_total:,})"
+        )
+
+        restore_item: QListWidgetItem | None = None
+        for definition in OPART_DEFINITIONS:
+            tier_items: list[tuple[int, str, str, int, str, Path | None]] = []
+            row_selected_id = self._inventory_oopart_selected_id
+            family_ids = [f"Item_Icon_Material_{definition.icon_key}_{index}" for index in range(4)]
+            if row_selected_id not in family_ids:
+                row_selected_id = family_ids[-1]
+            for tier_index in range(3, -1, -1):
+                item_id = f"Item_Icon_Material_{definition.icon_key}_{tier_index}"
+                name = _plan_resource_display_name(item_id, item_id)
+                usage = oopart_usage.get(item_id)
+                owned = self._inventory_quantity_index_cache.get(item_id, 0)
+                status = self._inventory_oopart_status(usage)
+                tier_items.append((tier_index + 1, item_id, name, owned, status, _inventory_icon_path(item_id, name)))
+
+            widget = InventoryOpartFamilyRow(
+                family_name=definition.family_en,
+                tier_items=tier_items,
+                selected_item_id=self._inventory_oopart_selected_id if self._inventory_oopart_selected_id in family_ids else None,
+                ui_scale=self._ui_scale,
+            )
+            item = QListWidgetItem()
+            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            item.setSizeHint(QSize(scale_px(320, self._ui_scale), scale_px(98, self._ui_scale)))
+            item.setData(Qt.UserRole, row_selected_id)
+            item.setData(Qt.UserRole + 1, _plan_resource_display_name(row_selected_id, row_selected_id))
+            item.setData(Qt.UserRole + 2, self._inventory_quantity_index_cache.get(row_selected_id, 0))
+            target.addItem(item)
+            target.setItemWidget(item, widget)
+            widget.selected.connect(lambda value, list_item=item, row_widget=widget: self._on_inventory_oopart_cell_selected(value, list_item, row_widget))
+            if self._inventory_oopart_selected_id in family_ids:
+                restore_item = item
+
+        if restore_item is None and target.count() > 0:
+            restore_item = target.item(0)
+            self._inventory_oopart_selected_id = str(restore_item.data(Qt.UserRole) or "")
+        target.setCurrentItem(restore_item)
+        self._update_inventory_oopart_detail(restore_item)
+
+    def _set_inventory_list_items(
+        self,
+        target: QListWidget,
+        summary: QLabel,
+        entries: list[tuple[str, dict]],
+        *,
+        category: str = "",
+        oopart_usage: dict[str, InventoryOpartPlanUsage] | None = None,
+    ) -> None:
+        if category == "ooparts":
+            self._set_inventory_oopart_family_items(target, summary, oopart_usage or {})
+            return
+
         target.clear()
         if not entries:
             summary.setText("No scanned items in this category yet.")
             target.addItem("Run an item or equipment scan to populate this category.")
+            if category == "ooparts":
+                self._inventory_oopart_selected_id = None
+                self._update_inventory_oopart_detail(None)
             return
 
         total_quantity = sum(
@@ -3628,23 +4590,72 @@ class StudentViewerWindow(QMainWindow):
         )
         summary.setText(f"{len(entries)} items 쨌 total quantity {total_quantity:,}")
 
+        if category == "ooparts" and oopart_usage:
+            shortage_items = sum(1 for usage in oopart_usage.values() if usage.shortage > 0)
+            total_shortage = sum(usage.shortage for usage in oopart_usage.values())
+            pool_shortage_items = sum(1 for usage in oopart_usage.values() if usage.pool_shortage > 0)
+            pool_total_shortage = sum(usage.pool_shortage for usage in oopart_usage.values())
+            plan_top = sorted(oopart_usage.values(), key=lambda usage: (-usage.shortage, usage.name.lower()))[:3]
+            pool_top = sorted(oopart_usage.values(), key=lambda usage: (-usage.pool_shortage, usage.name.lower()))[:3]
+            plan_top_text = ", ".join(f"{usage.name} {usage.shortage:,}" for usage in plan_top if usage.shortage > 0) or "none"
+            pool_top_text = ", ".join(f"{usage.name} {usage.pool_shortage:,}" for usage in pool_top if usage.pool_shortage > 0) or "none"
+            summary.setText(
+                f"{len(entries)} items - total quantity {total_quantity:,} - "
+                f"plan short {shortage_items} ({total_shortage:,}) - "
+                f"full pool short {pool_shortage_items} ({pool_total_shortage:,})\n"
+                f"Plan priority: {plan_top_text}\n"
+                f"Full pool pressure: {pool_top_text}"
+            )
+
+        restore_item: QListWidgetItem | None = None
         for item_key, payload in entries:
             item_id = payload.get("item_id")
+            item_id_text = str(item_id) if item_id else str(item_key)
             name = _inventory_display_label(item_key, payload)
             quantity_value = _inventory_quantity_value(payload.get("quantity"))
-            quantity = f"{quantity_value:,}" if quantity_value is not None else str(payload.get("quantity") or "?")
+            owned = quantity_value if quantity_value is not None else 0
+            usage = oopart_usage.get(item_id_text) if oopart_usage else None
+            shortage = bool(usage and (usage.shortage > 0 or usage.pool_shortage > 0))
+            if usage and usage.required > 0:
+                quantity = f"{owned:,} / {usage.required:,}"
+                meta = (
+                    f"Plan need {usage.required:,} - Plan short {usage.shortage:,} - "
+                    f"Full pool need {usage.pool_required:,} - Pool left {usage.pool_shortage:,} - "
+                    f"EX {usage.ex_required:,} / Skill {usage.skill_required:,} - {len(usage.impacts)} planned"
+                )
+            elif usage and usage.pool_required > 0:
+                quantity = f"{owned:,} / 0"
+                meta = (
+                    f"No plan demand - Full pool need {usage.pool_required:,} - "
+                    f"Pool left {usage.pool_shortage:,} - EX {usage.pool_ex_required:,} / Skill {usage.pool_skill_required:,}"
+                )
+            else:
+                quantity = f"{quantity_value:,}" if quantity_value is not None else str(payload.get("quantity") or "?")
+                meta = ""
             widget = InventoryListItem(ui_scale=self._ui_scale)
             widget.setData(
                 icon_path=_inventory_icon_path(str(item_id) if item_id else None, name),
                 name=name,
                 quantity=quantity,
-                meta="",
+                meta=meta,
+                shortage=shortage,
             )
             item = QListWidgetItem()
             item.setFlags(Qt.ItemIsEnabled)
-            item.setSizeHint(QSize(scale_px(320, self._ui_scale), scale_px(72, self._ui_scale)))
+            item.setSizeHint(QSize(scale_px(320, self._ui_scale), scale_px(92 if meta else 72, self._ui_scale)))
+            item.setData(Qt.UserRole, item_id_text)
+            item.setData(Qt.UserRole + 1, name)
+            item.setData(Qt.UserRole + 2, owned)
             target.addItem(item)
             target.setItemWidget(item, widget)
+            if category == "ooparts" and item_id_text == self._inventory_oopart_selected_id:
+                restore_item = item
+
+        if category == "ooparts":
+            if restore_item is None and target.count() > 0:
+                restore_item = target.item(0)
+            target.setCurrentItem(restore_item)
+            self._update_inventory_oopart_detail(restore_item)
 
     def _refresh_inventory_tab(self) -> None:
         if not hasattr(self, "_inventory_root_tabs"):
@@ -3653,10 +4664,34 @@ class StudentViewerWindow(QMainWindow):
         inventory = self._inventory_snapshot or {}
         if not inventory:
             self._inventory_summary.setText("No scanned inventory is available yet. Run an item or equipment scan to populate this tab.")
+            self._inventory_oopart_plan_usage = self._inventory_build_oopart_plan_usage()
             for key, widget in self._inventory_equipment_lists.items():
                 self._set_inventory_list_items(widget, self._inventory_equipment_summaries[key], [])
             for key, widget in self._inventory_item_lists.items():
-                self._set_inventory_list_items(widget, self._inventory_item_summaries[key], [])
+                if key == "ooparts" and self._inventory_oopart_plan_usage:
+                    entries = [
+                        (
+                            item_id,
+                            {
+                                "item_id": item_id,
+                                "name": usage.name,
+                                "quantity": 0,
+                                "planned_only": True,
+                            },
+                        )
+                        for item_id, usage in self._inventory_oopart_plan_usage.items()
+                    ]
+                    entries.sort(key=lambda entry: _OPART_ITEM_IDS.index(entry[0]) if entry[0] in _OPART_ITEM_IDS else 9999)
+                    self._set_inventory_list_items(
+                        widget,
+                        self._inventory_item_summaries[key],
+                        entries,
+                        category=key,
+                        oopart_usage=self._inventory_oopart_plan_usage,
+                    )
+                else:
+                    self._set_inventory_list_items(widget, self._inventory_item_summaries[key], [], category=key)
+            self._refresh_inventory_insight_panel()
             return
 
         total_quantity = sum(
@@ -3669,6 +4704,9 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_summary.setText(
             f"{len(inventory)} scanned entries 쨌 total quantity {total_quantity:,}{latest_suffix}"
         )
+
+        self._inventory_oopart_plan_usage = self._inventory_build_oopart_plan_usage()
+        self._refresh_inventory_insight_panel()
 
         equipment_groups: dict[str, list[tuple[str, dict]]] = {series.icon_key: [] for series in EQUIPMENT_SERIES}
         item_groups: dict[str, list[tuple[str, dict]]] = {
@@ -3690,6 +4728,25 @@ class StudentViewerWindow(QMainWindow):
                     equipment_groups[series_key].append((item_key, payload))
                     continue
             item_groups[self._inventory_classify_item(item_key, payload)].append((item_key, payload))
+
+        scanned_oopart_ids = {
+            str(payload.get("item_id") or item_key)
+            for item_key, payload in item_groups["ooparts"]
+        }
+        for item_id, usage in self._inventory_oopart_plan_usage.items():
+            if item_id in scanned_oopart_ids:
+                continue
+            item_groups["ooparts"].append(
+                (
+                    item_id,
+                    {
+                        "item_id": item_id,
+                        "name": usage.name,
+                        "quantity": usage.owned,
+                        "planned_only": True,
+                    },
+                )
+            )
 
         opart_order = {item_id: index for index, item_id in enumerate(_OPART_ITEM_IDS)}
         wb_order = {
@@ -3779,7 +4836,598 @@ class StudentViewerWindow(QMainWindow):
                 self._inventory_item_lists[category],
                 self._inventory_item_summaries[category],
                 entries,
+                category=category,
+                oopart_usage=self._inventory_oopart_plan_usage if category == "ooparts" else None,
             )
+
+    def _build_tactical_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
+
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
+        title = QLabel("Tactical Challenge")
+        title.setObjectName("title")
+        subtitle = QLabel("전술대항전 전적, 상대 방어덱, 공격 족보를 한 곳에서 기록하고 찾아봅니다.")
+        subtitle.setObjectName("count")
+        header_layout.addWidget(title)
+        header_layout.addWidget(subtitle)
+        layout.addWidget(header)
+
+        splitter = QSplitter(Qt.Horizontal)
+        layout.addWidget(splitter, 1)
+
+        input_panel = QFrame()
+        input_panel.setObjectName("panel")
+        input_scroll = QScrollArea()
+        input_scroll.setWidgetResizable(True)
+        input_scroll.setFrameShape(QFrame.NoFrame)
+        input_scroll.setWidget(input_panel)
+        input_layout = QVBoxLayout(input_panel)
+        input_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        input_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        match_title = QLabel("오늘 전적 입력")
+        match_title.setObjectName("sectionTitle")
+        input_layout.addWidget(match_title)
+        date_row = QHBoxLayout()
+        date_row.setContentsMargins(0, 0, 0, 0)
+        self._tactical_date = QLineEdit(date.today().isoformat())
+        self._tactical_season = QLineEdit(self._tactical_data.season or "")
+        self._tactical_season.setPlaceholderText("시즌")
+        self._tactical_season.editingFinished.connect(self._save_tactical_season)
+        date_row.addWidget(QLabel("날짜"))
+        date_row.addWidget(self._tactical_date, 1)
+        date_row.addWidget(QLabel("시즌"))
+        date_row.addWidget(self._tactical_season, 1)
+        input_layout.addLayout(date_row)
+
+        self._tactical_match_panels: list[dict] = []
+        for panel_index in range(5):
+            panel_widget, panel = self._build_tactical_match_input_panel(panel_index + 1)
+            self._tactical_match_panels.append(panel)
+            input_layout.addWidget(panel_widget)
+
+        jokbo_title = QLabel("족보 입력")
+        jokbo_title.setObjectName("sectionTitle")
+        input_layout.addWidget(jokbo_title)
+        jokbo_defense_group, self._tactical_jokbo_defense_inputs = self._build_tactical_deck_editor("상대 방어덱")
+        jokbo_attack_group, self._tactical_jokbo_attack_inputs = self._build_tactical_deck_editor("추천 공격덱")
+        input_layout.addWidget(jokbo_defense_group)
+        copy_defense_button = QPushButton("현재 상대 방어덱 복사")
+        copy_defense_button.clicked.connect(self._copy_tactical_match_defense_to_jokbo)
+        input_layout.addWidget(copy_defense_button)
+        input_layout.addWidget(jokbo_attack_group)
+
+        record_layout = QHBoxLayout()
+        self._tactical_jokbo_wins = QSpinBox()
+        self._tactical_jokbo_wins.setRange(0, 999)
+        self._tactical_jokbo_losses = QSpinBox()
+        self._tactical_jokbo_losses.setRange(0, 999)
+        record_layout.addWidget(QLabel("승"))
+        record_layout.addWidget(self._tactical_jokbo_wins)
+        record_layout.addWidget(QLabel("패"))
+        record_layout.addWidget(self._tactical_jokbo_losses)
+        input_layout.addLayout(record_layout)
+
+        self._tactical_jokbo_notes = QPlainTextEdit()
+        self._tactical_jokbo_notes.setPlaceholderText("족보 메모")
+        self._tactical_jokbo_notes.setMaximumHeight(scale_px(70, self._ui_scale))
+        input_layout.addWidget(self._tactical_jokbo_notes)
+        save_jokbo_button = QPushButton("족보 저장")
+        save_jokbo_button.clicked.connect(self._save_tactical_jokbo)
+        input_layout.addWidget(save_jokbo_button)
+
+        self._tactical_status = QLabel("")
+        self._tactical_status.setObjectName("filterSummary")
+        self._tactical_status.setWordWrap(True)
+        input_layout.addWidget(self._tactical_status)
+        input_layout.addStretch(1)
+        splitter.addWidget(input_scroll)
+
+        history_panel = QFrame()
+        history_panel.setObjectName("panel")
+        history_layout = QVBoxLayout(history_panel)
+        history_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        history_layout.setSpacing(scale_px(10, self._ui_scale))
+        history_header = QHBoxLayout()
+        history_title = QLabel("전적 기록")
+        history_title.setObjectName("sectionTitle")
+        self._tactical_match_summary = QLabel("")
+        self._tactical_match_summary.setObjectName("filterSummary")
+        history_header.addWidget(history_title)
+        history_header.addWidget(self._tactical_match_summary, 1, Qt.AlignRight)
+        history_layout.addLayout(history_header)
+        self._tactical_match_search = QLineEdit()
+        self._tactical_match_search.setPlaceholderText("상대 이름, 학생, 메모 검색")
+        self._tactical_match_search.textChanged.connect(lambda *_: self._refresh_tactical_match_list())
+        history_layout.addWidget(self._tactical_match_search)
+        self._tactical_match_list = QListWidget()
+        self._tactical_match_list.currentItemChanged.connect(self._on_tactical_match_selected)
+        history_layout.addWidget(self._tactical_match_list, 1)
+        self._tactical_match_detail = QLabel("")
+        self._tactical_match_detail.setObjectName("detailSub")
+        self._tactical_match_detail.setWordWrap(True)
+        history_layout.addWidget(self._tactical_match_detail)
+        splitter.addWidget(history_panel)
+
+        insight_panel = QFrame()
+        insight_panel.setObjectName("panel")
+        insight_layout = QVBoxLayout(insight_panel)
+        insight_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        insight_tabs = QTabWidget()
+        insight_layout.addWidget(insight_tabs, 1)
+
+        opponent_tab = QWidget()
+        opponent_layout = QVBoxLayout(opponent_tab)
+        opponent_layout.setContentsMargins(0, 0, 0, 0)
+        opponent_layout.setSpacing(scale_px(10, self._ui_scale))
+        opponent_search_row = QHBoxLayout()
+        self._tactical_opponent_search = QLineEdit()
+        self._tactical_opponent_search.setPlaceholderText("상대 이름 검색")
+        self._tactical_opponent_search.returnPressed.connect(self._refresh_tactical_opponent_report)
+        opponent_search_button = QPushButton("검색")
+        opponent_search_button.clicked.connect(self._refresh_tactical_opponent_report)
+        opponent_search_row.addWidget(self._tactical_opponent_search, 1)
+        opponent_search_row.addWidget(opponent_search_button)
+        opponent_layout.addLayout(opponent_search_row)
+        self._tactical_opponent_summary = QLabel("")
+        self._tactical_opponent_summary.setObjectName("detailSub")
+        self._tactical_opponent_summary.setWordWrap(True)
+        opponent_layout.addWidget(self._tactical_opponent_summary)
+        self._tactical_opponent_top_list = QListWidget()
+        opponent_layout.addWidget(self._tactical_opponent_top_list, 1)
+        insight_tabs.addTab(opponent_tab, "상대")
+
+        jokbo_tab = QWidget()
+        jokbo_layout = QVBoxLayout(jokbo_tab)
+        jokbo_layout.setContentsMargins(0, 0, 0, 0)
+        jokbo_layout.setSpacing(scale_px(10, self._ui_scale))
+        search_group, self._tactical_jokbo_search_inputs = self._build_tactical_deck_editor("방어덱 검색")
+        jokbo_layout.addWidget(search_group)
+        search_buttons = QHBoxLayout()
+        search_jokbo_button = QPushButton("족보 검색")
+        search_jokbo_button.clicked.connect(self._refresh_tactical_jokbo_results)
+        copy_search_button = QPushButton("전적 방어덱 복사")
+        copy_search_button.clicked.connect(self._copy_selected_tactical_defense_to_search)
+        search_buttons.addWidget(search_jokbo_button)
+        search_buttons.addWidget(copy_search_button)
+        jokbo_layout.addLayout(search_buttons)
+        self._tactical_jokbo_results = QListWidget()
+        jokbo_layout.addWidget(self._tactical_jokbo_results, 1)
+        insight_tabs.addTab(jokbo_tab, "족보")
+        splitter.addWidget(insight_panel)
+        splitter.setSizes([scale_px(420, self._ui_scale), scale_px(520, self._ui_scale), scale_px(470, self._ui_scale)])
+
+    def _build_tactical_match_input_panel(self, index: int) -> tuple[QFrame, dict]:
+        panel_widget = QFrame()
+        panel_widget.setObjectName("planBand")
+        layout = QVBoxLayout(panel_widget)
+        layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
+        layout.setSpacing(scale_px(8, self._ui_scale))
+
+        header = QHBoxLayout()
+        title = QLabel(f"Match {index}")
+        title.setObjectName("sectionTitle")
+        opponent = QLineEdit()
+        opponent.setPlaceholderText("상대 이름")
+        win_button = QPushButton("승")
+        loss_button = QPushButton("패")
+        win_button.setCheckable(True)
+        loss_button.setCheckable(True)
+        save_button = QPushButton("Save")
+        clear_button = QPushButton("Clear")
+        header.addWidget(title)
+        header.addWidget(opponent, 1)
+        header.addWidget(win_button)
+        header.addWidget(loss_button)
+        header.addWidget(save_button)
+        header.addWidget(clear_button)
+        layout.addLayout(header)
+
+        attack_widget, attack_editor = self._build_tactical_deck_editor("공격덱")
+        defense_widget, defense_editor = self._build_tactical_deck_editor("상대 방어덱")
+        layout.addWidget(attack_widget)
+        layout.addWidget(defense_widget)
+
+        notes = QPlainTextEdit()
+        notes.setPlaceholderText("메모")
+        notes.setMaximumHeight(scale_px(58, self._ui_scale))
+        layout.addWidget(notes)
+
+        panel = {
+            "opponent": opponent,
+            "result": "win",
+            "win_button": win_button,
+            "loss_button": loss_button,
+            "attack": attack_editor,
+            "defense": defense_editor,
+            "notes": notes,
+        }
+        win_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "win"))
+        loss_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "loss"))
+        save_button.clicked.connect(lambda *_args, target=panel: self._save_tactical_match_panel(target))
+        clear_button.clicked.connect(lambda *_args, target=panel: self._clear_tactical_match_panel(target))
+        self._set_tactical_panel_result(panel, "win")
+        return panel_widget, panel
+
+    def _set_tactical_panel_result(self, panel: dict, result: str) -> None:
+        panel["result"] = "loss" if result == "loss" else "win"
+        panel["win_button"].setChecked(panel["result"] == "win")
+        panel["loss_button"].setChecked(panel["result"] == "loss")
+        panel["win_button"].setText("승 선택" if panel["result"] == "win" else "승")
+        panel["loss_button"].setText("패 선택" if panel["result"] == "loss" else "패")
+        selected_style = f"background: {ACCENT_STRONG}; color: #ffffff; border: 2px solid #ffffff; font-weight: 900;"
+        idle_style = f"background: {SURFACE_ALT}; color: {INK}; border: 1px solid {BORDER}; font-weight: 700;"
+        panel["win_button"].setStyleSheet(selected_style if panel["result"] == "win" else idle_style)
+        panel["loss_button"].setStyleSheet(selected_style if panel["result"] == "loss" else idle_style)
+
+    def _save_tactical_match_panel(self, panel: dict) -> None:
+        opponent = panel["opponent"].text().strip()
+        if not opponent:
+            self._tactical_status.setText("상대 이름을 입력해 주세요.")
+            return
+        season = self._tactical_season.text().strip()
+        self._tactical_data.season = season
+        now = datetime.now().isoformat(timespec="seconds")
+        match = TacticalMatch(
+            id=f"tc-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
+            date=self._tactical_date.text().strip() or date.today().isoformat(),
+            season=season,
+            opponent=opponent,
+            result=str(panel["result"]),
+            my_attack=self._deck_from_tactical_inputs(panel["attack"]),
+            opponent_defense=self._deck_from_tactical_inputs(panel["defense"]),
+            notes=panel["notes"].toPlainText().strip(),
+            created_at=now,
+        )
+        self._tactical_data.matches.append(match)
+        self._tactical_selected_match_id = match.id
+        self._save_tactical_data()
+        self._refresh_tactical_tab()
+        self._tactical_status.setText(f"{match.date} {opponent} 전적을 저장했습니다.")
+
+    def _clear_tactical_match_panel(self, panel: dict) -> None:
+        panel["opponent"].clear()
+        panel["notes"].clear()
+        self._set_tactical_panel_result(panel, "win")
+        self._clear_tactical_deck_inputs(panel["attack"])
+        self._clear_tactical_deck_inputs(panel["defense"])
+
+    def _save_tactical_season(self) -> None:
+        if self._tactical_data.season == self._tactical_season.text().strip():
+            return
+        self._tactical_data.season = self._tactical_season.text().strip()
+        self._save_tactical_data()
+
+    def _tactical_student_id_for_name(self, name: str) -> str | None:
+        needle = (name or "").strip().casefold()
+        if not needle:
+            return None
+        if needle in self._records_by_id:
+            return needle
+        for record in self._all_students:
+            if needle in {record.student_id.casefold(), record.title.casefold(), record.display_name.casefold()}:
+                return record.student_id
+        return None
+
+    def _tactical_portrait_pixmap(self, name: str, size: int) -> QPixmap:
+        student_id = self._tactical_student_id_for_name(name)
+        if not student_id:
+            return QPixmap()
+        source = ensure_thumbnail(student_id, size, size)
+        if source is None or not source.exists():
+            return QPixmap()
+        pixmap = QPixmap(str(source))
+        return pixmap if not pixmap.isNull() else QPixmap()
+
+    def _build_tactical_deck_editor(self, title: str) -> tuple[QWidget, TacticalDeckEditor]:
+        editor = TacticalDeckEditor(title, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+        return editor, editor
+
+    def _deck_from_tactical_inputs(self, inputs) -> TacticalDeck:
+        if isinstance(inputs, TacticalDeckEditor):
+            return inputs.deck()
+        return TacticalDeck(
+            strikers=[edit.text().strip() for edit in inputs.get("strikers", []) if edit.text().strip()],
+            supports=[edit.text().strip() for edit in inputs.get("supports", []) if edit.text().strip()],
+        )
+
+    def _set_tactical_deck_inputs(self, inputs, deck: TacticalDeck) -> None:
+        if isinstance(inputs, TacticalDeckEditor):
+            inputs.setDeck(deck)
+            return
+        for edits, values in ((inputs.get("strikers", []), deck.strikers), (inputs.get("supports", []), deck.supports)):
+            for index, edit in enumerate(edits):
+                edit.setText(values[index] if index < len(values) else "")
+
+    def _clear_tactical_deck_inputs(self, inputs) -> None:
+        if isinstance(inputs, TacticalDeckEditor):
+            inputs.clearDeck()
+            return
+        for edit in inputs.get("strikers", []) + inputs.get("supports", []):
+            edit.clear()
+
+    def _save_tactical_data(self) -> None:
+        save_tactical_challenge(self._tactical_path, self._tactical_data)
+        self._storage_mtimes = self._snapshot_storage_mtimes()
+
+    def _save_tactical_match(self) -> None:
+        if self._tactical_match_panels:
+            self._save_tactical_match_panel(self._tactical_match_panels[0])
+
+    def _save_tactical_jokbo(self) -> None:
+        defense = self._deck_from_tactical_inputs(self._tactical_jokbo_defense_inputs)
+        attack = self._deck_from_tactical_inputs(self._tactical_jokbo_attack_inputs)
+        if not defense.strikers and not defense.supports:
+            self._tactical_status.setText("족보의 상대 방어덱을 입력해 주세요.")
+            return
+        if not attack.strikers and not attack.supports:
+            self._tactical_status.setText("족보의 추천 공격덱을 입력해 주세요.")
+            return
+        entry = TacticalJokboEntry(
+            id=f"jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
+            defense=defense,
+            attack=attack,
+            wins=int(self._tactical_jokbo_wins.value()),
+            losses=int(self._tactical_jokbo_losses.value()),
+            notes=self._tactical_jokbo_notes.toPlainText().strip(),
+            updated_at=datetime.now().isoformat(timespec="seconds"),
+        )
+        self._tactical_data.jokbo.append(entry)
+        self._save_tactical_data()
+        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense)
+        self._refresh_tactical_tab()
+        self._tactical_status.setText("족보를 저장했습니다.")
+
+    def _clear_tactical_match_form(self) -> None:
+        for panel in self._tactical_match_panels:
+            self._clear_tactical_match_panel(panel)
+
+    def _copy_tactical_match_defense_to_jokbo(self) -> None:
+        deck = TacticalDeck()
+        for panel in self._tactical_match_panels:
+            candidate = self._deck_from_tactical_inputs(panel["defense"])
+            if candidate.strikers or candidate.supports:
+                deck = candidate
+                break
+        self._set_tactical_deck_inputs(self._tactical_jokbo_defense_inputs, deck)
+        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, deck)
+
+    def _selected_tactical_match(self) -> TacticalMatch | None:
+        selected_id = self._tactical_selected_match_id
+        if not selected_id and hasattr(self, "_tactical_match_list"):
+            item = self._tactical_match_list.currentItem()
+            selected_id = str(item.data(Qt.UserRole) or "") if item is not None else ""
+        return next((match for match in self._tactical_data.matches if match.id == selected_id), None)
+
+    def _copy_selected_tactical_defense_to_search(self) -> None:
+        match = self._selected_tactical_match()
+        if match is None:
+            return
+        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, match.opponent_defense)
+        self._refresh_tactical_jokbo_results()
+
+    def _refresh_tactical_tab(self) -> None:
+        if not hasattr(self, "_tactical_match_list"):
+            return
+        if hasattr(self, "_tactical_season") and not self._tactical_season.hasFocus():
+            previous = self._tactical_season.blockSignals(True)
+            try:
+                self._tactical_season.setText(self._tactical_data.season or "")
+            finally:
+                self._tactical_season.blockSignals(previous)
+        self._refresh_tactical_match_list()
+        self._refresh_tactical_opponent_report()
+        self._refresh_tactical_jokbo_results()
+
+    def _refresh_tactical_match_list(self) -> None:
+        query = self._tactical_match_search.text() if hasattr(self, "_tactical_match_search") else ""
+        matches = filter_matches(self._tactical_data.matches, query)
+        current_id = self._tactical_selected_match_id
+        self._tactical_match_list.blockSignals(True)
+        self._tactical_match_list.clear()
+        for match in matches:
+            result_text = "승" if match.result == "win" else "패"
+            season_text = f" · {match.season}" if match.season else ""
+            item = QListWidgetItem()
+            item.setData(Qt.UserRole, match.id)
+            item.setToolTip(self._tactical_match_tooltip(match))
+            self._tactical_match_list.addItem(item)
+            row = QFrame()
+            row.setObjectName("planBand")
+            row_layout = QVBoxLayout(row)
+            row_layout.setContentsMargins(scale_px(8, self._ui_scale), scale_px(7, self._ui_scale), scale_px(8, self._ui_scale), scale_px(7, self._ui_scale))
+            top_row = QHBoxLayout()
+            text = QLabel(f"{match.date}{season_text}  [{result_text}] {match.opponent}")
+            text.setWordWrap(True)
+            text.setObjectName("sectionTitle")
+            top_row.addWidget(text, 1)
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(lambda *_args, match_id=match.id: self._delete_tactical_match(match_id))
+            top_row.addWidget(delete_button)
+            row_layout.addLayout(top_row)
+            deck_row = QHBoxLayout()
+            attack_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+            attack_preview.setDeck(match.my_attack)
+            defense_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+            defense_preview.setDeck(match.opponent_defense)
+            deck_row.addWidget(QLabel("ATK"))
+            deck_row.addWidget(attack_preview, 1)
+            deck_row.addWidget(QLabel("DEF"))
+            deck_row.addWidget(defense_preview, 1)
+            row_layout.addLayout(deck_row)
+            item.setSizeHint(row.sizeHint())
+            self._tactical_match_list.setItemWidget(item, row)
+            if current_id and match.id == current_id:
+                self._tactical_match_list.setCurrentItem(item)
+        self._tactical_match_list.blockSignals(False)
+        total = len(self._tactical_data.matches)
+        today_count = sum(1 for match in self._tactical_data.matches if match.date == self._tactical_date.text().strip())
+        wins = sum(1 for match in self._tactical_data.matches if match.result == "win")
+        self._tactical_match_summary.setText(f"오늘 {today_count}/5 · 전체 {wins}승 {total - wins}패")
+        self._set_tactical_match_detail(self._selected_tactical_match())
+
+    def _delete_tactical_match(self, match_id: str) -> None:
+        before = len(self._tactical_data.matches)
+        self._tactical_data.matches = [match for match in self._tactical_data.matches if match.id != match_id]
+        if len(self._tactical_data.matches) == before:
+            return
+        if self._tactical_selected_match_id == match_id:
+            self._tactical_selected_match_id = None
+        self._save_tactical_data()
+        self._refresh_tactical_tab()
+        self._tactical_status.setText("전적을 삭제했습니다.")
+
+    def _tactical_match_tooltip(self, match: TacticalMatch) -> str:
+        lines = [
+            f"{match.date} {match.season} {match.opponent}".strip(),
+            f"내 공격덱: {deck_label(match.my_attack)}",
+            f"상대 방어덱: {deck_label(match.opponent_defense)}",
+        ]
+        if deck_label(match.my_defense, empty=""):
+            lines.append(f"내 방어덱: {deck_label(match.my_defense)}")
+        if deck_label(match.opponent_attack, empty=""):
+            lines.append(f"상대 공격덱: {deck_label(match.opponent_attack)}")
+        if match.notes:
+            lines.append(match.notes)
+        return "\n".join(lines)
+
+    def _on_tactical_match_selected(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+        self._tactical_selected_match_id = str(current.data(Qt.UserRole) or "") if current is not None else None
+        match = self._selected_tactical_match()
+        if match is not None:
+            self._tactical_opponent_search.setText(match.opponent)
+            self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, match.opponent_defense)
+        self._set_tactical_match_detail(match)
+        self._refresh_tactical_opponent_report()
+        self._refresh_tactical_jokbo_results()
+
+    def _set_tactical_match_detail(self, match: TacticalMatch | None) -> None:
+        if match is None:
+            self._tactical_match_detail.setText("선택한 전적의 상세 정보가 여기에 표시됩니다.")
+            return
+        result_text = "승리" if match.result == "win" else "패배"
+        lines = [
+            f"{match.date} · {match.season or '-'} · {match.opponent} · {result_text}",
+            f"내 공격덱: {deck_label(match.my_attack)}",
+            f"상대 방어덱: {deck_label(match.opponent_defense)}",
+        ]
+        if deck_label(match.my_defense, empty=""):
+            lines.append(f"내 방어덱: {deck_label(match.my_defense)}")
+        if deck_label(match.opponent_attack, empty=""):
+            lines.append(f"상대 공격덱: {deck_label(match.opponent_attack)}")
+        if match.notes:
+            lines.append(f"메모: {match.notes}")
+        self._tactical_match_detail.setText("\n".join(lines))
+
+    def _refresh_tactical_opponent_report(self) -> None:
+        if not hasattr(self, "_tactical_opponent_summary"):
+            return
+        opponent = self._tactical_opponent_search.text().strip()
+        if not opponent:
+            match = self._selected_tactical_match()
+            opponent = match.opponent if match is not None else ""
+        if not opponent:
+            self._tactical_opponent_summary.setText("상대를 검색하거나 전적을 선택하면 상대전적과 최근 방어덱이 표시됩니다.")
+            self._tactical_opponent_top_list.clear()
+            return
+        report = opponent_report(self._tactical_data, opponent)
+        total = len(report["matches"])
+        self._tactical_opponent_top_list.clear()
+        if total == 0:
+            self._tactical_opponent_summary.setText(f"{opponent}: 기록이 없습니다.")
+            return
+        self._tactical_opponent_summary.setText(
+            f"{opponent}: {report['wins']}승 {report['losses']}패 ({report['win_rate']:.1f}%)\n"
+            f"최근 방어덱: {deck_label(report['recent_defense'])}\n"
+            f"최근 사용 공격덱: {deck_label(report['recent_attack'])}"
+        )
+        for index, entry in enumerate(report["top_defenses"], start=1):
+            item = QListWidgetItem(
+                f"TOP {index} · {entry['count']}회 · {entry['wins']}승 {entry['losses']}패 ({entry['win_rate']:.1f}%)\n"
+                f"방어: {deck_label(entry['deck'])}\n"
+                f"사용: {deck_label(entry['attack'])}"
+            )
+            self._tactical_opponent_top_list.addItem(item)
+        if not report["top_defenses"]:
+            self._tactical_opponent_top_list.addItem("방어덱 정보가 있는 전적이 없습니다.")
+
+    def _refresh_tactical_jokbo_results(self) -> None:
+        if not hasattr(self, "_tactical_jokbo_results"):
+            return
+        defense = self._deck_from_tactical_inputs(self._tactical_jokbo_search_inputs)
+        results = search_jokbo(self._tactical_data, defense)
+        self._tactical_jokbo_results.clear()
+        for result in results["manual"]:
+            entry = result["entry"]
+            self._add_tactical_jokbo_result_row(
+                title=f"족보 · {result['wins']}승 {result['losses']}패 ({result['win_rate']:.1f}%)",
+                defense=entry.defense,
+                attack=entry.attack,
+                note=entry.notes or "-",
+            )
+        for result in results["observed"]:
+            self._add_tactical_jokbo_result_row(
+                title=f"전적 기반 · {result['wins']}승 {result['losses']}패 ({result['win_rate']:.1f}%)",
+                defense=result["defense"],
+                attack=result["attack"],
+                note="",
+            )
+        if self._tactical_jokbo_results.count() == 0:
+            self._tactical_jokbo_results.addItem("일치하는 족보나 전적 기반 공격덱이 없습니다.")
+
+    def _add_tactical_jokbo_result_row(self, *, title: str, defense: TacticalDeck, attack: TacticalDeck, note: str) -> None:
+        item = QListWidgetItem()
+        row = QFrame()
+        row.setObjectName("planBand")
+        layout = QVBoxLayout(row)
+        layout.setContentsMargins(scale_px(8, self._ui_scale), scale_px(7, self._ui_scale), scale_px(8, self._ui_scale), scale_px(7, self._ui_scale))
+        label = QLabel(title)
+        label.setObjectName("sectionTitle")
+        layout.addWidget(label)
+        decks = QGridLayout()
+        decks.setContentsMargins(0, 0, 0, 0)
+        defense_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+        defense_preview.setDeck(defense)
+        attack_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+        attack_preview.setDeck(attack)
+        decks.addWidget(QLabel("DEF"), 0, 0)
+        decks.addWidget(defense_preview, 0, 1)
+        decks.addWidget(QLabel("ATK"), 1, 0)
+        decks.addWidget(attack_preview, 1, 1)
+        layout.addLayout(decks)
+        if note:
+            note_label = QLabel(note)
+            note_label.setObjectName("detailSub")
+            note_label.setWordWrap(True)
+            layout.addWidget(note_label)
+        self._tactical_jokbo_results.addItem(item)
+        item.setSizeHint(row.sizeHint())
+        self._tactical_jokbo_results.setItemWidget(item, row)
 
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -4383,6 +6031,16 @@ class StudentViewerWindow(QMainWindow):
         self._invalidate_plan_caches(student_id)
         return goal
 
+    def _apply_student_card_record(self, card: StudentCardWidget, record: StudentRecord) -> None:
+        divider_primary, divider_secondary = _student_divider_colors(record)
+        card.setData(
+            title=record.title,
+            owned=record.owned,
+            divider_left=QColor(divider_primary),
+            divider_right=QColor(divider_secondary),
+        )
+        card.setToolTip(record.student_id)
+
     def _build_student_card(self, record) -> StudentCardWidget:
         divider_primary, divider_secondary = _student_divider_colors(record)
         card = StudentCardWidget(
@@ -4394,6 +6052,7 @@ class StudentViewerWindow(QMainWindow):
             divider_right=QColor(divider_secondary),
         )
         card.setToolTip(record.student_id)
+        self._apply_cached_thumb_to_card(card)
         return card
 
     def _current_plan_grid_student_id(self) -> str | None:
@@ -4429,7 +6088,12 @@ class StudentViewerWindow(QMainWindow):
             self._plan_grid.blockSignals(previous)
 
     def _has_any_card_target(self, student_id: str) -> bool:
-        return student_id in self._item_by_id or student_id in self._plan_card_by_id
+        return (
+            student_id in self._item_by_id
+            or student_id in self._plan_card_by_id
+            or student_id in self._resource_scope_card_by_id
+            or student_id in self._resource_search_card_by_id
+        )
 
     def _update_plan_actions(self) -> None:
         search_selected = self._plan_current_all_student_id()
@@ -5152,6 +6816,7 @@ class StudentViewerWindow(QMainWindow):
             f"{len(self._plan.goals)} students in plan\n{self._format_cost_summary(total)}"
         )
         self._refresh_resources_if_visible()
+        self._refresh_inventory_tab()
 
     def _refresh_selected_plan_requirements(self, student_id: str | None = None) -> None:
         selected_id = student_id or self._selected_plan_student_id or self._current_plan_grid_student_id()
@@ -5578,6 +7243,7 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_snapshot = load_inventory_snapshot()
         self._inventory_quantity_index_cache = _inventory_quantity_index(self._inventory_snapshot or {})
         self._plan = load_plan(self._plan_path)
+        self._tactical_data = load_tactical_challenge(self._tactical_path)
         self._invalidate_plan_caches()
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._records_by_id = {record.student_id: record for record in self._all_students}
@@ -5588,6 +7254,7 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_plan_totals()
         self._refresh_stats_tab()
         self._refresh_inventory_tab()
+        self._refresh_tactical_tab()
 
     def _schedule_filter_refresh(self, *_args) -> None:
         self._filter_refresh_timer.start()
@@ -5630,7 +7297,7 @@ class StudentViewerWindow(QMainWindow):
             )
         )
         active_count = active_filter_count(self._selected_filters) + int(self._hide_jp_only.isChecked())
-        self._filter_button.setText(f"Filters ({active_count})" if active_count else "Filters")
+        self._filter_button.setText(f"필터 ({active_count})" if active_count else "필터")
         self._rebuild_list()
         self._refresh_stats_tab()
         self._sync_resource_controls_from_students()
@@ -5644,18 +7311,21 @@ class StudentViewerWindow(QMainWindow):
 
     def _rebuild_list(self) -> None:
         selected_id = self._current_student_id()
-        self._student_grid.clear_cards()
-        self._item_by_id.clear()
-        self._clear_thumb_requests()
+        old_cards = dict(self._item_by_id)
         cards: list[StudentCardWidget] = []
+        next_by_id: dict[str, StudentCardWidget] = {}
 
         for record in self._filtered_students:
-            card = self._build_student_card(record)
+            card = old_cards.get(record.student_id)
+            if card is None:
+                card = self._build_student_card(record)
+            else:
+                self._apply_student_card_record(card, record)
             cards.append(card)
-            self._item_by_id[record.student_id] = card
+            next_by_id[record.student_id] = card
 
-        if cards:
-            self._student_grid.add_cards(cards)
+        self._item_by_id = next_by_id
+        self._student_grid.set_cards(cards)
 
         for record in self._filtered_students:
             self._enqueue_thumb(record.student_id)
@@ -5669,6 +7339,34 @@ class StudentViewerWindow(QMainWindow):
         else:
             self._student_grid.set_current_card(None)
             self._clear_detail()
+
+    def _remember_thumb_pixmap(self, student_id: str, width: int, height: int, pixmap: QPixmap) -> None:
+        if pixmap.isNull():
+            return
+        key = (student_id, width, height)
+        self._thumb_pixmap_cache[key] = pixmap
+        self._thumb_pixmap_cache.move_to_end(key)
+        while len(self._thumb_pixmap_cache) > self._thumb_pixmap_cache_limit:
+            self._thumb_pixmap_cache.popitem(last=False)
+
+    def _cached_thumb_pixmap(self, student_id: str, width: int, height: int, path: str | None = None) -> QPixmap | None:
+        key = (student_id, width, height)
+        cached = self._thumb_pixmap_cache.get(key)
+        if cached is not None:
+            self._thumb_pixmap_cache.move_to_end(key)
+            return cached
+        if not path:
+            return None
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            return None
+        self._remember_thumb_pixmap(student_id, width, height, pixmap)
+        return pixmap
+
+    def _apply_cached_thumb_to_card(self, card: StudentCardWidget) -> None:
+        pixmap = self._cached_thumb_pixmap(card.student_id, self._thumb_width, self._thumb_height)
+        if pixmap is not None:
+            card.setPixmap(pixmap)
 
     def _clear_thumb_requests(self) -> None:
         self._thumb_pump.stop()
@@ -5685,17 +7383,37 @@ class StudentViewerWindow(QMainWindow):
         if not self._thumb_pump.isActive():
             self._thumb_pump.start()
 
+    def _visible_thumb_student_ids(self) -> set[str]:
+        visible: set[str] = set()
+        for attr in ("_student_grid", "_plan_grid", "_resource_scope_grid", "_resource_search_grid"):
+            grid = getattr(self, attr, None)
+            if grid is not None and grid.isVisible():
+                visible.update(grid.visible_card_ids())
+        return visible
+
+    def _pop_next_thumb_request(self) -> tuple[str, int, int]:
+        visible_ids = self._visible_thumb_student_ids()
+        if visible_ids:
+            for index, request in enumerate(self._pending_thumb_requests):
+                if request[0] in visible_ids:
+                    return self._pending_thumb_requests.pop(index)
+        return self._pending_thumb_requests.pop(0)
+
     def _drain_thumb_queue(self) -> None:
         started = 0
-        while self._pending_thumb_requests and started < self._thumb_batch_size:
-            student_id, width, height = self._pending_thumb_requests.pop(0)
+        while (
+            self._pending_thumb_requests
+            and started < self._thumb_batch_size
+            and len(self._thumb_loading) < self._thumb_max_in_flight
+        ):
+            student_id, width, height = self._pop_next_thumb_request()
             request = (student_id, width, height)
             self._pending_thumb_lookup.discard(request)
             if not self._has_any_card_target(student_id):
                 continue
             self._queue_thumb(student_id, width, height)
             started += 1
-        if not self._pending_thumb_requests:
+        if not self._pending_thumb_requests or len(self._thumb_loading) >= self._thumb_max_in_flight:
             self._thumb_pump.stop()
 
     def _queue_thumb(self, student_id: str, width: int, height: int) -> None:
@@ -5710,17 +7428,23 @@ class StudentViewerWindow(QMainWindow):
 
     def _apply_thumb(self, student_id: str, path: str, width: int, height: int) -> None:
         self._thumb_loading.discard((student_id, width, height))
+        if self._pending_thumb_requests and not self._thumb_pump.isActive():
+            self._thumb_pump.start()
         if not path:
             return
         if width != self._thumb_width or height != self._thumb_height:
             return
 
-        pixmap = QPixmap(path)
-        if not pixmap.isNull():
+        pixmap = self._cached_thumb_pixmap(student_id, width, height, path)
+        if pixmap is not None and not pixmap.isNull():
             if student_id in self._item_by_id:
                 self._student_grid.set_card_pixmap(student_id, pixmap)
             if student_id in self._plan_card_by_id:
                 self._plan_grid.set_card_pixmap(student_id, pixmap)
+            if student_id in self._resource_scope_card_by_id:
+                self._resource_scope_grid.set_card_pixmap(student_id, pixmap)
+            if student_id in self._resource_search_card_by_id:
+                self._resource_search_grid.set_card_pixmap(student_id, pixmap)
 
     def _on_student_card_changed(self, current: str | None, _previous: str | None) -> None:
         if not current:
@@ -5879,3 +7603,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

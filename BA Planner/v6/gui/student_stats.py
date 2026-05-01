@@ -41,7 +41,7 @@ STAT_FIELDS: tuple[str, ...] = (
     "range_type",
 )
 
-STAT_FIELD_LABELS: dict[str, str] = {"owned": "Ownership"} | FILTER_FIELD_LABELS
+STAT_FIELD_LABELS: dict[str, str] = {"owned": "보유"} | FILTER_FIELD_LABELS
 
 PALETTE: tuple[str, ...] = (
     "#73c0ff",
@@ -96,10 +96,10 @@ def build_distribution(students: Sequence[Any], field_name: str) -> list[Distrib
     counts: Counter[str] = Counter()
     for student in students:
         if field_name == "owned":
-            label = "Owned" if getattr(student, "owned", True) else "Unowned"
+            label = "보유" if getattr(student, "owned", True) else "미보유"
         else:
             value = get_student_value(student, field_name)
-            label = format_filter_value(field_name, value) if value else "(Missing)"
+            label = format_filter_value(field_name, value) if value else "(없음)"
         counts[label] += 1
 
     rows: list[DistributionRow] = []
@@ -544,7 +544,7 @@ class StatsDialog(QDialog):
         field_name = self._field_combo.currentData()
         self._rows = build_distribution(self._students, field_name)
         total = sum(row.count for row in self._rows)
-        self._summary.setText(f"{STAT_FIELD_LABELS[field_name]} distribution across {total} students")
+        self._summary.setText(f"{STAT_FIELD_LABELS[field_name]} 분포 · 학생 {total}명")
         self._rebuild_cards()
         self._rebuild_table()
 

@@ -263,13 +263,31 @@ class StudentCardWidget(QWidget):
         self._hovered = False
         self._pressed = False
         self._pixmap = QPixmap()
+        self._scaled_portrait = QPixmap()
+        self._scaled_portrait_key: tuple[int, int, int] | None = None
         self.setMouseTracking(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setAttribute(Qt.WA_Hover, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
+    def setData(self, *, title: str, owned: bool, divider_left: QColor, divider_right: QColor) -> None:
+        if (
+            self._title == title
+            and self._owned == owned
+            and self._divider_left == divider_left
+            and self._divider_right == divider_right
+        ):
+            return
+        self._title = title
+        self._owned = owned
+        self._divider_left = divider_left
+        self._divider_right = divider_right
+        self.update()
+
     def setPixmap(self, pixmap: QPixmap) -> None:
         self._pixmap = pixmap
+        self._scaled_portrait = QPixmap()
+        self._scaled_portrait_key = None
         self.update()
 
     def setSelected(self, selected: bool) -> None:
@@ -283,6 +301,8 @@ class StudentCardWidget(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._scaled_portrait = QPixmap()
+        self._scaled_portrait_key = None
         self._update_mask()
 
     def enterEvent(self, event) -> None:
@@ -374,10 +394,14 @@ class StudentCardWidget(QWidget):
     def _paint_portrait(self, painter: QPainter) -> None:
         if self._pixmap.isNull():
             return
-        target_width = self.width()
-        scaled = self._pixmap.scaledToWidth(target_width, Qt.SmoothTransformation)
-        if scaled.height() < self.height():
-            scaled = self._pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        key = (int(self._pixmap.cacheKey()), self.width(), self.height())
+        if self._scaled_portrait_key != key or self._scaled_portrait.isNull():
+            scaled = self._pixmap.scaledToWidth(self.width(), Qt.SmoothTransformation)
+            if scaled.height() < self.height():
+                scaled = self._pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            self._scaled_portrait = scaled
+            self._scaled_portrait_key = key
+        scaled = self._scaled_portrait
         x = (self.width() - scaled.width()) // 2
         y = (self.height() - scaled.height()) // 2
         painter.drawPixmap(x, y, scaled)
@@ -581,13 +605,22 @@ class StudentPortraitWidget(QWidget):
 
 class ParallelogramCardGrid(QScrollArea):
     current_changed = Signal(object, object)
+    selection_changed = Signal(object)
     card_double_clicked = Signal(str)
     layout_changed = Signal(int, int)
 
-    def __init__(self, card_asset: ParallelogramCardAsset, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        card_asset: ParallelogramCardAsset,
+        ui_scale: float = 1.0,
+        parent: QWidget | None = None,
+        *,
+        multi_select: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._card_asset = card_asset
         self._ui_scale = ui_scale
+        self._multi_select = multi_select
         self._content = QWidget()
         self._content.setAttribute(Qt.WA_StyledBackground, True)
         self.setWidget(self._content)
@@ -597,12 +630,14 @@ class ParallelogramCardGrid(QScrollArea):
         self._cards: list[StudentCardWidget] = []
         self._card_by_id: dict[str, StudentCardWidget] = {}
         self._current_id: str | None = None
+        self._selected_ids: set[str] = set()
         self._base_size = card_asset.base_size
         self._min_card_width = max(160, int(round(self._base_size.width() * max(0.72, min(1.0, ui_scale)))))
         self._current_card_size = QSize(self._base_size)
 
     def clear_cards(self) -> None:
         self._current_id = None
+        self._selected_ids.clear()
         self._card_by_id.clear()
         while self._cards:
             card = self._cards.pop()
@@ -611,29 +646,100 @@ class ParallelogramCardGrid(QScrollArea):
         self._content.resize(edge * 2, edge * 2)
         self.viewport().update()
 
-    def add_card(self, card: StudentCardWidget) -> None:
+    def _attach_card(self, card: StudentCardWidget) -> None:
         card.setParent(self._content)
-        card.clicked.connect(self.set_current_card)
+        card.clicked.connect(self._on_card_clicked)
         card.double_clicked.connect(self.card_double_clicked)
         card.show()
+
+    def add_card(self, card: StudentCardWidget) -> None:
+        self._attach_card(card)
         self._cards.append(card)
         self._card_by_id[card.student_id] = card
         self._relayout()
 
     def add_cards(self, cards: list[StudentCardWidget]) -> None:
         for card in cards:
-            card.setParent(self._content)
-            card.clicked.connect(self.set_current_card)
-            card.double_clicked.connect(self.card_double_clicked)
-            card.show()
+            self._attach_card(card)
             self._cards.append(card)
             self._card_by_id[card.student_id] = card
         self._relayout()
 
+    def set_cards(self, cards: list[StudentCardWidget]) -> None:
+        old_cards = set(self._cards)
+        next_cards = list(cards)
+        next_card_set = set(next_cards)
+
+        for card in next_cards:
+            if card not in old_cards:
+                self._attach_card(card)
+            else:
+                card.show()
+
+        for card in old_cards - next_card_set:
+            card.hide()
+            card.deleteLater()
+
+        self._cards = next_cards
+        self._card_by_id = {card.student_id: card for card in next_cards}
+        self._selected_ids &= set(self._card_by_id)
+        if self._current_id not in self._card_by_id:
+            self._current_id = None
+
+        if self._cards:
+            self._relayout()
+        else:
+            edge = self._card_asset.style.grid_edge_padding
+            self._content.resize(edge * 2, edge * 2)
+            self.viewport().update()
+
     def current_card_id(self) -> str | None:
         return self._current_id
 
+    def selected_card_ids(self) -> set[str]:
+        return set(self._selected_ids)
+
+    def set_selected_card_ids(self, student_ids: set[str]) -> None:
+        if not self._multi_select:
+            self.set_current_card(next(iter(student_ids), None))
+            return
+        next_ids = {student_id for student_id in student_ids if student_id in self._card_by_id}
+        if next_ids == self._selected_ids:
+            return
+        self._selected_ids = next_ids
+        for student_id, card in self._card_by_id.items():
+            card.setSelected(student_id in self._selected_ids)
+        self._relayout()
+        self.selection_changed.emit(set(self._selected_ids))
+
+    def _on_card_clicked(self, student_id: str) -> None:
+        if not self._multi_select:
+            self.set_current_card(student_id)
+            return
+        if student_id in self._selected_ids:
+            self._selected_ids.remove(student_id)
+        else:
+            self._selected_ids.add(student_id)
+        card = self._card_by_id.get(student_id)
+        if card is not None:
+            card.setSelected(student_id in self._selected_ids)
+            card.raise_()
+        self._relayout()
+        self.current_changed.emit(student_id, None)
+        self.selection_changed.emit(set(self._selected_ids))
+
     def set_current_card(self, student_id: str | None) -> None:
+        if self._multi_select:
+            if student_id is None:
+                self.set_selected_card_ids(set())
+                return
+            selected = set(self._selected_ids)
+            if student_id in selected:
+                selected.remove(student_id)
+            else:
+                selected.add(student_id)
+            self.set_selected_card_ids(selected)
+            return
         if student_id == self._current_id:
             return
         previous = self._current_id
@@ -658,6 +764,16 @@ class ParallelogramCardGrid(QScrollArea):
 
     def current_card_size(self) -> QSize:
         return QSize(self._current_card_size)
+
+    def visible_card_ids(self) -> set[str]:
+        viewport_rect = self.viewport().rect()
+        result: set[str] = set()
+        for card in self._cards:
+            top_left = card.mapTo(self.viewport(), card.rect().topLeft())
+            card_rect = QRect(top_left, card.size())
+            if card_rect.intersects(viewport_rect):
+                result.add(card.student_id)
+        return result
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -694,7 +810,7 @@ class ParallelogramCardGrid(QScrollArea):
             col = index % columns
             x = edge + col * advance_x
             y = edge + row * (card_height + gap_y)
-            if card.student_id == self._current_id:
+            if card.student_id == self._current_id or card.student_id in self._selected_ids:
                 expand = self._card_asset.style.selected_expand
                 lift = self._card_asset.style.selected_lift_y
                 card.setGeometry(

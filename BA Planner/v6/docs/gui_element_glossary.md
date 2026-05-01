@@ -94,10 +94,10 @@
 | canonical name | Korean name | What it means | Code / objectName |
 | --- | --- | --- | --- |
 | `Viewer Root` | 뷰어 루트 | 전체 Qt 창의 중앙 위젯 | `viewerRoot` |
-| `Main Tabs` | 메인 탭 바 | Students, Plans, Resources, Inventory, Statistics 탭 | `mainTabs` |
+| `Main Tabs` | 메인 탭 바 | Students, Plans, Requirements, Inventory, Statistics 탭 | `mainTabs` |
 | `Students Tab` | 학생 탭 | 학생 탐색과 상세 보기 화면 | `_build_students_tab` |
 | `Plans Tab` | 계획 탭 | 성장 목표 계획 편집 화면 | `_build_plan_tab` |
-| `Resources Tab` | 자원 탭 | 계획 자원 소모 계산 화면 | `_build_resource_tab` |
+| `Requirements Tab` | 필요 재화 탭 | scope 학생 집합의 누적 필요 재화 계산 화면 | `_build_resource_tab` |
 | `Inventory Tab` | 인벤토리 탭 | 스캔된 보유 재화/장비 목록 화면 | `_build_inventory_tab` |
 | `Statistics Tab` | 통계 탭 | 보유/속성/학교/역할 분포 화면 | `_build_stats_tab` |
 | `Tab Header` | 탭 헤더 | 각 탭 최상단 제목/설명 영역 | `header` |
@@ -179,13 +179,15 @@
 | `Plan Stepper` | 숫자 스테퍼 | 숫자 입력과 MAX 버튼으로 목표값을 편집하는 컨트롤 | `PlanStepper` |
 | `Plan Dual Digit Selector` | 두 자리 선택기 | 10의 자리/1의 자리 방식 목표값 선택기 | `PlanDualDigitSelector` |
 
-## Resources Tab
+## Requirements Tab
 
 | canonical name | Korean name | What it means | Code |
 | --- | --- | --- | --- |
-| `Resources Header` | 자원 탭 헤더 | Resource Manager 제목과 설명 | `_build_resource_tab`, `header` |
-| `Resources Toolbar` | 자원 도구막대 | 검색, 정렬, 보유/JP 필터, 필터/새로고침 버튼 영역 | `toolbar`, `panel` |
-| `Resources Search Field` | 자원 검색칸 | 자원 계산 대상 학생 검색 입력 | `_resource_search` |
+| `Requirements Header` | 필요 재화 탭 헤더 | Requirement Scope 제목과 설명 | `_build_resource_tab`, `header` |
+| `Resource Left Mode Tabs` | 자원 좌측 모드 탭 | Scope/Search 좌측 창 전환 탭 | `_resource_left_tabs` |
+| `Resource Left Mode Stack` | 자원 좌측 모드 스택 | Scope 창과 Search 창을 담는 스택 | `_resource_left_stack` |
+| `Resources Toolbar` | 자원 도구막대 | Search 창 안의 검색, 정렬, 보유/JP 필터, 필터/새로고침 버튼 영역 | `toolbar`, `panel` |
+| `Resources Search Field` | 자원 검색칸 | Search 창에서 자원 계산 대상 학생 검색 입력 | `_resource_search` |
 | `Resources Sort Dropdown` | 자원 정렬 드롭다운 | 자원 대상 학생 정렬 기준 | `_resource_sort_mode` |
 | `Resources Show Unowned Toggle` | 자원 미보유 표시 토글 | 자원 계산 대상에 미보유를 포함할지 선택 | `_resource_show_unowned` |
 | `Resources Hide JP-only Toggle` | 자원 JP-only 숨김 토글 | 자원 계산 대상에서 JP-only 숨김 | `_resource_hide_jp_only` |
@@ -194,19 +196,15 @@
 | `Resources Filter Summary` | 자원 필터 요약줄 | 자원 탭 필터 상태 요약 | `_resource_filter_summary` |
 | `Resources Splitter` | 자원 화면 분할바 | 좌측 대상 학생 목록과 우측 결과 영역 분할 | local `splitter` |
 | `Resource Scope Panel` | 자원 대상 학생 패널 | 계산 범위에 들어온 학생 리스트 | local `left_panel` |
-| `Resource Scope Summary` | 자원 대상 요약줄 | 대상 학생 수/선택 상태 요약 | `_resource_list_summary` |
-| `Resource Student List` | 자원 학생 목록 | 체크 가능한 학생 목록 | `_resource_list` |
-| `Resource Student Row` | 자원 학생 행 | 학생명, 계획 상태, 비용 요약, 체크박스를 가진 행 | `ResourceStudentListItem` |
-| `Resource Result Panel` | 자원 결과 패널 | Single/Aggregate 모드 탭과 결과 목록 | local `right_panel` |
-| `Resource Mode Tabs` | 자원 모드 탭 | Single, Aggregate 하위 탭 | `_resource_mode_tabs` |
-| `Single Resource Tab` | 단일 학생 자원 탭 | 선택 학생 1명의 필요 자원 보기 | local `single_tab` |
-| `Single Resource Options` | 단일 자원 옵션 패널 | 선택 학생 설명 영역 | `single_options` |
-| `Single Resource Output` | 단일 자원 결과 목록 | 선택 학생 비용 목록 | `_resource_single_output` |
-| `Aggregate Resource Tab` | 합산 자원 탭 | 여러 학생의 필요 자원 합산 보기 | local `aggregate_tab` |
-| `Aggregate Resource Options` | 합산 자원 옵션 패널 | 합산 범위 선택과 체크 일괄 버튼 | `aggregate_options` |
-| `Aggregate Scope Dropdown` | 합산 범위 드롭다운 | Checked/Planned/Visible planned 선택 | `_resource_aggregate_scope` |
-| `Aggregate Quick Actions` | 합산 빠른 버튼줄 | Check visible, Check planned, Clear 버튼 | local `aggregate_buttons` |
-| `Aggregate Resource Output` | 합산 자원 결과 목록 | 합산 비용 목록 | `_resource_aggregate_output` |
+| `Resource Scope Summary` | 자원 대상 요약줄 | scope 학생 수와 plan 포함/미포함 요약 | `_resource_list_summary` |
+| `Resource Scope Count` | 자원 대상 수 | scope에 들어간 학생 수 | `_resource_scope_count` |
+| `Resource Unplanned Options` | 미계획 학생 계산 옵션 | plan에 없는 scope 학생의 Level/Equipment/Skills 비용 포함 여부 | `_resource_unplanned_level`, `_resource_unplanned_equipment`, `_resource_unplanned_skills` |
+| `Resource Scope Grid` | 자원 대상 학생 그리드 | scope에 들어간 학생 카드 그리드 | `_resource_scope_grid` |
+| `Resource Search Result Grid` | 자원 검색 결과 그리드 | 검색/필터 결과를 카드 on 상태로 고른 뒤 scope에 추가하는 그리드 | `_resource_search_grid` |
+| `Resource Search Summary` | 자원 검색 결과 요약줄 | 검색 결과 수, plan 포함 수, scope 포함 수, 추가 대기 수 요약 | `_resource_search_summary` |
+| `Resource Result Panel` | 자원 결과 패널 | scope 전체 누적 필요 재화 칩 그리드 | local `right_panel` |
+| `Aggregate Resource Options` | 합산 자원 옵션 패널 | scope 합산 상태 요약 | `aggregate_options` |
+| `Aggregate Resource Output` | 합산 자원 결과 그리드 | scope 합산 비용 칩 그리드 | `_resource_requirement_grid` |
 
 ## Inventory Tab
 
@@ -274,7 +272,7 @@
 - "Students Toolbar의 검색칸을 더 넓혀줘."
 - "Student Detail Panel의 Detail Hero Portrait 높이를 줄여줘."
 - "Plans Tab의 Equipment Tier Section을 오른쪽 컬럼으로 옮겨줘."
-- "Resources Tab의 Aggregate Quick Actions 버튼 간격을 줄여줘."
+- "Requirements Tab의 scope 추가 버튼 간격을 줄여줘."
 - "Inventory Item Row에서 수량을 더 눈에 띄게 해줘."
 - "Floating Overlay의 Scan Progress Card 메시지 줄바꿈을 고쳐줘."
 - "Input Test Overlay의 Region Capture Section에 새 버튼을 추가해줘."
