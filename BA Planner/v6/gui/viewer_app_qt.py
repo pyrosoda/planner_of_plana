@@ -50,12 +50,19 @@ from core.tactical_challenge import (
     TacticalMatch,
     deck_label,
     deck_template,
-    filter_matches,
+    delete_tactical_match,
+    get_tactical_match,
     load_tactical_challenge,
-    opponent_report,
+    opponent_report_from_storage,
     parse_deck_template,
+    query_tactical_matches,
+    save_tactical_metadata,
     save_tactical_challenge,
-    search_jokbo,
+    search_jokbo_from_storage,
+    tactical_match_count,
+    tactical_match_summary,
+    upsert_tactical_jokbo,
+    upsert_tactical_match,
 )
 from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QPainter, QPainterPath, QPen, QPixmap
@@ -77,6 +84,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QSplitter,
@@ -2214,11 +2222,12 @@ class TacticalDeckSlot(QWidget):
 
 
 class TacticalDeckEditor(QWidget):
-    def __init__(self, title: str, *, card_asset: ParallelogramCardAsset, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
+    def __init__(self, title: str, *, card_asset: ParallelogramCardAsset, ui_scale: float, icon_provider, deck_parser=None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._card_asset = card_asset
         self._ui_scale = ui_scale
         self._icon_provider = icon_provider
+        self._deck_parser = deck_parser or parse_deck_template
         self._slot_width = scale_px(74, self._ui_scale)
         self._slot_height = max(scale_px(58, self._ui_scale), int(round(self._slot_width / self._card_asset.aspect_ratio)))
         self._icons: list[TacticalDeckSlot] = []
@@ -2264,10 +2273,14 @@ class TacticalDeckEditor(QWidget):
         action_row.setContentsMargins(0, 0, 0, 0)
         action_row.addStretch(1)
         copy_button = QPushButton("Copy")
-        copy_button.setFixedWidth(scale_px(54, self._ui_scale))
-        copy_button.clicked.connect(self.copyTemplate)
         import_button = QPushButton("Import")
-        import_button.setFixedWidth(scale_px(54, self._ui_scale))
+        button_width = max(
+            scale_px(68, self._ui_scale),
+            QFontMetrics(import_button.font()).horizontalAdvance("Import") + scale_px(28, self._ui_scale),
+        )
+        copy_button.setFixedWidth(button_width)
+        import_button.setFixedWidth(button_width)
+        copy_button.clicked.connect(self.copyTemplate)
         import_button.clicked.connect(self.importTemplate)
         action_row.addWidget(copy_button)
         action_row.addWidget(import_button)
@@ -2277,8 +2290,11 @@ class TacticalDeckEditor(QWidget):
     def deck(self) -> TacticalDeck:
         text = self._template_input.text().strip()
         if text and text != deck_template(self._deck):
-            return parse_deck_template(text)
+            return self._deck_parser(text)
         return self._deck
+
+    def templateText(self) -> str:
+        return self._template_input.text().strip()
 
     def setDeck(self, deck: TacticalDeck) -> None:
         self._deck = deck
@@ -2299,7 +2315,7 @@ class TacticalDeckEditor(QWidget):
     def importTemplate(self) -> None:
         text = self._template_input.text().strip() or QApplication.clipboard().text().strip()
         if text:
-            self.setDeck(parse_deck_template(text))
+            self.setDeck(self._deck_parser(text))
 
     def _syncIcons(self) -> None:
         deck = self._deck
@@ -2375,6 +2391,9 @@ class StudentViewerWindow(QMainWindow):
         self._detail_panel: QFrame | None = None
         self._detail_scroll: QScrollArea | None = None
         self._hero_wrap: QFrame | None = None
+        self._busy_overlay: QFrame | None = None
+        self._busy_label: QLabel | None = None
+        self._busy_cursor_active = False
         self._student_card_asset = ParallelogramCardAsset(build_card_style(CARD_BUTTON_ASSET, ui_scale))
         self._card_button_style = build_card_button_style(CARD_BUTTON_ASSET, ui_scale)
         self._base_thumb_width = scale_px(self._student_card_asset.base_size.width(), ui_scale)
@@ -2408,8 +2427,8 @@ class StudentViewerWindow(QMainWindow):
         self._filter_options = build_filter_options(self._all_students)
         self._plan_path = get_storage_paths().current_dir / "growth_plan.json"
         self._plan = load_plan(self._plan_path)
-        self._tactical_path = get_storage_paths().current_dir / "tactical_challenge.json"
-        self._tactical_data = load_tactical_challenge(self._tactical_path)
+        self._tactical_path = get_storage_paths().current_dir / "tactical_challenge.db"
+        self._tactical_data = load_tactical_challenge(self._tactical_path, load_matches=False)
         self._plan_editor_guard = False
         self._selected_plan_student_id: str | None = None
         self._plan_segment_inputs: dict[str, PlanSegmentSelector] = {}
@@ -2449,6 +2468,9 @@ class StudentViewerWindow(QMainWindow):
         self._stats_sunburst_mode: QComboBox | None = None
         self._stats_sunburst_detail: QLabel | None = None
         self._tactical_selected_match_id: str | None = None
+        self._tactical_match_page_size = 100
+        self._tactical_match_loaded_count = self._tactical_match_page_size
+        self._tactical_match_query = ""
         self._card_layout_guard = False
         self._thumb_pump = QTimer(self)
         self._thumb_pump.setSingleShot(False)
@@ -2827,6 +2849,7 @@ class StudentViewerWindow(QMainWindow):
             }}
             """
         )
+        self._build_busy_overlay(root)
 
     def _build_students_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -3159,6 +3182,96 @@ class StudentViewerWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         QTimer.singleShot(0, self._sync_hero_height)
+        self._sync_busy_overlay_geometry()
+
+    def _build_busy_overlay(self, parent: QWidget) -> None:
+        overlay = QFrame(parent)
+        overlay.setObjectName("busyOverlay")
+        overlay.setAttribute(Qt.WA_StyledBackground, True)
+        overlay.hide()
+        overlay.setGeometry(parent.rect())
+        overlay.setStyleSheet(
+            f"""
+            QFrame#busyOverlay {{
+                background: rgba(0, 0, 0, 132);
+            }}
+            QFrame#busyCard {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(10, self._ui_scale)}px;
+            }}
+            QProgressBar {{
+                background: {SURFACE_ALT};
+                border: 1px solid {BORDER};
+                border-radius: {scale_px(5, self._ui_scale)}px;
+                min-height: {scale_px(10, self._ui_scale)}px;
+                max-height: {scale_px(10, self._ui_scale)}px;
+            }}
+            QProgressBar::chunk {{
+                background: {ACCENT_STRONG};
+                border-radius: {scale_px(5, self._ui_scale)}px;
+            }}
+            """
+        )
+
+        layout = QVBoxLayout(overlay)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignCenter)
+
+        card = QFrame(overlay)
+        card.setObjectName("busyCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(
+            scale_px(24, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(24, self._ui_scale),
+            scale_px(18, self._ui_scale),
+        )
+        card_layout.setSpacing(scale_px(12, self._ui_scale))
+
+        label = QLabel("저장 중...", card)
+        label.setObjectName("sectionTitle")
+        label.setAlignment(Qt.AlignCenter)
+        progress = QProgressBar(card)
+        progress.setRange(0, 0)
+        progress.setTextVisible(False)
+        progress.setFixedWidth(scale_px(220, self._ui_scale))
+
+        card_layout.addWidget(label)
+        card_layout.addWidget(progress, 0, Qt.AlignHCenter)
+        layout.addWidget(card)
+
+        self._busy_overlay = overlay
+        self._busy_label = label
+
+    def _sync_busy_overlay_geometry(self) -> None:
+        if self._busy_overlay is None:
+            return
+        parent = self._busy_overlay.parentWidget()
+        if parent is None:
+            return
+        self._busy_overlay.setGeometry(parent.rect())
+
+    def _show_busy_overlay(self, text: str = "저장 중...") -> None:
+        if self._busy_overlay is None:
+            return
+        if self._busy_label is not None:
+            self._busy_label.setText(text)
+        self._sync_busy_overlay_geometry()
+        self._busy_overlay.raise_()
+        self._busy_overlay.show()
+        if not self._busy_cursor_active:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self._busy_cursor_active = True
+        QApplication.processEvents()
+
+    def _hide_busy_overlay(self) -> None:
+        if self._busy_overlay is not None:
+            self._busy_overlay.hide()
+        if self._busy_cursor_active:
+            QApplication.restoreOverrideCursor()
+            self._busy_cursor_active = False
+        QApplication.processEvents()
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
@@ -4959,6 +5072,9 @@ class StudentViewerWindow(QMainWindow):
         self._tactical_match_panels.append(panel)
         input_layout.addWidget(panel_widget)
 
+        abbrev_panel = self._build_tactical_abbreviation_panel()
+        input_layout.addWidget(abbrev_panel)
+
         self._tactical_status = QLabel("")
         self._tactical_status.setObjectName("filterSummary")
         self._tactical_status.setWordWrap(True)
@@ -4986,11 +5102,14 @@ class StudentViewerWindow(QMainWindow):
         history_layout.addLayout(history_header)
         self._tactical_match_search = QLineEdit()
         self._tactical_match_search.setPlaceholderText("상대 이름, 학생, 메모 검색")
-        self._tactical_match_search.textChanged.connect(lambda *_: self._refresh_tactical_match_list())
+        self._tactical_match_search.textChanged.connect(lambda *_: self._reset_tactical_match_list())
         history_layout.addWidget(self._tactical_match_search)
         self._tactical_match_list = QListWidget()
         self._tactical_match_list.currentItemChanged.connect(self._on_tactical_match_selected)
         history_layout.addWidget(self._tactical_match_list, 1)
+        self._tactical_match_load_more_button = QPushButton("더 보기")
+        self._tactical_match_load_more_button.clicked.connect(self._load_more_tactical_matches)
+        history_layout.addWidget(self._tactical_match_load_more_button)
         match_action_row = QHBoxLayout()
         match_action_row.setContentsMargins(0, 0, 0, 0)
         self._tactical_match_copy_attack_button = QPushButton("ATK Copy")
@@ -5062,8 +5181,8 @@ class StudentViewerWindow(QMainWindow):
         self._tactical_jokbo_copy_attack_button = QPushButton("ATK Copy")
         self._tactical_jokbo_copy_attack_button.clicked.connect(self._copy_selected_tactical_jokbo_attack)
         jokbo_action_row.addStretch(1)
-        jokbo_action_row.addWidget(self._tactical_jokbo_copy_defense_button)
         jokbo_action_row.addWidget(self._tactical_jokbo_copy_attack_button)
+        jokbo_action_row.addWidget(self._tactical_jokbo_copy_defense_button)
         jokbo_layout.addLayout(jokbo_action_row)
         insight_tabs.addTab(jokbo_tab, "족보")
         splitter.addWidget(insight_panel)
@@ -5147,6 +5266,95 @@ class StudentViewerWindow(QMainWindow):
         self._set_tactical_panel_mode(panel, "attack")
         return panel_widget, panel
 
+    def _build_tactical_abbreviation_panel(self) -> QFrame:
+        panel = QFrame()
+        panel.setObjectName("planBand")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
+        layout.setSpacing(scale_px(7, self._ui_scale))
+
+        header = QHBoxLayout()
+        title = QLabel("줄임말 설정")
+        title.setObjectName("sectionTitle")
+        add_striker_button = QPushButton("스트 추가")
+        add_striker_button.clicked.connect(lambda *_: self._add_tactical_abbreviation_row("", "", "striker"))
+        add_special_button = QPushButton("스페셜 추가")
+        add_special_button.clicked.connect(lambda *_: self._add_tactical_abbreviation_row("", "", "special"))
+        header.addWidget(title)
+        header.addStretch(1)
+        header.addWidget(add_striker_button)
+        header.addWidget(add_special_button)
+        layout.addLayout(header)
+
+        hint = QLabel("스트라이커와 스페셜 줄임말은 별도 사전입니다. 같은 글자도 슬롯에 따라 따로 해석됩니다.")
+        hint.setObjectName("detailSub")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        self._tactical_abbrev_rows: list[tuple[QLineEdit, QLineEdit, QWidget]] = []
+        self._tactical_special_abbrev_rows: list[tuple[QLineEdit, QLineEdit, QWidget]] = []
+        striker_label = QLabel("스트라이커")
+        striker_label.setObjectName("detailSectionTitle")
+        layout.addWidget(striker_label)
+        self._tactical_abbrev_rows_layout = QVBoxLayout()
+        self._tactical_abbrev_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._tactical_abbrev_rows_layout.setSpacing(scale_px(5, self._ui_scale))
+        layout.addLayout(self._tactical_abbrev_rows_layout)
+
+        for key, value in sorted((self._tactical_data.abbreviations or {}).items()):
+            self._add_tactical_abbreviation_row(key, value, "striker")
+        if not self._tactical_abbrev_rows:
+            self._add_tactical_abbreviation_row("", "", "striker")
+
+        special_label = QLabel("스페셜")
+        special_label.setObjectName("detailSectionTitle")
+        layout.addWidget(special_label)
+        self._tactical_special_abbrev_rows_layout = QVBoxLayout()
+        self._tactical_special_abbrev_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._tactical_special_abbrev_rows_layout.setSpacing(scale_px(5, self._ui_scale))
+        layout.addLayout(self._tactical_special_abbrev_rows_layout)
+
+        for key, value in sorted((self._tactical_data.special_abbreviations or {}).items()):
+            self._add_tactical_abbreviation_row(key, value, "special")
+        if not self._tactical_special_abbrev_rows:
+            self._add_tactical_abbreviation_row("", "", "special")
+        return panel
+
+    def _add_tactical_abbreviation_row(self, key: str, value: str, role: str = "striker") -> None:
+        rows_layout_name = "_tactical_special_abbrev_rows_layout" if role == "special" else "_tactical_abbrev_rows_layout"
+        rows_name = "_tactical_special_abbrev_rows" if role == "special" else "_tactical_abbrev_rows"
+        rows_layout = getattr(self, rows_layout_name, None)
+        rows = getattr(self, rows_name, None)
+        if rows_layout is None or rows is None:
+            return
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(scale_px(5, self._ui_scale))
+        key_input = QLineEdit(key)
+        key_input.setMaxLength(1)
+        key_input.setPlaceholderText("글자")
+        key_input.setFixedWidth(scale_px(48, self._ui_scale))
+        student_input = QLineEdit(value)
+        student_input.setPlaceholderText("스페셜 학생" if role == "special" else "스트라이커 학생")
+        remove_button = QPushButton("[삭제]")
+        row_layout.addWidget(key_input)
+        row_layout.addWidget(student_input, 1)
+        row_layout.addWidget(remove_button)
+        rows_layout.addWidget(row)
+        rows.append((key_input, student_input, row))
+        key_input.editingFinished.connect(self._save_tactical_abbreviations)
+        student_input.editingFinished.connect(self._save_tactical_abbreviations)
+        remove_button.clicked.connect(lambda *_args, target=row, target_role=role: self._remove_tactical_abbreviation_row(target, target_role))
+
+    def _remove_tactical_abbreviation_row(self, row: QWidget, role: str = "striker") -> None:
+        rows_name = "_tactical_special_abbrev_rows" if role == "special" else "_tactical_abbrev_rows"
+        rows = getattr(self, rows_name, [])
+        setattr(self, rows_name, [entry for entry in rows if entry[2] is not row])
+        row.setParent(None)
+        row.deleteLater()
+        self._save_tactical_abbreviations()
+
     def _set_tactical_panel_mode(self, panel: dict, mode: str) -> None:
         panel["mode"] = mode if mode in {"attack", "defense", "jokbo"} else "attack"
         if "title" in panel:
@@ -5177,17 +5385,28 @@ class StudentViewerWindow(QMainWindow):
         panel["loss_button"].setStyleSheet(selected_style if panel["result"] == "loss" else idle_style)
 
     def _save_tactical_match_panel(self, panel: dict) -> None:
+        if not self._save_tactical_abbreviations():
+            return
         season = self._tactical_season.text().strip()
-        self._tactical_data.season = season
+        if self._tactical_data.season != season:
+            self._tactical_data.season = season
+            self._save_tactical_metadata()
         now = datetime.now().isoformat(timespec="seconds")
         attack_deck = self._deck_from_tactical_inputs(panel["attack"])
         defense_deck = self._deck_from_tactical_inputs(panel["defense"])
+        attack_deck, attack_error = self._canonical_tactical_deck_or_error(attack_deck, "공격덱")
+        defense_deck, defense_error = self._canonical_tactical_deck_or_error(defense_deck, "방어덱")
+        if attack_error or defense_error:
+            self._set_tactical_status("\n".join(error for error in (attack_error, defense_error) if error), error=True)
+            return
+        self._set_tactical_deck_inputs(panel["attack"], attack_deck)
+        self._set_tactical_deck_inputs(panel["defense"], defense_deck)
         if panel.get("mode") == "jokbo":
-            if not defense_deck.strikers and not defense_deck.supports:
-                self._tactical_status.setText("족보의 방어덱을 입력해 주세요.")
+            if not any(defense_deck.strikers) and not any(defense_deck.supports):
+                self._set_tactical_status("족보의 방어덱을 입력해 주세요.", error=True)
                 return
-            if not attack_deck.strikers and not attack_deck.supports:
-                self._tactical_status.setText("족보의 공격덱을 입력해 주세요.")
+            if not any(attack_deck.strikers) and not any(attack_deck.supports):
+                self._set_tactical_status("족보의 공격덱을 입력해 주세요.", error=True)
                 return
             entry = TacticalJokboEntry(
                 id=f"jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
@@ -5198,17 +5417,22 @@ class StudentViewerWindow(QMainWindow):
                 notes=panel["notes"].toPlainText().strip(),
                 updated_at=now,
             )
-            self._tactical_data.jokbo.append(entry)
-            self._save_tactical_data()
-            if hasattr(self, "_tactical_jokbo_search_inputs"):
-                self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense_deck)
-            self._refresh_tactical_tab()
-            self._tactical_status.setText("족보를 저장했습니다.")
+            self._show_busy_overlay()
+            try:
+                self._tactical_data.jokbo.append(entry)
+                upsert_tactical_jokbo(self._tactical_path, entry)
+                self._storage_mtimes = self._snapshot_storage_mtimes()
+                if hasattr(self, "_tactical_jokbo_search_inputs"):
+                    self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense_deck)
+                self._refresh_tactical_jokbo_results()
+            finally:
+                self._hide_busy_overlay()
+            self._set_tactical_status("족보를 저장했습니다.")
             return
 
         opponent = panel["opponent"].text().strip()
         if not opponent:
-            self._tactical_status.setText("상대 이름을 입력해 주세요.")
+            self._set_tactical_status("상대 이름을 입력해 주세요.", error=True)
             return
         is_defense_record = panel.get("mode") == "defense"
         match = TacticalMatch(
@@ -5224,11 +5448,16 @@ class StudentViewerWindow(QMainWindow):
             notes=panel["notes"].toPlainText().strip(),
             created_at=now,
         )
-        self._tactical_data.matches.append(match)
         self._tactical_selected_match_id = match.id
-        self._save_tactical_data()
-        self._refresh_tactical_tab()
-        self._tactical_status.setText(f"{match.date} {opponent} 전적을 저장했습니다.")
+        self._show_busy_overlay()
+        try:
+            upsert_tactical_match(self._tactical_path, match)
+            self._storage_mtimes = self._snapshot_storage_mtimes()
+            self._tactical_match_loaded_count = max(self._tactical_match_loaded_count, self._tactical_match_page_size)
+            self._refresh_tactical_match_list()
+        finally:
+            self._hide_busy_overlay()
+        self._set_tactical_status(f"{match.date} {opponent} 전적을 저장했습니다.")
 
     def _clear_tactical_match_panel(self, panel: dict) -> None:
         panel["opponent"].clear()
@@ -5242,18 +5471,194 @@ class StudentViewerWindow(QMainWindow):
         if self._tactical_data.season == self._tactical_season.text().strip():
             return
         self._tactical_data.season = self._tactical_season.text().strip()
-        self._save_tactical_data()
+        self._save_tactical_metadata()
+
+    def _save_tactical_abbreviations(self) -> bool:
+        if not hasattr(self, "_tactical_abbrev_rows"):
+            return True
+        errors: list[str] = []
+
+        def _collect(rows: list[tuple[QLineEdit, QLineEdit, QWidget]], expected_class: str, label: str) -> dict[str, str]:
+            mapping: dict[str, str] = {}
+            for key_input, student_input, _row in rows:
+                key = key_input.text().strip()
+                value = student_input.text().strip()
+                if not key and not value:
+                    continue
+                if not key or not value:
+                    errors.append(f"{label} 줄임말: 글자와 학생을 모두 입력해 주세요.")
+                    continue
+                if len(key) != 1:
+                    errors.append(f"{label} 줄임말: '{key}'는 한 글자만 사용할 수 있습니다.")
+                    continue
+                if key in mapping:
+                    errors.append(f"{label} 줄임말: '{key}'가 중복 등록되어 있습니다.")
+                    continue
+                matches = self._tactical_student_ids_for_name(value)
+                if not matches:
+                    errors.append(f"{label} 줄임말: '{value}' 학생을 인식할 수 없습니다.")
+                    continue
+                if len(matches) > 1:
+                    names = ", ".join(self._tactical_student_display_name(student_id) for student_id in matches[:6])
+                    suffix = "..." if len(matches) > 6 else ""
+                    errors.append(f"{label} 줄임말: '{value}' 중복 태그입니다. ({names}{suffix})")
+                    continue
+                student_id = matches[0]
+                if student_meta.combat_class(student_id) != expected_class:
+                    errors.append(f"{label} 줄임말: '{self._tactical_student_display_name(student_id)}'는 {label} 학생이 아닙니다.")
+                    continue
+                mapping[key] = self._tactical_student_display_name(student_id)
+                student_input.setText(mapping[key])
+            return mapping
+
+        striker_mapping = _collect(self._tactical_abbrev_rows, "striker", "스트라이커")
+        special_mapping = _collect(getattr(self, "_tactical_special_abbrev_rows", []), "special", "스페셜")
+        if errors:
+            self._set_tactical_status("\n".join(errors), error=True)
+            return False
+        if (
+            striker_mapping == self._tactical_data.abbreviations
+            and special_mapping == self._tactical_data.special_abbreviations
+        ):
+            return True
+        self._tactical_data.abbreviations = striker_mapping
+        self._tactical_data.special_abbreviations = special_mapping
+        self._save_tactical_metadata()
+        return True
+
+    def _set_tactical_status(self, text: str, *, error: bool = False) -> None:
+        if not hasattr(self, "_tactical_status"):
+            return
+        self._tactical_status.setStyleSheet("color: #ff6b6b; font-weight: 800;" if error else "")
+        self._tactical_status.setText(text)
+
+    def _tactical_lookup_key(self, value: object) -> str:
+        cleaned = " ".join(str(value or "").strip().split())
+        cleaned = re.sub(r"\s*([()])\s*", r"\1", cleaned)
+        return cleaned.casefold()
+
+    def _tactical_abbreviation_map(self, role: str = "striker") -> dict[str, str]:
+        rows_name = "_tactical_special_abbrev_rows" if role == "special" else "_tactical_abbrev_rows"
+        data = self._tactical_data.special_abbreviations if role == "special" else self._tactical_data.abbreviations
+        if hasattr(self, rows_name):
+            mapping: dict[str, str] = {}
+            for key_input, student_input, _row in getattr(self, rows_name):
+                key = key_input.text().strip()
+                value = student_input.text().strip()
+                if len(key) == 1 and value:
+                    mapping[key] = value
+            return mapping
+        return dict(data or {})
+
+    def _parse_tactical_deck_template(self, value: str) -> TacticalDeck:
+        raw = str(value or "").strip()
+        if not raw:
+            return TacticalDeck()
+        striker_abbreviations = self._tactical_abbreviation_map("striker")
+        special_abbreviations = self._tactical_abbreviation_map("special")
+        if "|" in raw:
+            striker_raw, support_raw = raw.split("|", 1)
+        else:
+            striker_raw, support_raw = raw, ""
+
+        compact_striker = "".join(striker_raw.split())
+        compact_support = "".join(support_raw.split())
+        has_striker_separator = any(separator in striker_raw for separator in ",/;")
+        has_support_separator = any(separator in support_raw for separator in ",/;")
+        exact_striker = self._tactical_student_ids_for_name(compact_striker)
+        exact_support = self._tactical_student_ids_for_name(compact_support)
+        compact_strikers = (
+            compact_striker
+            and not exact_striker
+            and not has_striker_separator
+            and 1 < len(compact_striker) <= TACTICAL_STRIKER_SLOTS
+            and all(char in striker_abbreviations for char in compact_striker)
+        )
+        compact_supports = (
+            compact_support
+            and not exact_support
+            and not has_support_separator
+            and 1 < len(compact_support) <= TACTICAL_SUPPORT_SLOTS
+            and all(char in special_abbreviations for char in compact_support)
+        )
+        deck = parse_deck_template(raw)
+        deck.strikers = (
+            [striker_abbreviations[char] for char in compact_striker]
+            if compact_strikers
+            else [striker_abbreviations.get(name, name) if len(name) == 1 else name for name in deck.strikers]
+        )
+        deck.supports = (
+            [special_abbreviations[char] for char in compact_support]
+            if compact_supports
+            else [special_abbreviations.get(name, name) if len(name) == 1 else name for name in deck.supports]
+        )
+        return deck
+
+    def _tactical_student_ids_for_name(self, name: str) -> list[str]:
+        needle = self._tactical_lookup_key(name)
+        if not needle:
+            return []
+        matches: list[str] = []
+
+        def _add_if_match(student_id: str, terms: list[object]) -> None:
+            for term in terms:
+                if self._tactical_lookup_key(term) == needle:
+                    matches.append(student_id)
+                    return
+
+        for student_id in student_meta.all_ids():
+            record = self._records_by_id.get(student_id)
+            terms: list[object] = [
+                student_id,
+                student_id.replace("_", " "),
+                student_meta.display_name(student_id),
+                record.title if record is not None else "",
+                record.display_name if record is not None else "",
+            ]
+            terms.extend(student_meta.search_tags(student_id))
+            terms.extend(student_meta.kr_search_tags(student_id))
+            _add_if_match(student_id, terms)
+        return sorted(set(matches), key=lambda student_id: student_meta.display_name(student_id).casefold())
+
+    def _tactical_student_display_name(self, student_id: str) -> str:
+        record = self._records_by_id.get(student_id)
+        return record.title if record is not None else student_meta.display_name(student_id)
+
+    def _canonical_tactical_deck_or_error(self, deck: TacticalDeck, label: str) -> tuple[TacticalDeck, str]:
+        errors: list[str] = []
+
+        def _resolve_slots(values: list[str], prefix: str, expected_class: str, expected_label: str) -> list[str]:
+            resolved: list[str] = []
+            for index, raw_name in enumerate(values, start=1):
+                raw_name = str(raw_name or "").strip()
+                if not raw_name:
+                    resolved.append("")
+                    continue
+                matches = self._tactical_student_ids_for_name(raw_name)
+                if not matches:
+                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 학생을 인식할 수 없어 저장할 수 없습니다.")
+                    resolved.append(raw_name)
+                elif len(matches) > 1:
+                    names = ", ".join(self._tactical_student_display_name(student_id) for student_id in matches[:6])
+                    suffix = "..." if len(matches) > 6 else ""
+                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 중복 태그입니다. ({names}{suffix})")
+                    resolved.append(raw_name)
+                else:
+                    student_id = matches[0]
+                    if student_meta.combat_class(student_id) != expected_class:
+                        errors.append(f"{label} {prefix}{index}: '{self._tactical_student_display_name(student_id)}'는 {expected_label} 자리에 배치할 수 없습니다.")
+                    resolved.append(self._tactical_student_display_name(student_id))
+            return resolved
+
+        canonical = TacticalDeck(
+            strikers=_resolve_slots(deck.strikers[:TACTICAL_STRIKER_SLOTS], "S", "striker", "스트라이커"),
+            supports=_resolve_slots(deck.supports[:TACTICAL_SUPPORT_SLOTS], "SP", "special", "스페셜"),
+        )
+        return canonical, "\n".join(errors)
 
     def _tactical_student_id_for_name(self, name: str) -> str | None:
-        needle = (name or "").strip().casefold()
-        if not needle:
-            return None
-        if needle in self._records_by_id:
-            return needle
-        for record in self._all_students:
-            if needle in {record.student_id.casefold(), record.title.casefold(), record.display_name.casefold()}:
-                return record.student_id
-        return None
+        matches = self._tactical_student_ids_for_name(name)
+        return matches[0] if len(matches) == 1 else None
 
     def _tactical_portrait_pixmap(self, name: str, size: int) -> QPixmap:
         student_id = self._tactical_student_id_for_name(name)
@@ -5266,7 +5671,13 @@ class StudentViewerWindow(QMainWindow):
         return pixmap if not pixmap.isNull() else QPixmap()
 
     def _build_tactical_deck_editor(self, title: str) -> tuple[QWidget, TacticalDeckEditor]:
-        editor = TacticalDeckEditor(title, card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+        editor = TacticalDeckEditor(
+            title,
+            card_asset=self._student_card_asset,
+            ui_scale=self._ui_scale,
+            icon_provider=self._tactical_portrait_pixmap,
+            deck_parser=self._parse_tactical_deck_template,
+        )
         return editor, editor
 
     def _deck_from_tactical_inputs(self, inputs) -> TacticalDeck:
@@ -5293,8 +5704,25 @@ class StudentViewerWindow(QMainWindow):
             edit.clear()
 
     def _save_tactical_data(self) -> None:
-        save_tactical_challenge(self._tactical_path, self._tactical_data)
-        self._storage_mtimes = self._snapshot_storage_mtimes()
+        self._show_busy_overlay()
+        try:
+            save_tactical_challenge(self._tactical_path, self._tactical_data, sync_matches=False)
+            self._storage_mtimes = self._snapshot_storage_mtimes()
+        finally:
+            self._hide_busy_overlay()
+
+    def _save_tactical_metadata(self) -> None:
+        self._show_busy_overlay()
+        try:
+            save_tactical_metadata(
+                self._tactical_path,
+                season=self._tactical_data.season,
+                abbreviations=self._tactical_data.abbreviations,
+                special_abbreviations=self._tactical_data.special_abbreviations,
+            )
+            self._storage_mtimes = self._snapshot_storage_mtimes()
+        finally:
+            self._hide_busy_overlay()
 
     def _save_tactical_match(self) -> None:
         if self._tactical_match_panels:
@@ -5327,7 +5755,9 @@ class StudentViewerWindow(QMainWindow):
         if not selected_id and hasattr(self, "_tactical_match_list"):
             item = self._tactical_match_list.currentItem()
             selected_id = str(item.data(Qt.UserRole) or "") if item is not None else ""
-        return next((match for match in self._tactical_data.matches if match.id == selected_id), None)
+        if not selected_id:
+            return None
+        return get_tactical_match(self._tactical_path, selected_id)
 
     def _copy_selected_tactical_defense_to_search(self) -> None:
         match = self._selected_tactical_match()
@@ -5350,9 +5780,25 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_tactical_opponent_report()
         self._refresh_tactical_jokbo_results()
 
+    def _reset_tactical_match_list(self) -> None:
+        self._tactical_match_loaded_count = self._tactical_match_page_size
+        self._refresh_tactical_match_list()
+
+    def _load_more_tactical_matches(self) -> None:
+        self._show_busy_overlay("불러오는 중...")
+        try:
+            self._tactical_match_loaded_count += self._tactical_match_page_size
+            self._refresh_tactical_match_list()
+        finally:
+            self._hide_busy_overlay()
+
     def _refresh_tactical_match_list(self) -> None:
         query = self._tactical_match_search.text() if hasattr(self, "_tactical_match_search") else ""
-        matches = filter_matches(self._tactical_data.matches, query)
+        if query != self._tactical_match_query:
+            self._tactical_match_query = query
+            self._tactical_match_loaded_count = self._tactical_match_page_size
+        total_filtered = tactical_match_count(self._tactical_path, query)
+        matches = query_tactical_matches(self._tactical_path, query, limit=self._tactical_match_loaded_count)
         current_id = self._tactical_selected_match_id
         self._tactical_match_list.blockSignals(True)
         self._tactical_match_list.clear()
@@ -5397,22 +5843,26 @@ class StudentViewerWindow(QMainWindow):
             if current_id and match.id == current_id:
                 self._tactical_match_list.setCurrentItem(item)
         self._tactical_match_list.blockSignals(False)
-        total = len(self._tactical_data.matches)
-        today_count = sum(1 for match in self._tactical_data.matches if match.date == self._tactical_date.text().strip())
-        wins = sum(1 for match in self._tactical_data.matches if match.result == "win")
-        self._tactical_match_summary.setText(f"오늘 {today_count}/5 · 전체 {wins}승 {total - wins}패")
+        summary = tactical_match_summary(self._tactical_path, self._tactical_date.text().strip())
+        self._tactical_match_summary.setText(
+            f"오늘 {summary['today']}/5 · 전체 {summary['wins']}승 {summary['losses']}패 · 표시 {len(matches)}/{total_filtered}"
+        )
+        if hasattr(self, "_tactical_match_load_more_button"):
+            self._tactical_match_load_more_button.setVisible(len(matches) < total_filtered)
         self._set_tactical_match_detail(self._selected_tactical_match())
 
     def _delete_tactical_match(self, match_id: str) -> None:
-        before = len(self._tactical_data.matches)
-        self._tactical_data.matches = [match for match in self._tactical_data.matches if match.id != match_id]
-        if len(self._tactical_data.matches) == before:
-            return
-        if self._tactical_selected_match_id == match_id:
-            self._tactical_selected_match_id = None
-        self._save_tactical_data()
-        self._refresh_tactical_tab()
-        self._tactical_status.setText("전적을 삭제했습니다.")
+        self._show_busy_overlay("삭제 중...")
+        try:
+            if not delete_tactical_match(self._tactical_path, match_id):
+                return
+            if self._tactical_selected_match_id == match_id:
+                self._tactical_selected_match_id = None
+            self._storage_mtimes = self._snapshot_storage_mtimes()
+            self._refresh_tactical_match_list()
+        finally:
+            self._hide_busy_overlay()
+        self._set_tactical_status("전적을 삭제했습니다.")
 
     def _selected_tactical_match_decks(self) -> tuple[TacticalDeck, TacticalDeck] | None:
         match = self._selected_tactical_match()
@@ -5493,7 +5943,7 @@ class StudentViewerWindow(QMainWindow):
             self._tactical_opponent_summary.setText("상대를 검색하거나 전적을 선택하면 상대전적과 최근 방어덱이 표시됩니다.")
             self._tactical_opponent_top_list.clear()
             return
-        report = opponent_report(self._tactical_data, opponent)
+        report = opponent_report_from_storage(self._tactical_path, opponent)
         total = len(report["matches"])
         self._tactical_opponent_top_list.clear()
         if total == 0:
@@ -5551,7 +6001,11 @@ class StudentViewerWindow(QMainWindow):
         if not hasattr(self, "_tactical_jokbo_results"):
             return
         defense = self._deck_from_tactical_inputs(self._tactical_jokbo_search_inputs)
-        results = search_jokbo(self._tactical_data, defense)
+        if not any(defense.strikers) and not any(defense.supports):
+            self._tactical_jokbo_results.clear()
+            self._tactical_jokbo_results.addItem("방어덱을 입력하거나 전적을 선택하면 족보를 검색합니다.")
+            return
+        results = search_jokbo_from_storage(self._tactical_path, self._tactical_data, defense)
         self._tactical_jokbo_results.clear()
         for result in results["manual"]:
             entry = result["entry"]
@@ -5628,7 +6082,7 @@ class StudentViewerWindow(QMainWindow):
     def _copy_tactical_deck_template(self, deck: TacticalDeck) -> None:
         QApplication.clipboard().setText(deck_template(deck))
         if hasattr(self, "_tactical_status"):
-            self._tactical_status.setText("덱 템플릿을 복사했습니다.")
+            self._set_tactical_status("덱 템플릿을 복사했습니다.")
 
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -7444,7 +7898,7 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_snapshot = load_inventory_snapshot()
         self._inventory_quantity_index_cache = _inventory_quantity_index(self._inventory_snapshot or {})
         self._plan = load_plan(self._plan_path)
-        self._tactical_data = load_tactical_challenge(self._tactical_path)
+        self._tactical_data = load_tactical_challenge(self._tactical_path, load_matches=False)
         self._invalidate_plan_caches()
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._records_by_id = {record.student_id: record for record in self._all_students}
