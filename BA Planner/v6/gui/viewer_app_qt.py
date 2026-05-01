@@ -2148,12 +2148,25 @@ class PlanResourceChip(QFrame):
 
 
 class TacticalDeckSlot(QWidget):
-    def __init__(self, *, ui_scale: float, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        card_asset: ParallelogramCardAsset,
+        ui_scale: float,
+        preferred_width: int,
+        preferred_height: int,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._card_asset = card_asset
         self._ui_scale = ui_scale
+        self._preferred_size = QSize(preferred_width, preferred_height)
         self._pixmap = QPixmap()
         self._text = ""
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumWidth(scale_px(24, self._ui_scale))
+        self.setFixedHeight(preferred_height)
 
     def setData(self, *, name: str, pixmap: QPixmap) -> None:
         self._text = name
@@ -2161,40 +2174,56 @@ class TacticalDeckSlot(QWidget):
         self.setToolTip(name)
         self.update()
 
+    def sizeHint(self) -> QSize:
+        return self._preferred_size
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        rect = self.rect().adjusted(1, 1, -1, -1)
-        slant = int(rect.width() * 0.18)
-        path = QPainterPath()
-        path.moveTo(rect.left() + slant, rect.top())
-        path.lineTo(rect.right(), rect.top())
-        path.lineTo(rect.right() - slant, rect.bottom())
-        path.lineTo(rect.left(), rect.bottom())
-        path.closeSubpath()
-        painter.fillPath(path, QColor(SURFACE_ALT))
-        painter.setPen(QPen(QColor(BORDER), 1))
-        painter.drawPath(path)
+
+        available_width = max(1, self.width())
+        available_height = max(1, self.height())
+        target_ratio = max(0.01, float(self._card_asset.aspect_ratio))
+        if available_width / available_height > target_ratio:
+            card_height = available_height
+            card_width = max(1, int(round(card_height * target_ratio)))
+        else:
+            card_width = available_width
+            card_height = max(1, int(round(card_width / target_ratio)))
+        card_size = QSize(card_width, card_height)
+        card_x = (available_width - card_width) // 2
+        card_y = (available_height - card_height) // 2
+        card_image = QImage(card_size, QImage.Format_ARGB32_Premultiplied)
+        card_image.fill(Qt.transparent)
+        card_painter = QPainter(card_image)
+        card_painter.setRenderHint(QPainter.Antialiasing, True)
+        card_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        card_painter.drawImage(0, 0, self._card_asset.background(card_size, hovered=False, selected=False))
         if not self._pixmap.isNull():
-            painter.setClipPath(path)
-            scaled = self._pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            painter.drawPixmap((self.width() - scaled.width()) // 2, (self.height() - scaled.height()) // 2, scaled)
-            painter.setClipping(False)
-        elif self._text:
+            scaled = self._pixmap.scaled(card_size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            card_painter.drawPixmap((card_size.width() - scaled.width()) // 2, (card_size.height() - scaled.height()) // 2, scaled)
+        card_painter.drawImage(0, 0, self._card_asset.outline(card_size))
+        card_painter.end()
+
+        painter.drawImage(card_x, card_y, self._card_asset.apply_alpha_mask(card_image))
+        if self._text and self._pixmap.isNull():
             painter.setPen(QColor(MUTED))
-            painter.drawText(rect, Qt.AlignCenter, "?")
+            painter.drawText(self.rect(), Qt.AlignCenter, "?")
         painter.end()
 
 
 class TacticalDeckEditor(QWidget):
-    def __init__(self, title: str, *, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
+    def __init__(self, title: str, *, card_asset: ParallelogramCardAsset, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._card_asset = card_asset
         self._ui_scale = ui_scale
         self._icon_provider = icon_provider
-        self._slot_size = scale_px(52, self._ui_scale)
+        self._slot_width = scale_px(74, self._ui_scale)
+        self._slot_height = max(scale_px(58, self._ui_scale), int(round(self._slot_width / self._card_asset.aspect_ratio)))
         self._icons: list[TacticalDeckSlot] = []
         self._deck = TacticalDeck()
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -2206,12 +2235,6 @@ class TacticalDeckEditor(QWidget):
         title_label.setObjectName("detailSectionTitle")
         header.addWidget(title_label)
         header.addStretch(1)
-        copy_button = QPushButton("Copy")
-        copy_button.clicked.connect(self.copyTemplate)
-        import_button = QPushButton("Import")
-        import_button.clicked.connect(self.importTemplate)
-        header.addWidget(copy_button)
-        header.addWidget(import_button)
         layout.addLayout(header)
 
         icon_row = QHBoxLayout()
@@ -2223,17 +2246,32 @@ class TacticalDeckEditor(QWidget):
                 divider.setObjectName("sectionTitle")
                 divider.setAlignment(Qt.AlignCenter)
                 icon_row.addWidget(divider)
-            label = TacticalDeckSlot(ui_scale=self._ui_scale)
-            label.setFixedSize(self._slot_size, self._slot_size)
+            label = TacticalDeckSlot(
+                card_asset=self._card_asset,
+                ui_scale=self._ui_scale,
+                preferred_width=self._slot_width,
+                preferred_height=self._slot_height,
+            )
             self._icons.append(label)
-            icon_row.addWidget(label)
-        icon_row.addStretch(1)
+            icon_row.addWidget(label, 1)
         layout.addLayout(icon_row)
 
         self._template_input = QLineEdit()
         self._template_input.setPlaceholderText("student1,student2,student3,student4|support1,support2")
         self._template_input.returnPressed.connect(self.importTemplate)
         layout.addWidget(self._template_input)
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.addStretch(1)
+        copy_button = QPushButton("Copy")
+        copy_button.setFixedWidth(scale_px(54, self._ui_scale))
+        copy_button.clicked.connect(self.copyTemplate)
+        import_button = QPushButton("Import")
+        import_button.setFixedWidth(scale_px(54, self._ui_scale))
+        import_button.clicked.connect(self.importTemplate)
+        action_row.addWidget(copy_button)
+        action_row.addWidget(import_button)
+        layout.addLayout(action_row)
         self._syncIcons()
 
     def deck(self) -> TacticalDeck:
@@ -2270,30 +2308,51 @@ class TacticalDeckEditor(QWidget):
         names += deck.supports[:TACTICAL_SUPPORT_SLOTS]
         for index, label in enumerate(self._icons):
             name = names[index] if index < len(names) else ""
-            pixmap = self._icon_provider(name, self._slot_size) if name else QPixmap()
+            pixmap = self._icon_provider(name, max(self._slot_width, self._slot_height)) if name else QPixmap()
             label.setData(name=name, pixmap=pixmap if pixmap is not None else QPixmap())
 
 
 class TacticalDeckPreview(QWidget):
-    def __init__(self, *, ui_scale: float, icon_provider, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        card_asset: ParallelogramCardAsset,
+        ui_scale: float,
+        icon_provider,
+        compact: bool = False,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._card_asset = card_asset
         self._ui_scale = ui_scale
         self._icon_provider = icon_provider
-        self._slot_size = scale_px(34, self._ui_scale)
+        self._compact = compact
+        self._slot_width = scale_px(38 if compact else 58, self._ui_scale)
+        self._slot_height = max(scale_px(30 if compact else 44, self._ui_scale), int(round(self._slot_width / self._card_asset.aspect_ratio)))
         self._icons: list[TacticalDeckSlot] = []
+        self.setSizePolicy(QSizePolicy.Fixed if compact else QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(scale_px(4, self._ui_scale))
+        divider_count = 0
         for index in range(TACTICAL_STRIKER_SLOTS + TACTICAL_SUPPORT_SLOTS):
             if index == TACTICAL_STRIKER_SLOTS:
                 divider = QLabel("|")
                 divider.setObjectName("detailSub")
                 layout.addWidget(divider)
-            label = TacticalDeckSlot(ui_scale=self._ui_scale)
-            label.setFixedSize(self._slot_size, self._slot_size)
+                divider_count += 1
+            label = TacticalDeckSlot(
+                card_asset=self._card_asset,
+                ui_scale=self._ui_scale,
+                preferred_width=self._slot_width,
+                preferred_height=self._slot_height,
+            )
             self._icons.append(label)
-            layout.addWidget(label)
-        layout.addStretch(1)
+            layout.addWidget(label, 1)
+        if compact:
+            item_count = TACTICAL_STRIKER_SLOTS + TACTICAL_SUPPORT_SLOTS + divider_count
+            total_width = self._slot_width * (TACTICAL_STRIKER_SLOTS + TACTICAL_SUPPORT_SLOTS) + layout.spacing() * max(0, item_count - 1) + scale_px(8, self._ui_scale)
+            self.setFixedWidth(total_width)
 
     def setDeck(self, deck: TacticalDeck) -> None:
         names = deck.strikers[:TACTICAL_STRIKER_SLOTS]
@@ -2301,7 +2360,7 @@ class TacticalDeckPreview(QWidget):
         names += deck.supports[:TACTICAL_SUPPORT_SLOTS]
         for index, label in enumerate(self._icons):
             name = names[index] if index < len(names) else ""
-            pixmap = self._icon_provider(name, self._slot_size) if name else QPixmap()
+            pixmap = self._icon_provider(name, max(self._slot_width, self._slot_height)) if name else QPixmap()
             label.setData(name=name, pixmap=pixmap if pixmap is not None else QPixmap())
 
 
@@ -4896,40 +4955,9 @@ class StudentViewerWindow(QMainWindow):
         input_layout.addLayout(date_row)
 
         self._tactical_match_panels: list[dict] = []
-        for panel_index in range(5):
-            panel_widget, panel = self._build_tactical_match_input_panel(panel_index + 1)
-            self._tactical_match_panels.append(panel)
-            input_layout.addWidget(panel_widget)
-
-        jokbo_title = QLabel("족보 입력")
-        jokbo_title.setObjectName("sectionTitle")
-        input_layout.addWidget(jokbo_title)
-        jokbo_defense_group, self._tactical_jokbo_defense_inputs = self._build_tactical_deck_editor("상대 방어덱")
-        jokbo_attack_group, self._tactical_jokbo_attack_inputs = self._build_tactical_deck_editor("추천 공격덱")
-        input_layout.addWidget(jokbo_defense_group)
-        copy_defense_button = QPushButton("현재 상대 방어덱 복사")
-        copy_defense_button.clicked.connect(self._copy_tactical_match_defense_to_jokbo)
-        input_layout.addWidget(copy_defense_button)
-        input_layout.addWidget(jokbo_attack_group)
-
-        record_layout = QHBoxLayout()
-        self._tactical_jokbo_wins = QSpinBox()
-        self._tactical_jokbo_wins.setRange(0, 999)
-        self._tactical_jokbo_losses = QSpinBox()
-        self._tactical_jokbo_losses.setRange(0, 999)
-        record_layout.addWidget(QLabel("승"))
-        record_layout.addWidget(self._tactical_jokbo_wins)
-        record_layout.addWidget(QLabel("패"))
-        record_layout.addWidget(self._tactical_jokbo_losses)
-        input_layout.addLayout(record_layout)
-
-        self._tactical_jokbo_notes = QPlainTextEdit()
-        self._tactical_jokbo_notes.setPlaceholderText("족보 메모")
-        self._tactical_jokbo_notes.setMaximumHeight(scale_px(70, self._ui_scale))
-        input_layout.addWidget(self._tactical_jokbo_notes)
-        save_jokbo_button = QPushButton("족보 저장")
-        save_jokbo_button.clicked.connect(self._save_tactical_jokbo)
-        input_layout.addWidget(save_jokbo_button)
+        panel_widget, panel = self._build_tactical_match_input_panel(1)
+        self._tactical_match_panels.append(panel)
+        input_layout.addWidget(panel_widget)
 
         self._tactical_status = QLabel("")
         self._tactical_status.setObjectName("filterSummary")
@@ -4963,10 +4991,19 @@ class StudentViewerWindow(QMainWindow):
         self._tactical_match_list = QListWidget()
         self._tactical_match_list.currentItemChanged.connect(self._on_tactical_match_selected)
         history_layout.addWidget(self._tactical_match_list, 1)
-        self._tactical_match_detail = QLabel("")
-        self._tactical_match_detail.setObjectName("detailSub")
-        self._tactical_match_detail.setWordWrap(True)
-        history_layout.addWidget(self._tactical_match_detail)
+        match_action_row = QHBoxLayout()
+        match_action_row.setContentsMargins(0, 0, 0, 0)
+        self._tactical_match_copy_attack_button = QPushButton("ATK Copy")
+        self._tactical_match_copy_attack_button.clicked.connect(self._copy_selected_tactical_match_attack)
+        self._tactical_match_copy_defense_button = QPushButton("DEF Copy")
+        self._tactical_match_copy_defense_button.clicked.connect(self._copy_selected_tactical_match_defense)
+        self._tactical_match_delete_button = QPushButton("[삭제]")
+        self._tactical_match_delete_button.clicked.connect(self._delete_selected_tactical_match)
+        match_action_row.addStretch(1)
+        match_action_row.addWidget(self._tactical_match_copy_attack_button)
+        match_action_row.addWidget(self._tactical_match_copy_defense_button)
+        match_action_row.addWidget(self._tactical_match_delete_button)
+        history_layout.addLayout(match_action_row)
         splitter.addWidget(history_panel)
 
         insight_panel = QFrame()
@@ -5018,6 +5055,16 @@ class StudentViewerWindow(QMainWindow):
         jokbo_layout.addLayout(search_buttons)
         self._tactical_jokbo_results = QListWidget()
         jokbo_layout.addWidget(self._tactical_jokbo_results, 1)
+        jokbo_action_row = QHBoxLayout()
+        jokbo_action_row.setContentsMargins(0, 0, 0, 0)
+        self._tactical_jokbo_copy_defense_button = QPushButton("DEF Copy")
+        self._tactical_jokbo_copy_defense_button.clicked.connect(self._copy_selected_tactical_jokbo_defense)
+        self._tactical_jokbo_copy_attack_button = QPushButton("ATK Copy")
+        self._tactical_jokbo_copy_attack_button.clicked.connect(self._copy_selected_tactical_jokbo_attack)
+        jokbo_action_row.addStretch(1)
+        jokbo_action_row.addWidget(self._tactical_jokbo_copy_defense_button)
+        jokbo_action_row.addWidget(self._tactical_jokbo_copy_attack_button)
+        jokbo_layout.addLayout(jokbo_action_row)
         insight_tabs.addTab(jokbo_tab, "족보")
         splitter.addWidget(insight_panel)
         splitter.setSizes([scale_px(420, self._ui_scale), scale_px(520, self._ui_scale), scale_px(470, self._ui_scale)])
@@ -5030,7 +5077,7 @@ class StudentViewerWindow(QMainWindow):
         layout.setSpacing(scale_px(8, self._ui_scale))
 
         header = QHBoxLayout()
-        title = QLabel(f"Match {index}")
+        title = QLabel("대전 기록")
         title.setObjectName("sectionTitle")
         opponent = QLineEdit()
         opponent.setPlaceholderText("상대 이름")
@@ -5048,8 +5095,25 @@ class StudentViewerWindow(QMainWindow):
         header.addWidget(clear_button)
         layout.addLayout(header)
 
+        mode_row = QHBoxLayout()
+        mode_row.setContentsMargins(0, 0, 0, 0)
+        attack_mode_button = QPushButton("공격 기록")
+        defense_mode_button = QPushButton("방어 기록")
+        jokbo_mode_button = QPushButton("족보")
+        attack_mode_button.setCheckable(True)
+        defense_mode_button.setCheckable(True)
+        jokbo_mode_button.setCheckable(True)
+        mode_hint = QLabel("공격 기록: 내 공격덱 vs 상대 방어덱 / 방어 기록: 상대 공격덱 vs 내 방어덱 / 족보: 방어덱과 공격덱 페어")
+        mode_hint.setObjectName("detailSub")
+        mode_hint.setWordWrap(True)
+        mode_row.addWidget(attack_mode_button)
+        mode_row.addWidget(defense_mode_button)
+        mode_row.addWidget(jokbo_mode_button)
+        mode_row.addWidget(mode_hint, 1)
+        layout.addLayout(mode_row)
+
         attack_widget, attack_editor = self._build_tactical_deck_editor("공격덱")
-        defense_widget, defense_editor = self._build_tactical_deck_editor("상대 방어덱")
+        defense_widget, defense_editor = self._build_tactical_deck_editor("방어덱")
         layout.addWidget(attack_widget)
         layout.addWidget(defense_widget)
 
@@ -5059,48 +5123,104 @@ class StudentViewerWindow(QMainWindow):
         layout.addWidget(notes)
 
         panel = {
+            "title": title,
             "opponent": opponent,
             "result": "win",
             "win_button": win_button,
             "loss_button": loss_button,
+            "mode": "attack",
+            "attack_mode_button": attack_mode_button,
+            "defense_mode_button": defense_mode_button,
+            "jokbo_mode_button": jokbo_mode_button,
             "attack": attack_editor,
             "defense": defense_editor,
             "notes": notes,
         }
         win_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "win"))
         loss_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "loss"))
+        attack_mode_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_mode(target, "attack"))
+        defense_mode_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_mode(target, "defense"))
+        jokbo_mode_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_mode(target, "jokbo"))
         save_button.clicked.connect(lambda *_args, target=panel: self._save_tactical_match_panel(target))
         clear_button.clicked.connect(lambda *_args, target=panel: self._clear_tactical_match_panel(target))
         self._set_tactical_panel_result(panel, "win")
+        self._set_tactical_panel_mode(panel, "attack")
         return panel_widget, panel
+
+    def _set_tactical_panel_mode(self, panel: dict, mode: str) -> None:
+        panel["mode"] = mode if mode in {"attack", "defense", "jokbo"} else "attack"
+        if "title" in panel:
+            panel["title"].setText("족보 모드" if panel["mode"] == "jokbo" else "대전 기록")
+        panel["attack_mode_button"].setChecked(panel["mode"] == "attack")
+        panel["defense_mode_button"].setChecked(panel["mode"] == "defense")
+        panel["jokbo_mode_button"].setChecked(panel["mode"] == "jokbo")
+        selected_style = f"background: {ACCENT_STRONG}; color: #ffffff; border: 2px solid #ffffff; font-weight: 900;"
+        idle_style = f"background: {SURFACE_ALT}; color: {INK}; border: 1px solid {BORDER}; font-weight: 700;"
+        panel["attack_mode_button"].setStyleSheet(selected_style if panel["mode"] == "attack" else idle_style)
+        panel["defense_mode_button"].setStyleSheet(selected_style if panel["mode"] == "defense" else idle_style)
+        panel["jokbo_mode_button"].setStyleSheet(selected_style if panel["mode"] == "jokbo" else idle_style)
+        opponent_input = panel.get("opponent")
+        if opponent_input is not None:
+            is_jokbo = panel["mode"] == "jokbo"
+            opponent_input.setEnabled(not is_jokbo)
+            opponent_input.setPlaceholderText("족보 모드에서는 상대 이름 미사용" if is_jokbo else "상대 이름")
 
     def _set_tactical_panel_result(self, panel: dict, result: str) -> None:
         panel["result"] = "loss" if result == "loss" else "win"
         panel["win_button"].setChecked(panel["result"] == "win")
         panel["loss_button"].setChecked(panel["result"] == "loss")
-        panel["win_button"].setText("승 선택" if panel["result"] == "win" else "승")
-        panel["loss_button"].setText("패 선택" if panel["result"] == "loss" else "패")
+        panel["win_button"].setText("승")
+        panel["loss_button"].setText("패")
         selected_style = f"background: {ACCENT_STRONG}; color: #ffffff; border: 2px solid #ffffff; font-weight: 900;"
         idle_style = f"background: {SURFACE_ALT}; color: {INK}; border: 1px solid {BORDER}; font-weight: 700;"
         panel["win_button"].setStyleSheet(selected_style if panel["result"] == "win" else idle_style)
         panel["loss_button"].setStyleSheet(selected_style if panel["result"] == "loss" else idle_style)
 
     def _save_tactical_match_panel(self, panel: dict) -> None:
+        season = self._tactical_season.text().strip()
+        self._tactical_data.season = season
+        now = datetime.now().isoformat(timespec="seconds")
+        attack_deck = self._deck_from_tactical_inputs(panel["attack"])
+        defense_deck = self._deck_from_tactical_inputs(panel["defense"])
+        if panel.get("mode") == "jokbo":
+            if not defense_deck.strikers and not defense_deck.supports:
+                self._tactical_status.setText("족보의 방어덱을 입력해 주세요.")
+                return
+            if not attack_deck.strikers and not attack_deck.supports:
+                self._tactical_status.setText("족보의 공격덱을 입력해 주세요.")
+                return
+            entry = TacticalJokboEntry(
+                id=f"jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
+                defense=defense_deck,
+                attack=attack_deck,
+                wins=0,
+                losses=0,
+                notes=panel["notes"].toPlainText().strip(),
+                updated_at=now,
+            )
+            self._tactical_data.jokbo.append(entry)
+            self._save_tactical_data()
+            if hasattr(self, "_tactical_jokbo_search_inputs"):
+                self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense_deck)
+            self._refresh_tactical_tab()
+            self._tactical_status.setText("족보를 저장했습니다.")
+            return
+
         opponent = panel["opponent"].text().strip()
         if not opponent:
             self._tactical_status.setText("상대 이름을 입력해 주세요.")
             return
-        season = self._tactical_season.text().strip()
-        self._tactical_data.season = season
-        now = datetime.now().isoformat(timespec="seconds")
+        is_defense_record = panel.get("mode") == "defense"
         match = TacticalMatch(
             id=f"tc-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
             date=self._tactical_date.text().strip() or date.today().isoformat(),
             season=season,
             opponent=opponent,
             result=str(panel["result"]),
-            my_attack=self._deck_from_tactical_inputs(panel["attack"]),
-            opponent_defense=self._deck_from_tactical_inputs(panel["defense"]),
+            my_attack=TacticalDeck() if is_defense_record else attack_deck,
+            opponent_defense=TacticalDeck() if is_defense_record else defense_deck,
+            my_defense=defense_deck if is_defense_record else TacticalDeck(),
+            opponent_attack=attack_deck if is_defense_record else TacticalDeck(),
             notes=panel["notes"].toPlainText().strip(),
             created_at=now,
         )
@@ -5114,6 +5234,7 @@ class StudentViewerWindow(QMainWindow):
         panel["opponent"].clear()
         panel["notes"].clear()
         self._set_tactical_panel_result(panel, "win")
+        self._set_tactical_panel_mode(panel, "attack")
         self._clear_tactical_deck_inputs(panel["attack"])
         self._clear_tactical_deck_inputs(panel["defense"])
 
@@ -5145,7 +5266,7 @@ class StudentViewerWindow(QMainWindow):
         return pixmap if not pixmap.isNull() else QPixmap()
 
     def _build_tactical_deck_editor(self, title: str) -> tuple[QWidget, TacticalDeckEditor]:
-        editor = TacticalDeckEditor(title, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
+        editor = TacticalDeckEditor(title, card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
         return editor, editor
 
     def _deck_from_tactical_inputs(self, inputs) -> TacticalDeck:
@@ -5180,28 +5301,11 @@ class StudentViewerWindow(QMainWindow):
             self._save_tactical_match_panel(self._tactical_match_panels[0])
 
     def _save_tactical_jokbo(self) -> None:
-        defense = self._deck_from_tactical_inputs(self._tactical_jokbo_defense_inputs)
-        attack = self._deck_from_tactical_inputs(self._tactical_jokbo_attack_inputs)
-        if not defense.strikers and not defense.supports:
-            self._tactical_status.setText("족보의 상대 방어덱을 입력해 주세요.")
+        if not self._tactical_match_panels:
             return
-        if not attack.strikers and not attack.supports:
-            self._tactical_status.setText("족보의 추천 공격덱을 입력해 주세요.")
-            return
-        entry = TacticalJokboEntry(
-            id=f"jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
-            defense=defense,
-            attack=attack,
-            wins=int(self._tactical_jokbo_wins.value()),
-            losses=int(self._tactical_jokbo_losses.value()),
-            notes=self._tactical_jokbo_notes.toPlainText().strip(),
-            updated_at=datetime.now().isoformat(timespec="seconds"),
-        )
-        self._tactical_data.jokbo.append(entry)
-        self._save_tactical_data()
-        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense)
-        self._refresh_tactical_tab()
-        self._tactical_status.setText("족보를 저장했습니다.")
+        panel = self._tactical_match_panels[0]
+        self._set_tactical_panel_mode(panel, "jokbo")
+        self._save_tactical_match_panel(panel)
 
     def _clear_tactical_match_form(self) -> None:
         for panel in self._tactical_match_panels:
@@ -5214,7 +5318,8 @@ class StudentViewerWindow(QMainWindow):
             if candidate.strikers or candidate.supports:
                 deck = candidate
                 break
-        self._set_tactical_deck_inputs(self._tactical_jokbo_defense_inputs, deck)
+        if self._tactical_match_panels:
+            self._set_tactical_deck_inputs(self._tactical_match_panels[0]["defense"], deck)
         self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, deck)
 
     def _selected_tactical_match(self) -> TacticalMatch | None:
@@ -5228,7 +5333,8 @@ class StudentViewerWindow(QMainWindow):
         match = self._selected_tactical_match()
         if match is None:
             return
-        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, match.opponent_defense)
+        deck = match.opponent_defense if (match.opponent_defense.strikers or match.opponent_defense.supports) else match.my_defense
+        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, deck)
         self._refresh_tactical_jokbo_results()
 
     def _refresh_tactical_tab(self) -> None:
@@ -5266,21 +5372,27 @@ class StudentViewerWindow(QMainWindow):
             text.setWordWrap(True)
             text.setObjectName("sectionTitle")
             top_row.addWidget(text, 1)
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda *_args, match_id=match.id: self._delete_tactical_match(match_id))
-            top_row.addWidget(delete_button)
             row_layout.addLayout(top_row)
             deck_row = QHBoxLayout()
-            attack_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
-            attack_preview.setDeck(match.my_attack)
-            defense_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
-            defense_preview.setDeck(match.opponent_defense)
-            deck_row.addWidget(QLabel("ATK"))
-            deck_row.addWidget(attack_preview, 1)
-            deck_row.addWidget(QLabel("DEF"))
-            deck_row.addWidget(defense_preview, 1)
+            deck_row.setContentsMargins(0, 0, 0, 0)
+            deck_row.setSpacing(scale_px(6, self._ui_scale))
+            attack_deck = match.my_attack if (match.my_attack.strikers or match.my_attack.supports) else match.opponent_attack
+            defense_deck = match.opponent_defense if (match.opponent_defense.strikers or match.opponent_defense.supports) else match.my_defense
+            attack_label = "ATK" if (match.my_attack.strikers or match.my_attack.supports) else "OP ATK"
+            defense_label = "DEF" if (match.opponent_defense.strikers or match.opponent_defense.supports) else "MY DEF"
+            attack_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+            attack_preview.setDeck(attack_deck)
+            defense_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+            defense_preview.setDeck(defense_deck)
+            deck_row.addWidget(QLabel(attack_label))
+            deck_row.addWidget(attack_preview)
+            deck_row.addStretch(1)
+            deck_row.addWidget(QLabel(defense_label))
+            deck_row.addWidget(defense_preview)
             row_layout.addLayout(deck_row)
-            item.setSizeHint(row.sizeHint())
+            hint = row.sizeHint()
+            hint.setHeight(hint.height() + scale_px(8, self._ui_scale))
+            item.setSizeHint(hint)
             self._tactical_match_list.setItemWidget(item, row)
             if current_id and match.id == current_id:
                 self._tactical_match_list.setCurrentItem(item)
@@ -5302,6 +5414,29 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_tactical_tab()
         self._tactical_status.setText("전적을 삭제했습니다.")
 
+    def _selected_tactical_match_decks(self) -> tuple[TacticalDeck, TacticalDeck] | None:
+        match = self._selected_tactical_match()
+        if match is None:
+            return None
+        attack_deck = match.my_attack if (match.my_attack.strikers or match.my_attack.supports) else match.opponent_attack
+        defense_deck = match.opponent_defense if (match.opponent_defense.strikers or match.opponent_defense.supports) else match.my_defense
+        return attack_deck, defense_deck
+
+    def _copy_selected_tactical_match_attack(self) -> None:
+        decks = self._selected_tactical_match_decks()
+        if decks is not None:
+            self._copy_tactical_deck_template(decks[0])
+
+    def _copy_selected_tactical_match_defense(self) -> None:
+        decks = self._selected_tactical_match_decks()
+        if decks is not None:
+            self._copy_tactical_deck_template(decks[1])
+
+    def _delete_selected_tactical_match(self) -> None:
+        match = self._selected_tactical_match()
+        if match is not None:
+            self._delete_tactical_match(match.id)
+
     def _tactical_match_tooltip(self, match: TacticalMatch) -> str:
         lines = [
             f"{match.date} {match.season} {match.opponent}".strip(),
@@ -5321,12 +5456,15 @@ class StudentViewerWindow(QMainWindow):
         match = self._selected_tactical_match()
         if match is not None:
             self._tactical_opponent_search.setText(match.opponent)
-            self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, match.opponent_defense)
+            deck = match.opponent_defense if (match.opponent_defense.strikers or match.opponent_defense.supports) else match.my_defense
+            self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, deck)
         self._set_tactical_match_detail(match)
         self._refresh_tactical_opponent_report()
         self._refresh_tactical_jokbo_results()
 
     def _set_tactical_match_detail(self, match: TacticalMatch | None) -> None:
+        if not hasattr(self, "_tactical_match_detail"):
+            return
         if match is None:
             self._tactical_match_detail.setText("선택한 전적의 상세 정보가 여기에 표시됩니다.")
             return
@@ -5362,19 +5500,52 @@ class StudentViewerWindow(QMainWindow):
             self._tactical_opponent_summary.setText(f"{opponent}: 기록이 없습니다.")
             return
         self._tactical_opponent_summary.setText(
-            f"{opponent}: {report['wins']}승 {report['losses']}패 ({report['win_rate']:.1f}%)\n"
-            f"최근 방어덱: {deck_label(report['recent_defense'])}\n"
-            f"최근 사용 공격덱: {deck_label(report['recent_attack'])}"
+            f"{opponent}: {report['wins']}승 {report['losses']}패 ({report['win_rate']:.1f}%)"
         )
-        for index, entry in enumerate(report["top_defenses"], start=1):
-            item = QListWidgetItem(
-                f"TOP {index} · {entry['count']}회 · {entry['wins']}승 {entry['losses']}패 ({entry['win_rate']:.1f}%)\n"
-                f"방어: {deck_label(entry['deck'])}\n"
-                f"사용: {deck_label(entry['attack'])}"
+        if deck_label(report["recent_defense"], empty=""):
+            self._add_tactical_opponent_deck_row(
+                title="최근 방어덱",
+                defense=report["recent_defense"],
+                attack=report["recent_attack"],
             )
-            self._tactical_opponent_top_list.addItem(item)
+        for index, entry in enumerate(report["top_defenses"], start=1):
+            self._add_tactical_opponent_deck_row(
+                title=f"TOP {index} · {entry['count']}회 · {entry['wins']}승 {entry['losses']}패 ({entry['win_rate']:.1f}%)",
+                defense=entry["deck"],
+                attack=entry["attack"],
+            )
         if not report["top_defenses"]:
             self._tactical_opponent_top_list.addItem("방어덱 정보가 있는 전적이 없습니다.")
+
+    def _add_tactical_opponent_deck_row(self, *, title: str, defense: TacticalDeck, attack: TacticalDeck) -> None:
+        item = QListWidgetItem()
+        item.setToolTip(f"공격: {deck_label(attack)}\n방어: {deck_label(defense)}")
+        row = QFrame()
+        row.setObjectName("planBand")
+        layout = QVBoxLayout(row)
+        layout.setContentsMargins(scale_px(8, self._ui_scale), scale_px(7, self._ui_scale), scale_px(8, self._ui_scale), scale_px(7, self._ui_scale))
+        label = QLabel(title)
+        label.setObjectName("sectionTitle")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        deck_row = QHBoxLayout()
+        deck_row.setContentsMargins(0, 0, 0, 0)
+        deck_row.setSpacing(scale_px(6, self._ui_scale))
+        attack_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+        attack_preview.setDeck(attack)
+        defense_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+        defense_preview.setDeck(defense)
+        deck_row.addWidget(QLabel("ATK"))
+        deck_row.addWidget(attack_preview)
+        deck_row.addStretch(1)
+        deck_row.addWidget(QLabel("DEF"))
+        deck_row.addWidget(defense_preview)
+        layout.addLayout(deck_row)
+        self._tactical_opponent_top_list.addItem(item)
+        hint = row.sizeHint()
+        hint.setHeight(hint.height() + scale_px(8, self._ui_scale))
+        item.setSizeHint(hint)
+        self._tactical_opponent_top_list.setItemWidget(item, row)
 
     def _refresh_tactical_jokbo_results(self) -> None:
         if not hasattr(self, "_tactical_jokbo_results"):
@@ -5402,32 +5573,62 @@ class StudentViewerWindow(QMainWindow):
 
     def _add_tactical_jokbo_result_row(self, *, title: str, defense: TacticalDeck, attack: TacticalDeck, note: str) -> None:
         item = QListWidgetItem()
+        item.setData(Qt.UserRole, deck_template(defense))
+        item.setData(Qt.UserRole + 1, deck_template(attack))
         row = QFrame()
         row.setObjectName("planBand")
         layout = QVBoxLayout(row)
         layout.setContentsMargins(scale_px(8, self._ui_scale), scale_px(7, self._ui_scale), scale_px(8, self._ui_scale), scale_px(7, self._ui_scale))
         label = QLabel(title)
         label.setObjectName("sectionTitle")
-        layout.addWidget(label)
-        decks = QGridLayout()
-        decks.setContentsMargins(0, 0, 0, 0)
-        defense_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
-        defense_preview.setDeck(defense)
-        attack_preview = TacticalDeckPreview(ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap)
-        attack_preview.setDeck(attack)
-        decks.addWidget(QLabel("DEF"), 0, 0)
-        decks.addWidget(defense_preview, 0, 1)
-        decks.addWidget(QLabel("ATK"), 1, 0)
-        decks.addWidget(attack_preview, 1, 1)
-        layout.addLayout(decks)
         if note:
-            note_label = QLabel(note)
-            note_label.setObjectName("detailSub")
-            note_label.setWordWrap(True)
-            layout.addWidget(note_label)
+            label.setToolTip(note)
+        layout.addWidget(label)
+        decks = QHBoxLayout()
+        decks.setContentsMargins(0, 0, 0, 0)
+        decks.setSpacing(scale_px(6, self._ui_scale))
+        defense_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+        defense_preview.setDeck(defense)
+        attack_preview = TacticalDeckPreview(card_asset=self._student_card_asset, ui_scale=self._ui_scale, icon_provider=self._tactical_portrait_pixmap, compact=True)
+        attack_preview.setDeck(attack)
+        decks.addWidget(QLabel("ATK"))
+        decks.addWidget(attack_preview)
+        decks.addStretch(1)
+        decks.addWidget(QLabel("DEF"))
+        decks.addWidget(defense_preview)
+        layout.addLayout(decks)
         self._tactical_jokbo_results.addItem(item)
-        item.setSizeHint(row.sizeHint())
+        hint = row.sizeHint()
+        hint.setHeight(hint.height() + scale_px(8, self._ui_scale))
+        item.setSizeHint(hint)
         self._tactical_jokbo_results.setItemWidget(item, row)
+
+    def _selected_tactical_jokbo_decks(self) -> tuple[TacticalDeck, TacticalDeck] | None:
+        if not hasattr(self, "_tactical_jokbo_results"):
+            return None
+        item = self._tactical_jokbo_results.currentItem()
+        if item is None:
+            return None
+        defense_text = str(item.data(Qt.UserRole) or "")
+        attack_text = str(item.data(Qt.UserRole + 1) or "")
+        if not defense_text and not attack_text:
+            return None
+        return parse_deck_template(defense_text), parse_deck_template(attack_text)
+
+    def _copy_selected_tactical_jokbo_defense(self) -> None:
+        decks = self._selected_tactical_jokbo_decks()
+        if decks is not None:
+            self._copy_tactical_deck_template(decks[0])
+
+    def _copy_selected_tactical_jokbo_attack(self) -> None:
+        decks = self._selected_tactical_jokbo_decks()
+        if decks is not None:
+            self._copy_tactical_deck_template(decks[1])
+
+    def _copy_tactical_deck_template(self, deck: TacticalDeck) -> None:
+        QApplication.clipboard().setText(deck_template(deck))
+        if hasattr(self, "_tactical_status"):
+            self._tactical_status.setText("덱 템플릿을 복사했습니다.")
 
     def _build_stats_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)

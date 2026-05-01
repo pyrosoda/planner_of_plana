@@ -57,6 +57,13 @@ def _clean_name(value: object) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def _normalize_slots(values: list[Any], slot_count: int) -> list[str]:
+    slots = [_clean_name(item) for item in list(values)[:slot_count]]
+    while slots and not slots[-1]:
+        slots.pop()
+    return slots
+
+
 def normalize_deck(deck: TacticalDeck | dict[str, Any] | None) -> TacticalDeck:
     if isinstance(deck, TacticalDeck):
         raw_strikers = deck.strikers
@@ -67,11 +74,9 @@ def normalize_deck(deck: TacticalDeck | dict[str, Any] | None) -> TacticalDeck:
     else:
         raw_strikers = []
         raw_supports = []
-    strikers = [_clean_name(item) for item in list(raw_strikers)[:TACTICAL_STRIKER_SLOTS]]
-    supports = [_clean_name(item) for item in list(raw_supports)[:TACTICAL_SUPPORT_SLOTS]]
     return TacticalDeck(
-        strikers=[item for item in strikers if item],
-        supports=[item for item in supports if item],
+        strikers=_normalize_slots(list(raw_strikers), TACTICAL_STRIKER_SLOTS),
+        supports=_normalize_slots(list(raw_supports), TACTICAL_SUPPORT_SLOTS),
     )
 
 
@@ -85,16 +90,26 @@ def deck_signature(deck: TacticalDeck | dict[str, Any] | None) -> str:
 def deck_label(deck: TacticalDeck | dict[str, Any] | None, *, empty: str = "-") -> str:
     normalized = normalize_deck(deck)
     parts: list[str] = []
-    if normalized.strikers:
-        parts.append("STR " + " / ".join(normalized.strikers))
-    if normalized.supports:
-        parts.append("SP " + " / ".join(normalized.supports))
+    if any(normalized.strikers):
+        parts.append("STR " + " / ".join(item or "-" for item in normalized.strikers))
+    if any(normalized.supports):
+        parts.append("SP " + " / ".join(item or "-" for item in normalized.supports))
     return " | ".join(parts) if parts else empty
 
 
 def deck_template(deck: TacticalDeck | dict[str, Any] | None) -> str:
     normalized = normalize_deck(deck)
-    return f"{','.join(normalized.strikers)}|{','.join(normalized.supports)}"
+    if not any(normalized.strikers) and not any(normalized.supports):
+        return ""
+
+    def _fixed_slots(values: list[str], slot_count: int) -> list[str]:
+        slots = values[:slot_count]
+        slots += [""] * max(0, slot_count - len(slots))
+        return slots
+
+    strikers = _fixed_slots(normalized.strikers, TACTICAL_STRIKER_SLOTS)
+    supports = _fixed_slots(normalized.supports, TACTICAL_SUPPORT_SLOTS)
+    return f"{','.join(strikers)}|{','.join(supports)}"
 
 
 def parse_deck_template(value: str) -> TacticalDeck:
@@ -108,7 +123,7 @@ def parse_deck_template(value: str) -> TacticalDeck:
 
     def _parts(part: str) -> list[str]:
         normalized = part.replace("/", ",").replace(";", ",")
-        return [_clean_name(item) for item in normalized.split(",") if _clean_name(item)]
+        return [_clean_name(item) for item in normalized.split(",")]
 
     return normalize_deck(TacticalDeck(strikers=_parts(striker_raw), supports=_parts(support_raw)))
 

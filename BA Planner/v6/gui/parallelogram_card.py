@@ -13,6 +13,7 @@ class ParallelogramCardStyle:
     asset_path: Path
     outer_margin: int = 0
     hit_alpha_threshold: int = 8
+    outline_enabled: bool = True
     outline_ratio: float = 0.02
     outline_color: QColor = field(default_factory=lambda: QColor(255, 255, 255, 84))
     hover_overlay: QColor = field(default_factory=lambda: QColor(255, 255, 255, 18))
@@ -44,6 +45,7 @@ def build_card_style(asset_path: str | Path, ui_scale: float = 1.0) -> Parallelo
     return ParallelogramCardStyle(
         asset_path=Path(asset_path),
         outer_margin=0,
+        outline_enabled=False,
         grid_overlap_x=max(8, int(round(18 * scale))),
         grid_gap_x=max(2, int(round(6 * scale))),
         grid_gap_y=max(6, int(round(10 * scale))),
@@ -157,6 +159,16 @@ class ParallelogramCardAsset:
         return mask
 
     def outline(self, size: QSize) -> QImage:
+        if not self._style.outline_enabled:
+            key = (size.width(), size.height(), 0)
+            cached = self._outline_cache.get(key)
+            if cached is not None:
+                return cached
+            outline = QImage(size, QImage.Format_ARGB32_Premultiplied)
+            outline.fill(Qt.transparent)
+            self._outline_cache[key] = outline
+            return outline
+
         thickness = max(1, int(round(min(size.width(), size.height()) * self._style.outline_ratio)))
         key = (size.width(), size.height(), thickness)
         cached = self._outline_cache.get(key)
@@ -197,7 +209,12 @@ class ParallelogramCardAsset:
         cached = self._scaled_cache.get(key)
         if cached is not None:
             return cached
-        image = self._base.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        image = QImage(size, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        scaled = self._base.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        painter = QPainter(image)
+        painter.drawImage((size.width() - scaled.width()) // 2, (size.height() - scaled.height()) // 2, scaled)
+        painter.end()
         self._scaled_cache[key] = image
         return image
 
