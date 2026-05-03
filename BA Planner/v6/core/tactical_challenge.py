@@ -2,16 +2,129 @@ from __future__ import annotations
 
 import json
 import os
+import csv
+import re
 import sqlite3
+import zipfile
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
+from xml.sax.saxutils import escape as xml_escape
 
 
-TACTICAL_DATA_VERSION = 1
+TACTICAL_DATA_VERSION = 2
 TACTICAL_STRIKER_SLOTS = 4
 TACTICAL_SUPPORT_SLOTS = 2
+XLSX_MAIN_NS = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+XLSX_REL_NS = {"rel": "http://schemas.openxmlformats.org/package/2006/relationships"}
+XLSX_CELL_RE = re.compile(r"([A-Z]+)(\d+)")
+TACTICAL_IMPORT_HEADERS = (
+    "구분",
+    "날짜",
+    "시즌",
+    "상대",
+    "승패",
+    "공격1",
+    "공격2",
+    "공격3",
+    "공격4",
+    "공격SP1",
+    "공격SP2",
+    "방어1",
+    "방어2",
+    "방어3",
+    "방어4",
+    "방어SP1",
+    "방어SP2",
+    "출처",
+    "메모",
+    "id",
+)
+TACTICAL_IMPORT_README = """# 전술대항전 가져오기 템플릿 입력법
+
+이 파일은 `tactical_challenge_import_template.xlsx`에 데이터를 입력한 뒤 앱의 `Excel Import` 버튼으로 가져오기 위한 설명서입니다.
+
+## 기본 흐름
+
+1. `tactical_challenge_import_template.xlsx`를 엽니다.
+2. 1행의 헤더는 지우지 않습니다.
+3. 2행부터 데이터를 입력합니다.
+4. 앱의 전술대항전 탭에서 `Excel Import` 버튼을 누릅니다.
+5. 정상 행은 DB로 가져오고 템플릿에서 지웁니다.
+6. 문제가 있는 행은 가져오지 않고 템플릿에 남깁니다. `오류` 컬럼에 확인할 내용이 표시됩니다.
+7. 모든 행이 정상이라면 템플릿은 헤더만 남기고 자동으로 비워집니다.
+
+## 공통 컬럼
+
+- `구분`: `공격`, `방어`, `족보` 중 하나를 입력합니다. 비워두면 공격 기록으로 처리합니다.
+- `날짜`: 전적 날짜입니다. 예: `2026-04-30`. 비워두면 날짜 없음 상태로 저장되며 전적 목록 맨 아래에 정렬됩니다.
+- `시즌`: 시즌명입니다. 비워두면 앱에 저장된 현재 시즌을 사용합니다.
+- `상대`: 상대 이름입니다. 족보 행에서는 필요 없습니다.
+- `승패`: `승` 또는 `패`를 입력합니다. `win`, `loss`도 인식합니다. 비워두면 `패`로 처리합니다.
+- `출처`: `내 기록`, `타인 전적`, `커뮤니티`, `영상`, `미상`처럼 데이터 출처를 입력합니다. 비워두면 `내 기록`으로 처리합니다.
+- `메모`: 자유 메모입니다.
+- `id`: 선택 사항입니다. 비워두면 자동 생성됩니다. 같은 id로 다시 가져오면 기존 기록을 덮어씁니다.
+
+## 덱 입력 컬럼
+
+공격덱은 아래 6칸에 한 명씩 입력합니다.
+
+- `공격1`, `공격2`, `공격3`, `공격4`
+- `공격SP1`, `공격SP2`
+
+방어덱은 아래 6칸에 한 명씩 입력합니다.
+
+- `방어1`, `방어2`, `방어3`, `방어4`
+- `방어SP1`, `방어SP2`
+
+학생 이름은 앱의 덱 입력과 같은 규칙으로 인식합니다.
+
+- 예: `츠바키`, `네루(바니걸)`, `하나코(수영복)`
+- `네루 (바니걸)`처럼 괄호 앞에 공백이 있어도 인식합니다.
+- 줄임말 사전에 등록한 한 글자도 사용할 수 있습니다.
+- 스트라이커 칸에는 스트라이커만, SP 칸에는 스페셜만 넣을 수 있습니다.
+
+## 구분별 입력법
+
+### 공격 기록
+
+내가 공격한 전적입니다.
+
+- `구분`: `공격` 또는 빈칸
+- `공격1~공격SP2`: 내가 사용한 공격덱
+- `방어1~방어SP2`: 상대 방어덱
+- `상대` 필요. `날짜`를 비우면 날짜 없음 상태로 저장되고, `승패`를 비우면 패로 처리합니다.
+
+### 방어 기록
+
+상대가 내 방어덱을 공격한 전적입니다.
+
+- `구분`: `방어`
+- `공격1~공격SP2`: 상대 공격덱
+- `방어1~방어SP2`: 내 방어덱
+- `상대` 필요. `날짜`를 비우면 날짜 없음 상태로 저장되고, `승패`를 비우면 패로 처리합니다.
+
+### 족보
+
+방어덱과 그에 대응하는 공격덱 페어를 등록합니다.
+
+- `구분`: `족보`
+- `공격1~공격SP2`: 추천 공격덱
+- `방어1~방어SP2`: 대상 방어덱
+- `메모` 입력 가능
+- `날짜`, `상대`, `승패`는 사용하지 않습니다.
+
+## 한 칸 덱 문자열도 지원
+
+기존 방식처럼 한 칸에 덱 문자열을 넣는 파일도 읽을 수 있습니다.
+
+- `공격덱`: `츠바키,네루(바니걸),에이미,하나코(수영복)|히비키,사키`
+- `방어덱`: `츠바키,네루(바니걸),에이미,하나코(수영복)|히비키,시로코(수영복)`
+
+다만 대량 입력에는 6열 방식이 더 편합니다.
+"""
 
 
 @dataclass(slots=True)
@@ -31,6 +144,7 @@ class TacticalMatch:
     opponent_defense: TacticalDeck = field(default_factory=TacticalDeck)
     my_defense: TacticalDeck = field(default_factory=TacticalDeck)
     opponent_attack: TacticalDeck = field(default_factory=TacticalDeck)
+    source: str = "내 기록"
     notes: str = ""
     created_at: str = ""
 
@@ -90,6 +204,71 @@ def deck_signature(deck: TacticalDeck | dict[str, Any] | None) -> str:
     return f"s:{strikers};p:{supports}"
 
 
+def _fixed_compare_slots(values: list[str], slot_count: int) -> list[str]:
+    slots = [_clean_name(item).casefold() for item in values[:slot_count]]
+    slots += [""] * max(0, slot_count - len(slots))
+    return slots
+
+
+def _is_deck_wildcard(value: str) -> bool:
+    return _clean_name(value) == "*"
+
+
+def defense_deck_has_wildcard(deck: TacticalDeck | dict[str, Any] | None) -> bool:
+    normalized = normalize_deck(deck)
+    return any(_is_deck_wildcard(item) for item in [*normalized.strikers, *normalized.supports])
+
+
+def defense_deck_matches(pattern: TacticalDeck | dict[str, Any] | None, candidate: TacticalDeck | dict[str, Any] | None) -> bool:
+    pattern_deck = normalize_deck(pattern)
+    candidate_deck = normalize_deck(candidate)
+    if not any(pattern_deck.strikers) and not any(pattern_deck.supports):
+        return True
+
+    pattern_strikers = _fixed_compare_slots(pattern_deck.strikers, TACTICAL_STRIKER_SLOTS)
+    candidate_strikers = _fixed_compare_slots(candidate_deck.strikers, TACTICAL_STRIKER_SLOTS)
+    for pattern_slot, candidate_slot in zip(pattern_strikers, candidate_strikers):
+        if pattern_slot == "*":
+            continue
+        if pattern_slot != candidate_slot:
+            return False
+
+    pattern_supports = _fixed_compare_slots(pattern_deck.supports, TACTICAL_SUPPORT_SLOTS)
+    candidate_supports = _fixed_compare_slots(candidate_deck.supports, TACTICAL_SUPPORT_SLOTS)
+
+    def _supports_match(candidate_order: list[str]) -> bool:
+        for pattern_slot, candidate_slot in zip(pattern_supports, candidate_order):
+            if pattern_slot == "*":
+                continue
+            if pattern_slot != candidate_slot:
+                return False
+        return True
+
+    return _supports_match(candidate_supports) or _supports_match(list(reversed(candidate_supports)))
+
+
+def defense_deck_signature(deck: TacticalDeck | dict[str, Any] | None) -> str:
+    normalized = normalize_deck(deck)
+    if not any(normalized.strikers) and not any(normalized.supports):
+        return "s:;p:"
+    strikers = "|".join(item.casefold() for item in normalized.strikers)
+    support_slots = list(normalized.supports[:TACTICAL_SUPPORT_SLOTS])
+    support_slots += [""] * max(0, TACTICAL_SUPPORT_SLOTS - len(support_slots))
+    supports = "|".join(sorted(item.casefold() for item in support_slots))
+    return f"s:{strikers};p:{supports}"
+
+
+def defense_deck_template_variants(deck: TacticalDeck | dict[str, Any] | None) -> list[str]:
+    normalized = normalize_deck(deck)
+    base = deck_template(normalized)
+    if not base:
+        return []
+    supports = list(normalized.supports[:TACTICAL_SUPPORT_SLOTS])
+    supports += [""] * max(0, TACTICAL_SUPPORT_SLOTS - len(supports))
+    swapped = deck_template(TacticalDeck(strikers=normalized.strikers, supports=list(reversed(supports))))
+    return list(dict.fromkeys(template for template in (base, swapped) if template))
+
+
 def deck_label(deck: TacticalDeck | dict[str, Any] | None, *, empty: str = "-") -> str:
     normalized = normalize_deck(deck)
     parts: list[str] = []
@@ -131,6 +310,258 @@ def parse_deck_template(value: str) -> TacticalDeck:
     return normalize_deck(TacticalDeck(strikers=_parts(striker_raw), supports=_parts(support_raw)))
 
 
+def _xlsx_col_to_index(col: str) -> int:
+    out = 0
+    for char in col:
+        out = out * 26 + (ord(char) - ord("A") + 1)
+    return out
+
+
+def _xlsx_index_to_col(index: int) -> str:
+    chars: list[str] = []
+    value = index
+    while value > 0:
+        value, rem = divmod(value - 1, 26)
+        chars.append(chr(ord("A") + rem))
+    return "".join(reversed(chars))
+
+
+def _xlsx_cell_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return _clean_name(value)
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    encoding = "utf-8-sig"
+    delimiter = "\t" if path.suffix.casefold() == ".tsv" else ","
+    with path.open("r", encoding=encoding, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        return [
+            {_clean_name(key): _xlsx_cell_text(value) for key, value in row.items() if _clean_name(key)}
+            for row in reader
+        ]
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+    strings: list[str] = []
+    for item in root.findall("main:si", XLSX_MAIN_NS):
+        strings.append("".join(node.text or "" for node in item.findall(".//main:t", XLSX_MAIN_NS)))
+    return strings
+
+
+def _xlsx_first_sheet_path(archive: zipfile.ZipFile) -> str:
+    workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+    rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+    rel_map = {
+        rel.attrib["Id"]: rel.attrib["Target"]
+        for rel in rels.findall("rel:Relationship", XLSX_REL_NS)
+    }
+    sheet = workbook.find("main:sheets/main:sheet", XLSX_MAIN_NS)
+    if sheet is None:
+        raise ValueError("엑셀 파일에 시트가 없습니다.")
+    rel_id = sheet.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
+    target = rel_map[rel_id].lstrip("/")
+    return target if target.startswith("xl/") else f"xl/{target}"
+
+
+def _read_xlsx_rows(path: Path) -> list[dict[str, str]]:
+    with zipfile.ZipFile(path) as archive:
+        shared_strings = _xlsx_shared_strings(archive)
+        sheet_path = _xlsx_first_sheet_path(archive)
+        root = ET.fromstring(archive.read(sheet_path))
+        grid: dict[int, dict[int, str]] = defaultdict(dict)
+        for cell in root.findall(".//main:c", XLSX_MAIN_NS):
+            ref = cell.attrib.get("r", "")
+            match = XLSX_CELL_RE.fullmatch(ref)
+            if not match:
+                continue
+            col, row_text = match.groups()
+            row = int(row_text)
+            column = _xlsx_col_to_index(col)
+            cell_type = cell.attrib.get("t")
+            value_node = cell.find("main:v", XLSX_MAIN_NS)
+            if value_node is None:
+                inline = cell.find("main:is", XLSX_MAIN_NS)
+                if inline is None:
+                    continue
+                value = "".join(node.text or "" for node in inline.findall(".//main:t", XLSX_MAIN_NS))
+            else:
+                raw = value_node.text or ""
+                if cell_type == "s":
+                    value = shared_strings[int(raw)] if raw else ""
+                elif cell_type == "b":
+                    value = "TRUE" if raw == "1" else "FALSE"
+                else:
+                    value = raw
+            grid[row][column] = _xlsx_cell_text(value)
+
+    if not grid:
+        return []
+    header_row = min(grid)
+    headers = {
+        column: _clean_name(value)
+        for column, value in grid[header_row].items()
+        if _clean_name(value)
+    }
+    rows: list[dict[str, str]] = []
+    for row_index in sorted(row for row in grid if row > header_row):
+        row_values = grid[row_index]
+        record = {
+            header: _xlsx_cell_text(row_values.get(column))
+            for column, header in headers.items()
+        }
+        if any(record.values()):
+            rows.append(record)
+    return rows
+
+
+def read_tactical_import_rows(path: Path) -> list[dict[str, str]]:
+    suffix = path.suffix.casefold()
+    if suffix in {".csv", ".tsv"}:
+        return _read_csv_rows(path)
+    if suffix == ".xlsx":
+        return _read_xlsx_rows(path)
+    raise ValueError("지원하는 파일 형식은 .xlsx, .csv, .tsv 입니다.")
+
+
+def _tactical_import_headers_for_rows(rows: list[dict[str, str]]) -> list[str]:
+    headers = list(TACTICAL_IMPORT_HEADERS)
+    for row in rows:
+        for key in row:
+            header = _clean_name(key)
+            if header and header not in headers:
+                headers.append(header)
+    return headers
+
+
+def _write_tactical_import_csv(path: Path, rows: list[dict[str, str]] | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = rows or []
+    headers = _tactical_import_headers_for_rows(rows)
+    delimiter = "\t" if path.suffix.casefold() == ".tsv" else ","
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle, delimiter=delimiter)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow([_xlsx_cell_text(row.get(header, "")) for header in headers])
+
+
+def _write_tactical_import_xlsx(path: Path, rows: list[dict[str, str]] | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = rows or []
+    headers = _tactical_import_headers_for_rows(rows)
+    sheet_rows: list[str] = []
+    for row_index, row_values in enumerate([dict.fromkeys(headers, "")] + rows, start=1):
+        cells: list[str] = []
+        for column_index, header in enumerate(headers, start=1):
+            ref = f"{_xlsx_index_to_col(column_index)}{row_index}"
+            value = header if row_index == 1 else _xlsx_cell_text(row_values.get(header, ""))
+            cells.append(f'<c r="{ref}" t="inlineStr"><is><t>{xml_escape(value)}</t></is></c>')
+        sheet_rows.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        "<sheetData>"
+        + "".join(sheet_rows)
+        + "</sheetData></worksheet>"
+    )
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            "</Types>",
+        )
+        archive.writestr(
+            "_rels/.rels",
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            "</Relationships>",
+        )
+        archive.writestr(
+            "xl/workbook.xml",
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="Tactical Import" sheetId="1" r:id="rId1"/></sheets>'
+            "</workbook>",
+        )
+        archive.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>",
+        )
+        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+
+
+def write_tactical_import_template(path: Path) -> None:
+    if path.suffix.casefold() in {".csv", ".tsv"}:
+        _write_tactical_import_csv(path)
+        return
+    if path.suffix.casefold() == ".xlsx":
+        _write_tactical_import_xlsx(path)
+        return
+    raise ValueError("지원하는 템플릿 형식은 .xlsx, .csv, .tsv 입니다.")
+
+
+def write_tactical_import_rows(path: Path, rows: list[dict[str, str]]) -> None:
+    if path.suffix.casefold() in {".csv", ".tsv"}:
+        _write_tactical_import_csv(path, rows)
+        return
+    if path.suffix.casefold() == ".xlsx":
+        _write_tactical_import_xlsx(path, rows)
+        return
+    raise ValueError("지원하는 템플릿 형식은 .xlsx, .csv, .tsv 입니다.")
+
+
+def tactical_import_readme_path(template_path: Path) -> Path:
+    return template_path.with_name("tactical_challenge_import_README.md")
+
+
+def write_tactical_import_readme(template_path: Path) -> Path:
+    readme_path = tactical_import_readme_path(template_path)
+    readme_path.parent.mkdir(parents=True, exist_ok=True)
+    readme_path.write_text(TACTICAL_IMPORT_README, encoding="utf-8")
+    return readme_path
+
+
+def ensure_tactical_import_readme(template_path: Path) -> Path:
+    readme_path = tactical_import_readme_path(template_path)
+    if not readme_path.exists() or readme_path.read_text(encoding="utf-8") != TACTICAL_IMPORT_README:
+        write_tactical_import_readme(template_path)
+    return readme_path
+
+
+def ensure_tactical_import_template(path: Path) -> None:
+    if not path.exists():
+        write_tactical_import_template(path)
+        ensure_tactical_import_readme(path)
+        return
+    try:
+        if not read_tactical_import_rows(path):
+            write_tactical_import_template(path)
+    except Exception:
+        return
+    ensure_tactical_import_readme(path)
+
+
+def clear_tactical_import_template(path: Path) -> None:
+    write_tactical_import_template(path)
+
+
 def _deck_contains_query(deck: TacticalDeck, query: str) -> bool:
     if not query:
         return True
@@ -151,6 +582,7 @@ def _match_from_dict(payload: dict[str, Any]) -> TacticalMatch | None:
         filtered["season"] = _clean_name(filtered.get("season"))
         filtered["opponent"] = _clean_name(filtered.get("opponent"))
         filtered["result"] = _clean_name(filtered.get("result")) or "win"
+        filtered["source"] = _clean_name(filtered.get("source")) or "내 기록"
         filtered["notes"] = str(filtered.get("notes") or "")
         filtered["created_at"] = _clean_name(filtered.get("created_at"))
         if not filtered["id"]:
@@ -269,6 +701,7 @@ def _init_tactical_db(conn: sqlite3.Connection) -> None:
             opponent_defense TEXT NOT NULL,
             my_defense TEXT NOT NULL,
             opponent_attack TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT '내 기록',
             notes TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
@@ -291,6 +724,9 @@ def _init_tactical_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_tactical_jokbo_defense ON jokbo(defense)")
     current_version = int(conn.execute("PRAGMA user_version").fetchone()[0] or 0)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(matches)")}
+    if "source" not in columns:
+        conn.execute("ALTER TABLE matches ADD COLUMN source TEXT NOT NULL DEFAULT '내 기록'")
     if current_version < 2:
         conn.execute("PRAGMA user_version = 2")
 
@@ -307,6 +743,7 @@ def _match_from_db_row(row: sqlite3.Row) -> TacticalMatch | None:
             "opponent_defense": parse_deck_template(row["opponent_defense"]),
             "my_defense": parse_deck_template(row["my_defense"]),
             "opponent_attack": parse_deck_template(row["opponent_attack"]),
+            "source": row["source"],
             "notes": row["notes"],
             "created_at": row["created_at"],
         }
@@ -339,7 +776,7 @@ def _load_tactical_sqlite(path: Path, *, load_matches: bool = True) -> TacticalC
         if load_matches:
             matches = [
                 match
-                for match in (_match_from_db_row(row) for row in conn.execute("SELECT * FROM matches ORDER BY date DESC, created_at DESC, id DESC"))
+                for match in (_match_from_db_row(row) for row in conn.execute("SELECT * FROM matches ORDER BY CASE WHEN date = '' THEN 1 ELSE 0 END, date DESC, created_at DESC, id DESC"))
                 if match is not None
             ]
         jokbo = [
@@ -369,7 +806,7 @@ def _load_tactical_sqlite(path: Path, *, load_matches: bool = True) -> TacticalC
         conn.close()
 
 
-def _match_db_tuple(match: TacticalMatch) -> tuple[str, str, str, str, str, str, str, str, str, str, str]:
+def _match_db_tuple(match: TacticalMatch) -> tuple[str, str, str, str, str, str, str, str, str, str, str, str]:
     return (
         _clean_name(match.id),
         _clean_name(match.date),
@@ -380,6 +817,7 @@ def _match_db_tuple(match: TacticalMatch) -> tuple[str, str, str, str, str, str,
         deck_template(match.opponent_defense),
         deck_template(match.my_defense),
         deck_template(match.opponent_attack),
+        _clean_name(match.source) or "내 기록",
         str(match.notes or ""),
         _clean_name(match.created_at),
     )
@@ -450,7 +888,7 @@ def _save_tactical_sqlite(path: Path, data: TacticalChallengeData, *, sync_match
 
             if sync_matches:
                 existing_matches = {
-                    row["id"]: tuple(row[key] for key in ("id", "date", "season", "opponent", "result", "my_attack", "opponent_defense", "my_defense", "opponent_attack", "notes", "created_at"))
+                    row["id"]: tuple(row[key] for key in ("id", "date", "season", "opponent", "result", "my_attack", "opponent_defense", "my_defense", "opponent_attack", "source", "notes", "created_at"))
                     for row in conn.execute("SELECT * FROM matches")
                 }
                 next_matches = {
@@ -478,14 +916,14 @@ def _save_tactical_sqlite(path: Path, data: TacticalChallengeData, *, sync_match
         conn.close()
 
 
-def _upsert_tactical_match_rows(conn: sqlite3.Connection, rows: list[tuple[str, str, str, str, str, str, str, str, str, str, str]]) -> None:
+def _upsert_tactical_match_rows(conn: sqlite3.Connection, rows: list[tuple[str, str, str, str, str, str, str, str, str, str, str, str]]) -> None:
     conn.executemany(
         """
         INSERT INTO matches(
             id, date, season, opponent, result,
             my_attack, opponent_defense, my_defense, opponent_attack,
-            notes, created_at
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            source, notes, created_at
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             date = excluded.date,
             season = excluded.season,
@@ -495,6 +933,7 @@ def _upsert_tactical_match_rows(conn: sqlite3.Connection, rows: list[tuple[str, 
             opponent_defense = excluded.opponent_defense,
             my_defense = excluded.my_defense,
             opponent_attack = excluded.opponent_attack,
+            source = excluded.source,
             notes = excluded.notes,
             created_at = excluded.created_at
         """,
@@ -576,6 +1015,27 @@ def upsert_tactical_match(path: Path, match: TacticalMatch) -> None:
         conn.close()
 
 
+def upsert_tactical_matches(path: Path, matches: list[TacticalMatch]) -> None:
+    if not matches:
+        return
+    if path.suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}:
+        data = load_tactical_challenge(path)
+        next_by_id = {match.id: match for match in data.matches}
+        for match in matches:
+            next_by_id[match.id] = match
+        data.matches = list(next_by_id.values())
+        save_tactical_challenge(path, data)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    try:
+        _init_tactical_db(conn)
+        with conn:
+            _upsert_tactical_match_rows(conn, [_match_db_tuple(match) for match in matches])
+    finally:
+        conn.close()
+
+
 def upsert_tactical_jokbo(path: Path, entry: TacticalJokboEntry) -> None:
     if path.suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}:
         data = load_tactical_challenge(path)
@@ -588,6 +1048,27 @@ def upsert_tactical_jokbo(path: Path, entry: TacticalJokboEntry) -> None:
         _init_tactical_db(conn)
         with conn:
             _upsert_tactical_jokbo_rows(conn, [_jokbo_db_tuple(entry)])
+    finally:
+        conn.close()
+
+
+def upsert_tactical_jokbo_entries(path: Path, entries: list[TacticalJokboEntry]) -> None:
+    if not entries:
+        return
+    if path.suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}:
+        data = load_tactical_challenge(path)
+        next_by_id = {entry.id: entry for entry in data.jokbo}
+        for entry in entries:
+            next_by_id[entry.id] = entry
+        data.jokbo = list(next_by_id.values())
+        save_tactical_challenge(path, data)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    try:
+        _init_tactical_db(conn)
+        with conn:
+            _upsert_tactical_jokbo_rows(conn, [_jokbo_db_tuple(entry) for entry in entries])
     finally:
         conn.close()
 
@@ -616,7 +1097,7 @@ def _match_search_clause(query: str) -> tuple[str, list[str]]:
     if not needle:
         return "", []
     like = f"%{needle}%"
-    fields = ("date", "season", "opponent", "result", "my_attack", "opponent_defense", "my_defense", "opponent_attack", "notes")
+    fields = ("date", "season", "opponent", "result", "source", "my_attack", "opponent_defense", "my_defense", "opponent_attack", "notes")
     return "WHERE " + " OR ".join(f"{field} LIKE ? COLLATE NOCASE" for field in fields), [like] * len(fields)
 
 
@@ -629,7 +1110,7 @@ def query_tactical_matches(path: Path, query: str = "", *, limit: int = 100, off
         _init_tactical_db(conn)
         where, params = _match_search_clause(query)
         rows = conn.execute(
-            f"SELECT * FROM matches {where} ORDER BY date DESC, created_at DESC, id DESC LIMIT ? OFFSET ?",
+            f"SELECT * FROM matches {where} ORDER BY CASE WHEN date = '' THEN 1 ELSE 0 END, date DESC, created_at DESC, id DESC LIMIT ? OFFSET ?",
             [*params, max(1, int(limit)), max(0, int(offset))],
         )
         return [match for match in (_match_from_db_row(row) for row in rows) if match is not None]
@@ -645,6 +1126,43 @@ def get_tactical_match(path: Path, match_id: str) -> TacticalMatch | None:
     try:
         _init_tactical_db(conn)
         row = conn.execute("SELECT * FROM matches WHERE id = ?", (_clean_name(match_id),)).fetchone()
+        return _match_from_db_row(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def latest_tactical_match_for_opponent(path: Path, opponent: str, mode: str) -> TacticalMatch | None:
+    target = _clean_name(opponent)
+    if not target:
+        return None
+    mode = "defense" if mode == "defense" else "attack"
+    if path.suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}:
+        matches = [
+            match
+            for match in sorted_matches(load_tactical_challenge(path).matches)
+            if match.opponent.casefold() == target.casefold()
+        ]
+        for match in matches:
+            if mode == "defense":
+                if deck_template(match.my_defense) and deck_template(match.opponent_attack):
+                    return match
+            elif deck_template(match.my_attack) and deck_template(match.opponent_defense):
+                return match
+        return None
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    try:
+        _init_tactical_db(conn)
+        deck_clause = "my_defense != '' AND opponent_attack != ''" if mode == "defense" else "my_attack != '' AND opponent_defense != ''"
+        row = conn.execute(
+            f"""
+            SELECT * FROM matches
+            WHERE opponent = ? COLLATE NOCASE AND {deck_clause}
+            ORDER BY CASE WHEN date = '' THEN 1 ELSE 0 END, date DESC, created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (target,),
+        ).fetchone()
         return _match_from_db_row(row) if row is not None else None
     finally:
         conn.close()
@@ -691,7 +1209,7 @@ def opponent_report_from_storage(path: Path, opponent: str) -> dict[str, Any]:
     conn.row_factory = sqlite3.Row
     try:
         _init_tactical_db(conn)
-        rows = conn.execute("SELECT * FROM matches WHERE opponent = ? COLLATE NOCASE ORDER BY date DESC, created_at DESC, id DESC", (target,))
+        rows = conn.execute("SELECT * FROM matches WHERE opponent = ? COLLATE NOCASE ORDER BY CASE WHEN date = '' THEN 1 ELSE 0 END, date DESC, created_at DESC, id DESC", (target,))
         matches = [match for match in (_match_from_db_row(row) for row in rows) if match is not None]
         return opponent_report(TacticalChallengeData(matches=matches), opponent)
     finally:
@@ -701,14 +1219,26 @@ def opponent_report_from_storage(path: Path, opponent: str) -> dict[str, Any]:
 def search_jokbo_from_storage(path: Path, data: TacticalChallengeData, defense: TacticalDeck, *, query: str = "") -> dict[str, list[dict[str, Any]]]:
     if path.suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}:
         return search_jokbo(data, defense, query=query)
-    signature = deck_signature(defense)
-    defense_template = deck_template(defense)
+    signature = defense_deck_signature(defense)
+    defense_templates = defense_deck_template_variants(defense)
     manual = search_jokbo(TacticalChallengeData(jokbo=data.jokbo), defense, query=query)["manual"]
     where = []
     params: list[str] = []
     if signature != "s:;p:":
-        where.append("(opponent_defense = ? OR my_defense = ?)")
-        params.extend([defense_template, defense_template])
+        if defense_deck_has_wildcard(defense):
+            fixed_terms = [
+                term
+                for term in [*normalize_deck(defense).strikers, *normalize_deck(defense).supports]
+                if term and not _is_deck_wildcard(term)
+            ]
+            for term in fixed_terms:
+                where.append("(opponent_defense LIKE ? COLLATE NOCASE OR my_defense LIKE ? COLLATE NOCASE)")
+                like = f"%{term}%"
+                params.extend([like, like])
+        else:
+            placeholders = ", ".join("?" for _ in defense_templates)
+            where.append(f"(opponent_defense IN ({placeholders}) OR my_defense IN ({placeholders}))")
+            params.extend([*defense_templates, *defense_templates])
     if query:
         like = f"%{query.strip()}%"
         where.append(
@@ -785,6 +1315,7 @@ def filter_matches(matches: list[TacticalMatch], query: str) -> list[TacticalMat
                 deck_label(match.opponent_defense),
                 deck_label(match.my_defense),
                 deck_label(match.opponent_attack),
+                match.source,
                 match.notes,
             )
         ).casefold()
@@ -850,10 +1381,10 @@ def opponent_report(data: TacticalChallengeData, opponent: str) -> dict[str, Any
 
 
 def search_jokbo(data: TacticalChallengeData, defense: TacticalDeck, *, query: str = "") -> dict[str, list[dict[str, Any]]]:
-    signature = deck_signature(defense)
+    signature = defense_deck_signature(defense)
     manual: list[dict[str, Any]] = []
     for entry in data.jokbo:
-        if signature != "s:;p:" and deck_signature(entry.defense) != signature:
+        if signature != "s:;p:" and not defense_deck_matches(defense, entry.defense):
             continue
         if query and not (_deck_contains_query(entry.defense, query) or _deck_contains_query(entry.attack, query) or query.casefold() in entry.notes.casefold()):
             continue
@@ -878,7 +1409,7 @@ def search_jokbo(data: TacticalChallengeData, defense: TacticalDeck, *, query: s
             ),
         ]
         for candidate_defense, candidate_attack, attack_result in candidates:
-            if signature != "s:;p:" and deck_signature(candidate_defense) != signature:
+            if signature != "s:;p:" and not defense_deck_matches(defense, candidate_defense):
                 continue
             if query and not (_deck_contains_query(candidate_defense, query) or _deck_contains_query(candidate_attack, query)):
                 continue

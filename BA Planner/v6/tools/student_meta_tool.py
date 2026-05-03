@@ -131,6 +131,7 @@ STUDENT_SORTS = ("Value A-Z", "Value Z-A", "Match First")
 ITEM_SORTS = ("Shortage First", "Adjusted Asc", "Adjusted Desc", "Name A-Z")
 ITEM_FILTERS = ("All Items", "Shortage Only", "Zero Or Less", "Positive Only")
 SERVER_FILTERS = ("All", "KR", "JP Only")
+EDITOR_VALUE_FIELD_CHARS = 96
 METADATA_TABLE_COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("student_id", "Student ID", 170),
     ("display_name", "Name", 170),
@@ -829,8 +830,13 @@ class StudentMetaToolApp:
         canvas.configure(yscrollcommand=scrollbar.set)
         form = ttk.Frame(canvas, padding=(0, 8, 0, 8))
         form.columnconfigure(1, weight=1)
-        canvas.create_window((0, 0), window=form, anchor="nw")
+        form_window = canvas.create_window((0, 0), window=form, anchor="nw")
         form.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(form_window, width=max(event.width, scale_px(900, self._ui_scale))),
+            add="+",
+        )
         self._editor_canvas = canvas
         self._editor_form = form
         self._bind_scroll_region(canvas)
@@ -843,7 +849,7 @@ class StudentMetaToolApp:
             var = tk.StringVar()
             self.vars[name] = var
             if name in LIST_FIELDS or name in STRUCTURED_FIELDS:
-                widget = ttk.Entry(form, textvariable=var)
+                widget = ttk.Entry(form, textvariable=var, width=EDITOR_VALUE_FIELD_CHARS)
             else:
                 combo_state = "normal" if name in FREE_TEXT_COMBO_FIELDS else "readonly"
                 widget = ttk.Combobox(
@@ -851,6 +857,7 @@ class StudentMetaToolApp:
                     textvariable=var,
                     values=self.field_options.get(name, ("",)),
                     state=combo_state,
+                    width=EDITOR_VALUE_FIELD_CHARS,
                 )
             widget.grid(row=row, column=1, sticky="ew", pady=4)
             if isinstance(widget, ttk.Combobox):

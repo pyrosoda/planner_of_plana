@@ -11,9 +11,9 @@ import os
 import re
 import sqlite3
 import sys
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field, fields
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -48,21 +48,29 @@ from core.tactical_challenge import (
     TacticalDeck,
     TacticalJokboEntry,
     TacticalMatch,
+    clear_tactical_import_template,
     deck_label,
     deck_template,
     delete_tactical_match,
+    ensure_tactical_import_template,
     get_tactical_match,
+    latest_tactical_match_for_opponent,
     load_tactical_challenge,
     opponent_report_from_storage,
     parse_deck_template,
     query_tactical_matches,
+    read_tactical_import_rows,
+    tactical_import_readme_path,
+    write_tactical_import_rows,
     save_tactical_metadata,
     save_tactical_challenge,
     search_jokbo_from_storage,
     tactical_match_count,
     tactical_match_summary,
     upsert_tactical_jokbo,
+    upsert_tactical_jokbo_entries,
     upsert_tactical_match,
+    upsert_tactical_matches,
 )
 from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QPainter, QPainterPath, QPen, QPixmap
@@ -117,6 +125,15 @@ SKILL_BOOK_ICON_DIR = BASE_DIR / "templates" / "icons" / "skill_book"
 SKILL_DB_ICON_DIR = BASE_DIR / "templates" / "icons" / "skill_db"
 INVENTORY_DETAIL_DIR = BASE_DIR / "templates" / "inventory_detail"
 CARD_BUTTON_ASSET = POLI_BG_DIR / "square.png"
+ITEM_ICON_DEFAULT_BACKGROUND = POLI_BG_DIR / "square.png"
+ITEM_ICON_BACKGROUND_BLUE = POLI_BG_DIR / "square_blue.png"
+ITEM_ICON_BACKGROUND_YELLOW = POLI_BG_DIR / "square_yellow.png"
+ITEM_ICON_BACKGROUND_PURPLE = POLI_BG_DIR / "square_purple.png"
+ITEM_ICON_BACKGROUND_BY_TIER_INDEX: dict[int, Path] = {
+    1: ITEM_ICON_BACKGROUND_BLUE,
+    2: ITEM_ICON_BACKGROUND_YELLOW,
+    3: ITEM_ICON_BACKGROUND_PURPLE,
+}
 MAIN_UI_PALETTE_PATH = BASE_DIR / "gui" / "main_ui_color_palete.txt"
 THUMB_STYLE_VERSION = "v5-parallelogram-card-fit"
 DETAIL_SLANT = 0.22
@@ -516,6 +533,98 @@ def _tinted_pixmap(pixmap: QPixmap, color: str, size: QSize | None = None) -> QP
     painter.fillRect(canvas.rect(), QColor(color))
     painter.end()
     return canvas
+
+
+def _item_icon_tier_index(item_id: str | None) -> int | None:
+    text = str(item_id or "")
+    match = re.search(r"_(\d+)$", text)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _uses_tiered_item_background(item_id: str | None) -> bool:
+    text = str(item_id or "")
+    if text in _OPART_ITEM_IDS:
+        return True
+    return (
+        text.startswith("Item_Icon_ExpItem_")
+        or text.startswith("report_")
+        or text.startswith("Item_Icon_SkillBook_")
+        or text.startswith("Item_Icon_Material_ExSkill_")
+        or text.startswith("Equipment_Icon_Exp_")
+        or text.startswith("Equipment_Icon_WeaponExpGrowth")
+    )
+
+
+def _uses_yellow_item_background(item_id: str | None) -> bool:
+    text = str(item_id or "")
+    return (
+        text == "Item_Icon_Favor_Selection"
+        or text.startswith("Item_Icon_Favor_")
+        or text in _WORKBOOK_ID_TO_NAME
+        or text in _WB_ITEM_IDS
+        or text.startswith("Item_Icon_WorkBook_")
+    )
+
+
+def _item_icon_background_path(item_id: str | None = None) -> Path | None:
+    if _uses_yellow_item_background(item_id) and ITEM_ICON_BACKGROUND_YELLOW.exists():
+        return ITEM_ICON_BACKGROUND_YELLOW
+    if _uses_tiered_item_background(item_id):
+        tier_index = _item_icon_tier_index(item_id)
+        if tier_index is not None:
+            tier_path = ITEM_ICON_BACKGROUND_BY_TIER_INDEX.get(tier_index)
+            if tier_path is not None and tier_path.exists():
+                return tier_path
+    return ITEM_ICON_DEFAULT_BACKGROUND if ITEM_ICON_DEFAULT_BACKGROUND.exists() else None
+
+
+def _draw_centered_pixmap(painter: QPainter, pixmap: QPixmap, bounds: QRect) -> None:
+    if pixmap.isNull() or not bounds.isValid():
+        return
+    scaled = pixmap.scaled(bounds.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    x = bounds.x() + (bounds.width() - scaled.width()) // 2
+    y = bounds.y() + (bounds.height() - scaled.height()) // 2
+    painter.drawPixmap(x, y, scaled)
+
+
+def _item_icon_pixmap(
+    *,
+    size: QSize,
+    item_id: str | None = None,
+    icon_path: Path | None = None,
+    icon: QPixmap | None = None,
+) -> QPixmap:
+    if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+        return QPixmap()
+
+    source = QPixmap(icon) if icon is not None else QPixmap()
+    if source.isNull() and icon_path is not None and icon_path.exists():
+        source = QPixmap(str(icon_path))
+    if source.isNull():
+        return QPixmap()
+
+    background_path = _item_icon_background_path(item_id)
+    if background_path is None:
+        return source.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+    background = QPixmap(str(background_path))
+    if background.isNull():
+        return source.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+    canvas = QPixmap(size)
+    canvas.fill(Qt.transparent)
+    painter = QPainter(canvas)
+    _draw_centered_pixmap(painter, background, canvas.rect())
+    _draw_centered_pixmap(painter, source, canvas.rect())
+    painter.end()
+    return canvas
+
+
+def _item_icon(icon_path: Path | None, *, size: QSize, item_id: str | None = None) -> QIcon:
+    pixmap = _item_icon_pixmap(size=size, item_id=item_id, icon_path=icon_path)
+    return QIcon(pixmap) if not pixmap.isNull() else QIcon()
 
 
 class ParallelogramPanel(QWidget):
@@ -1974,7 +2083,16 @@ class InventoryListItem(QFrame):
         self._quantity.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self._quantity, 0, Qt.AlignVCenter)
 
-    def setData(self, *, icon_path: Path | None, name: str, quantity: str, meta: str = "", shortage: bool = False) -> None:
+    def setData(
+        self,
+        *,
+        icon_path: Path | None,
+        item_id: str | None = None,
+        name: str,
+        quantity: str,
+        meta: str = "",
+        shortage: bool = False,
+    ) -> None:
         self._name.setText(name)
         self._quantity.setText(quantity)
         self._meta.setText(meta)
@@ -1984,10 +2102,9 @@ class InventoryListItem(QFrame):
         self._meta.setStyleSheet(warning_style if shortage else "")
 
         if icon_path is not None and icon_path.exists():
-            pixmap = QPixmap(str(icon_path))
+            pixmap = _item_icon_pixmap(size=self._icon.size(), item_id=item_id, icon_path=icon_path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self._icon.setPixmap(scaled)
+                self._icon.setPixmap(pixmap)
                 return
         self._icon.setPixmap(QPixmap())
 
@@ -2065,6 +2182,7 @@ class InventoryOpartFamilyRow(QFrame):
         layout.setHorizontalSpacing(scale_px(8, self._ui_scale))
         layout.setVerticalSpacing(0)
 
+        icon_size = QSize(scale_px(34, self._ui_scale), scale_px(34, self._ui_scale))
         for column, (tier, item_id, name, owned, status, icon_path) in enumerate(tier_items):
             button = QPushButton(f"T{tier}  {owned:,}\n{status}")
             button.setObjectName("planQuickButton")
@@ -2072,10 +2190,10 @@ class InventoryOpartFamilyRow(QFrame):
             button.setMinimumHeight(scale_px(74, self._ui_scale))
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             if icon_path is not None and icon_path.exists():
-                icon = QIcon(str(icon_path))
+                icon = _item_icon(icon_path, size=icon_size, item_id=item_id)
                 if not icon.isNull():
                     button.setIcon(icon)
-                    button.setIconSize(QSize(scale_px(34, self._ui_scale), scale_px(34, self._ui_scale)))
+                    button.setIconSize(icon_size)
             button.clicked.connect(lambda _checked=False, value=item_id: self.selected.emit(value))
             self._buttons[item_id] = button
             layout.addWidget(button, 0, column)
@@ -2144,13 +2262,14 @@ class PlanResourceChip(QFrame):
         self._quantity.setStyleSheet(f"color: #ff6b6b;" if shortage else "")
 
         if requirement.icon is not None and not requirement.icon.isNull():
-            self._icon.setPixmap(requirement.icon.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            pixmap = _item_icon_pixmap(size=self._icon.size(), item_id=requirement.key, icon=requirement.icon)
+            self._icon.setPixmap(pixmap)
             return
 
         if requirement.icon_path is not None and requirement.icon_path.exists():
-            pixmap = QPixmap(str(requirement.icon_path))
+            pixmap = _item_icon_pixmap(size=self._icon.size(), item_id=requirement.key, icon_path=requirement.icon_path)
             if not pixmap.isNull():
-                self._icon.setPixmap(pixmap.scaled(self._icon.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self._icon.setPixmap(pixmap)
                 return
         self._icon.setPixmap(QPixmap())
 
@@ -2217,7 +2336,7 @@ class TacticalDeckSlot(QWidget):
         painter.drawImage(card_x, card_y, self._card_asset.apply_alpha_mask(card_image))
         if self._text and self._pixmap.isNull():
             painter.setPen(QColor(MUTED))
-            painter.drawText(self.rect(), Qt.AlignCenter, "?")
+            painter.drawText(self.rect(), Qt.AlignCenter, "*" if self._text.strip() == "*" else "?")
         painter.end()
 
 
@@ -2408,6 +2527,7 @@ class StudentViewerWindow(QMainWindow):
         self._pool = QThreadPool.globalInstance()
         self._all_students = load_students()
         self._records_by_id = {record.student_id: record for record in self._all_students}
+        self._tactical_student_lookup_index: dict[str, list[str]] | None = None
         self._filtered_students = list(self._all_students)
         self._item_by_id: dict[str, StudentCardWidget] = {}
         self._plan_card_by_id: dict[str, StudentCardWidget] = {}
@@ -4564,7 +4684,7 @@ class StudentViewerWindow(QMainWindow):
         item = QListWidgetItem(text)
         icon_path = _inventory_icon_path(usage.item_id, usage.name)
         if icon_path is not None and icon_path.exists():
-            item.setIcon(QIcon(str(icon_path)))
+            item.setIcon(_item_icon(icon_path, size=target.iconSize(), item_id=usage.item_id))
         item.setToolTip(tooltip)
         item.setData(Qt.UserRole, usage.item_id)
         target.addItem(item)
@@ -4807,6 +4927,7 @@ class StudentViewerWindow(QMainWindow):
             widget = InventoryListItem(ui_scale=self._ui_scale)
             widget.setData(
                 icon_path=_inventory_icon_path(str(item_id) if item_id else None, name),
+                item_id=item_id_text or None,
                 name=name,
                 quantity=quantity,
                 meta=meta,
@@ -5078,7 +5199,8 @@ class StudentViewerWindow(QMainWindow):
         self._tactical_status = QLabel("")
         self._tactical_status.setObjectName("filterSummary")
         self._tactical_status.setWordWrap(True)
-        input_layout.addWidget(self._tactical_status)
+        self._tactical_status.setMaximumHeight(scale_px(48, self._ui_scale))
+        self._tactical_status.hide()
         input_layout.addStretch(1)
         splitter.addWidget(input_scroll)
 
@@ -5118,7 +5240,14 @@ class StudentViewerWindow(QMainWindow):
         self._tactical_match_copy_defense_button.clicked.connect(self._copy_selected_tactical_match_defense)
         self._tactical_match_delete_button = QPushButton("[삭제]")
         self._tactical_match_delete_button.clicked.connect(self._delete_selected_tactical_match)
+        self._tactical_match_import_button = QPushButton("Excel Import")
+        self._tactical_match_import_button.clicked.connect(self._import_tactical_spreadsheet)
+        import_template_path = self._ensure_tactical_import_template()
+        self._tactical_match_import_button.setToolTip(
+            f"템플릿: {import_template_path}\n설명서: {tactical_import_readme_path(import_template_path)}"
+        )
         match_action_row.addStretch(1)
+        match_action_row.addWidget(self._tactical_match_import_button)
         match_action_row.addWidget(self._tactical_match_copy_attack_button)
         match_action_row.addWidget(self._tactical_match_copy_defense_button)
         match_action_row.addWidget(self._tactical_match_delete_button)
@@ -5206,6 +5335,9 @@ class StudentViewerWindow(QMainWindow):
         loss_button.setCheckable(True)
         save_button = QPushButton("Save")
         clear_button = QPushButton("Clear")
+        action_width = scale_px(72, self._ui_scale)
+        for button in (win_button, loss_button, save_button, clear_button):
+            button.setFixedWidth(action_width)
         header.addWidget(title)
         header.addWidget(opponent, 1)
         header.addWidget(win_button)
@@ -5213,6 +5345,20 @@ class StudentViewerWindow(QMainWindow):
         header.addWidget(save_button)
         header.addWidget(clear_button)
         layout.addLayout(header)
+
+        recent_row = QHBoxLayout()
+        recent_row.setContentsMargins(0, 0, 0, 0)
+        recent_attack_button = QPushButton("최근 공격")
+        recent_defense_button = QPushButton("최근 방어")
+        recent_button_width = action_width * 2 + scale_px(6, self._ui_scale)
+        recent_attack_button.setFixedWidth(recent_button_width)
+        recent_defense_button.setFixedWidth(recent_button_width)
+        recent_attack_button.setToolTip("상대 이름으로 최근 공격 기록의 공덱/방덱을 가져옵니다.")
+        recent_defense_button.setToolTip("상대 이름으로 최근 방어 기록의 공덱/방덱을 가져옵니다.")
+        recent_row.addStretch(1)
+        recent_row.addWidget(recent_attack_button)
+        recent_row.addWidget(recent_defense_button)
+        layout.addLayout(recent_row)
 
         mode_row = QHBoxLayout()
         mode_row.setContentsMargins(0, 0, 0, 0)
@@ -5240,6 +5386,12 @@ class StudentViewerWindow(QMainWindow):
         notes.setPlaceholderText("메모")
         notes.setMaximumHeight(scale_px(58, self._ui_scale))
         layout.addWidget(notes)
+        status = QLabel("")
+        status.setObjectName("filterSummary")
+        status.setWordWrap(True)
+        status.setMaximumHeight(scale_px(48, self._ui_scale))
+        status.hide()
+        layout.addWidget(status)
 
         panel = {
             "title": title,
@@ -5254,6 +5406,7 @@ class StudentViewerWindow(QMainWindow):
             "attack": attack_editor,
             "defense": defense_editor,
             "notes": notes,
+            "status": status,
         }
         win_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "win"))
         loss_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_result(target, "loss"))
@@ -5262,6 +5415,8 @@ class StudentViewerWindow(QMainWindow):
         jokbo_mode_button.clicked.connect(lambda *_args, target=panel: self._set_tactical_panel_mode(target, "jokbo"))
         save_button.clicked.connect(lambda *_args, target=panel: self._save_tactical_match_panel(target))
         clear_button.clicked.connect(lambda *_args, target=panel: self._clear_tactical_match_panel(target))
+        recent_attack_button.clicked.connect(lambda *_args, target=panel: self._load_recent_tactical_match_panel(target, "attack"))
+        recent_defense_button.clicked.connect(lambda *_args, target=panel: self._load_recent_tactical_match_panel(target, "defense"))
         self._set_tactical_panel_result(panel, "win")
         self._set_tactical_panel_mode(panel, "attack")
         return panel_widget, panel
@@ -5384,6 +5539,295 @@ class StudentViewerWindow(QMainWindow):
         panel["win_button"].setStyleSheet(selected_style if panel["result"] == "win" else idle_style)
         panel["loss_button"].setStyleSheet(selected_style if panel["result"] == "loss" else idle_style)
 
+    def _tactical_import_key(self, value: object) -> str:
+        return re.sub(r"[\s_\-./()]+", "", str(value or "").strip().casefold())
+
+    def _tactical_import_template_path(self) -> Path:
+        return get_storage_paths().current_dir / "tactical_challenge_import_template.xlsx"
+
+    def _ensure_tactical_import_template(self) -> Path:
+        path = self._tactical_import_template_path()
+        ensure_tactical_import_template(path)
+        return path
+
+    def _tactical_import_value(self, row: dict[str, str], *aliases: str) -> str:
+        for alias in aliases:
+            value = row.get(self._tactical_import_key(alias), "")
+            if str(value or "").strip():
+                return str(value).strip()
+        return ""
+
+    def _tactical_import_deck_value(
+        self,
+        row: dict[str, str],
+        single_aliases: tuple[str, ...],
+        slot_aliases: tuple[str, ...],
+    ) -> str:
+        single_value = self._tactical_import_value(row, *single_aliases)
+        if single_value:
+            return single_value
+
+        def _slot(index: int) -> str:
+            aliases: list[str] = []
+            for alias in slot_aliases:
+                aliases.extend(
+                    [
+                        f"{alias}{index}",
+                        f"{alias}S{index}",
+                        f"{alias}스트{index}",
+                        f"{alias}스트라이커{index}",
+                    ]
+                )
+            return self._tactical_import_value(row, *aliases)
+
+        def _support(index: int) -> str:
+            aliases: list[str] = []
+            for alias in slot_aliases:
+                aliases.extend(
+                    [
+                        f"{alias}SP{index}",
+                        f"{alias}Special{index}",
+                        f"{alias}스페셜{index}",
+                        f"{alias}서포터{index}",
+                        f"{alias}지원{index}",
+                    ]
+                )
+            return self._tactical_import_value(row, *aliases)
+
+        strikers = [_slot(index) for index in range(1, TACTICAL_STRIKER_SLOTS + 1)]
+        supports = [_support(index) for index in range(1, TACTICAL_SUPPORT_SLOTS + 1)]
+        if not any(strikers) and not any(supports):
+            return ""
+        return f"{','.join(strikers)}|{','.join(supports)}"
+
+    def _normalize_tactical_import_date(self, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if re.fullmatch(r"\d{8}", text):
+            return date(int(text[:4]), int(text[4:6]), int(text[6:8])).isoformat()
+        if re.fullmatch(r"\d+(\.0+)?", text):
+            serial = int(float(text))
+            if 20000 <= serial <= 80000:
+                return (date(1899, 12, 30) + timedelta(days=serial)).isoformat()
+        normalized = re.sub(r"[./]", "-", text)
+        return date.fromisoformat(normalized[:10]).isoformat()
+
+    def _normalize_tactical_import_result(self, value: str) -> str:
+        key = self._tactical_import_key(value)
+        if key in {"승", "win", "w", "1", "true", "o"}:
+            return "win"
+        if key in {"패", "loss", "lose", "l", "0", "false", "x"}:
+            return "loss"
+        return ""
+
+    def _normalize_tactical_import_mode(self, value: str) -> str:
+        key = self._tactical_import_key(value)
+        if "족보" in key or "jokbo" in key:
+            return "jokbo"
+        if "방어" in key or "defense" in key or key == "def":
+            return "defense"
+        return "attack"
+
+    def _canonical_import_deck(self, row_number: int, deck_text: str, label: str, errors: list[str]) -> TacticalDeck:
+        deck = self._parse_tactical_deck_template(deck_text)
+        canonical, error = self._canonical_tactical_deck_or_error(deck, label)
+        if error:
+            errors.append(f"{row_number}행: {error}")
+        return canonical
+
+    def _failed_tactical_import_row(self, raw_row: dict[str, str], error: str) -> dict[str, str]:
+        failed = {str(key): str(value or "").strip() for key, value in raw_row.items()}
+        failed["오류"] = error
+        return failed
+
+    def _build_tactical_import_entries(self, rows: list[dict[str, str]]) -> tuple[list[TacticalMatch], list[TacticalJokboEntry], list[str], list[dict[str, str]]]:
+        matches: list[TacticalMatch] = []
+        jokbo_entries: list[TacticalJokboEntry] = []
+        errors: list[str] = []
+        failed_rows: list[dict[str, str]] = []
+        now = datetime.now().isoformat(timespec="seconds")
+
+        for index, raw_row in enumerate(rows, start=2):
+            row = {self._tactical_import_key(key): str(value or "").strip() for key, value in raw_row.items()}
+
+            def reject(message: str) -> None:
+                errors.append(message)
+                failed_rows.append(self._failed_tactical_import_row(raw_row, message))
+
+            mode = self._normalize_tactical_import_mode(
+                self._tactical_import_value(row, "mode", "type", "구분", "종류", "기록종류", "기록")
+            )
+            generic_attack = self._tactical_import_deck_value(
+                row,
+                ("attack", "atk", "공격덱", "공덱"),
+                ("attack", "atk", "공격", "공"),
+            )
+            generic_defense = self._tactical_import_deck_value(
+                row,
+                ("defense", "def", "방어덱", "방덱"),
+                ("defense", "def", "방어", "방"),
+            )
+            notes = self._tactical_import_value(row, "notes", "note", "memo", "메모", "비고")
+            source = self._tactical_import_value(row, "source", "출처", "데이터출처", "source_type") or "내 기록"
+            row_id = self._tactical_import_value(row, "id", "match_id", "고유값")
+
+            if mode == "jokbo":
+                defense_text = self._tactical_import_deck_value(
+                    row,
+                    ("jokbo_defense", "족보방어덱", "방어덱", "방덱"),
+                    ("jokbo_defense", "jokbodef", "족보방어", "방어", "방"),
+                ) or generic_defense
+                attack_text = self._tactical_import_deck_value(
+                    row,
+                    ("jokbo_attack", "족보공격덱", "공격덱", "공덱"),
+                    ("jokbo_attack", "jokboatk", "족보공격", "공격", "공"),
+                ) or generic_attack
+                if not defense_text or not attack_text:
+                    reject(f"{index}행: 족보는 공격덱과 방어덱이 모두 필요합니다.")
+                    continue
+                jokbo_errors_before = len(errors)
+                defense = self._canonical_import_deck(index, defense_text, "족보 방어덱", errors)
+                attack = self._canonical_import_deck(index, attack_text, "족보 공격덱", errors)
+                if len(errors) != jokbo_errors_before:
+                    failed_rows.append(self._failed_tactical_import_row(raw_row, "\n".join(errors[jokbo_errors_before:])))
+                    continue
+                jokbo_entries.append(
+                    TacticalJokboEntry(
+                        id=row_id or f"import-jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{index}-{uuid4().hex[:6]}",
+                        defense=defense,
+                        attack=attack,
+                        notes=notes,
+                        updated_at=now,
+                    )
+                )
+                continue
+
+            date_text = self._tactical_import_value(row, "date", "날짜", "일자")
+            opponent = self._tactical_import_value(row, "opponent", "상대", "상대이름", "name", "이름")
+            result_text = self._tactical_import_value(row, "result", "승패", "결과", "winloss")
+            result = self._normalize_tactical_import_result(result_text) if result_text else "loss"
+            if not opponent and source != "내 기록":
+                opponent = "미상"
+            if not opponent:
+                reject(f"{index}행: 상대 이름이 필요합니다.")
+                continue
+            if result_text and not result:
+                reject(f"{index}행: 승패는 승/패 또는 win/loss로 입력해 주세요.")
+                continue
+            if date_text:
+                try:
+                    match_date = self._normalize_tactical_import_date(date_text)
+                except Exception:
+                    reject(f"{index}행: 날짜 '{date_text}'를 인식할 수 없습니다.")
+                    continue
+            else:
+                match_date = ""
+
+            my_attack_text = self._tactical_import_deck_value(
+                row,
+                ("my_attack", "my atk", "내공격덱", "내공덱"),
+                ("my_attack", "myatk", "내공격", "내공"),
+            )
+            opponent_defense_text = self._tactical_import_deck_value(
+                row,
+                ("opponent_defense", "op def", "상대방어덱", "상대방덱"),
+                ("opponent_defense", "opdef", "상대방어", "상대방"),
+            )
+            my_defense_text = self._tactical_import_deck_value(
+                row,
+                ("my_defense", "my def", "내방어덱", "내방덱"),
+                ("my_defense", "mydef", "내방어", "내방"),
+            )
+            opponent_attack_text = self._tactical_import_deck_value(
+                row,
+                ("opponent_attack", "op atk", "상대공격덱", "상대공덱"),
+                ("opponent_attack", "opatk", "상대공격", "상대공"),
+            )
+            if mode == "defense":
+                my_defense_text = my_defense_text or generic_defense
+                opponent_attack_text = opponent_attack_text or generic_attack
+            else:
+                my_attack_text = my_attack_text or generic_attack
+                opponent_defense_text = opponent_defense_text or generic_defense
+
+            if not any((my_attack_text, opponent_defense_text, my_defense_text, opponent_attack_text)):
+                reject(f"{index}행: 덱 정보가 필요합니다.")
+                continue
+
+            match_errors_before = len(errors)
+            my_attack = self._canonical_import_deck(index, my_attack_text, "내 공격덱", errors) if my_attack_text else TacticalDeck()
+            opponent_defense = self._canonical_import_deck(index, opponent_defense_text, "상대 방어덱", errors) if opponent_defense_text else TacticalDeck()
+            my_defense = self._canonical_import_deck(index, my_defense_text, "내 방어덱", errors) if my_defense_text else TacticalDeck()
+            opponent_attack = self._canonical_import_deck(index, opponent_attack_text, "상대 공격덱", errors) if opponent_attack_text else TacticalDeck()
+            if len(errors) != match_errors_before:
+                failed_rows.append(self._failed_tactical_import_row(raw_row, "\n".join(errors[match_errors_before:])))
+                continue
+
+            matches.append(
+                TacticalMatch(
+                    id=row_id or f"import-tc-{datetime.now().strftime('%Y%m%d%H%M%S')}-{index}-{uuid4().hex[:6]}",
+                    date=match_date,
+                    season=self._tactical_import_value(row, "season", "시즌") or self._tactical_data.season,
+                    opponent=opponent,
+                    result=result,
+                    my_attack=my_attack,
+                    opponent_defense=opponent_defense,
+                    my_defense=my_defense,
+                    opponent_attack=opponent_attack,
+                    source=source,
+                    notes=notes,
+                    created_at=now,
+                )
+            )
+
+        return matches, jokbo_entries, errors, failed_rows
+
+    def _import_tactical_spreadsheet(self) -> None:
+        template_path = self._ensure_tactical_import_template()
+        self._show_busy_overlay("가져오는 중...")
+        try:
+            rows = read_tactical_import_rows(template_path)
+            if not rows:
+                self._set_tactical_status(f"템플릿에 가져올 행이 없습니다.\n{template_path}", error=True)
+                return
+            matches, jokbo_entries, errors, failed_rows = self._build_tactical_import_entries(rows)
+            if not matches and not jokbo_entries and errors:
+                write_tactical_import_rows(template_path, failed_rows)
+                preview = "\n".join(errors[:12])
+                suffix = f"\n...외 {len(errors) - 12}개 오류" if len(errors) > 12 else ""
+                self._set_tactical_status(
+                    "가져올 수 있는 행이 없습니다. 문제가 있는 행만 템플릿에 남겼습니다.\n" + preview + suffix,
+                    error=True,
+                )
+                return
+            upsert_tactical_matches(self._tactical_path, matches)
+            upsert_tactical_jokbo_entries(self._tactical_path, jokbo_entries)
+            self._storage_mtimes = self._snapshot_storage_mtimes()
+            self._tactical_match_loaded_count = max(self._tactical_match_loaded_count, self._tactical_match_page_size)
+            self._refresh_tactical_match_list()
+            self._refresh_tactical_jokbo_results()
+            if failed_rows:
+                write_tactical_import_rows(template_path, failed_rows)
+                preview = "\n".join(errors[:8])
+                suffix = f"\n...외 {len(errors) - 8}개 오류" if len(errors) > 8 else ""
+                self._set_tactical_status(
+                    f"정상 행은 가져왔습니다. 전적 {len(matches)}개, 족보 {len(jokbo_entries)}개\n"
+                    f"문제가 있는 행 {len(failed_rows)}개는 템플릿에 남겼습니다. 확인이 필요합니다.\n"
+                    f"{preview}{suffix}",
+                    error=True,
+                )
+            else:
+                clear_tactical_import_template(template_path)
+                self._set_tactical_status(
+                    f"템플릿 데이터를 가져왔습니다. 전적 {len(matches)}개, 족보 {len(jokbo_entries)}개\n"
+                    f"템플릿을 비웠습니다: {template_path}"
+                )
+        except Exception as exc:
+            self._set_tactical_status(f"가져오기 실패: {exc}", error=True)
+        finally:
+            self._hide_busy_overlay()
+
     def _save_tactical_match_panel(self, panel: dict) -> None:
         if not self._save_tactical_abbreviations():
             return
@@ -5397,16 +5841,16 @@ class StudentViewerWindow(QMainWindow):
         attack_deck, attack_error = self._canonical_tactical_deck_or_error(attack_deck, "공격덱")
         defense_deck, defense_error = self._canonical_tactical_deck_or_error(defense_deck, "방어덱")
         if attack_error or defense_error:
-            self._set_tactical_status("\n".join(error for error in (attack_error, defense_error) if error), error=True)
+            self._set_tactical_status("\n".join(error for error in (attack_error, defense_error) if error), error=True, panel=panel)
             return
         self._set_tactical_deck_inputs(panel["attack"], attack_deck)
         self._set_tactical_deck_inputs(panel["defense"], defense_deck)
         if panel.get("mode") == "jokbo":
             if not any(defense_deck.strikers) and not any(defense_deck.supports):
-                self._set_tactical_status("족보의 방어덱을 입력해 주세요.", error=True)
+                self._set_tactical_status("족보의 방어덱을 입력해 주세요.", error=True, panel=panel)
                 return
             if not any(attack_deck.strikers) and not any(attack_deck.supports):
-                self._set_tactical_status("족보의 공격덱을 입력해 주세요.", error=True)
+                self._set_tactical_status("족보의 공격덱을 입력해 주세요.", error=True, panel=panel)
                 return
             entry = TacticalJokboEntry(
                 id=f"jokbo-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
@@ -5427,17 +5871,17 @@ class StudentViewerWindow(QMainWindow):
                 self._refresh_tactical_jokbo_results()
             finally:
                 self._hide_busy_overlay()
-            self._set_tactical_status("족보를 저장했습니다.")
+            self._set_tactical_status("족보를 저장했습니다.", panel=panel)
             return
 
         opponent = panel["opponent"].text().strip()
         if not opponent:
-            self._set_tactical_status("상대 이름을 입력해 주세요.", error=True)
+            self._set_tactical_status("상대 이름을 입력해 주세요.", error=True, panel=panel)
             return
         is_defense_record = panel.get("mode") == "defense"
         match = TacticalMatch(
             id=f"tc-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}",
-            date=self._tactical_date.text().strip() or date.today().isoformat(),
+            date=self._tactical_date.text().strip(),
             season=season,
             opponent=opponent,
             result=str(panel["result"]),
@@ -5445,6 +5889,7 @@ class StudentViewerWindow(QMainWindow):
             opponent_defense=TacticalDeck() if is_defense_record else defense_deck,
             my_defense=defense_deck if is_defense_record else TacticalDeck(),
             opponent_attack=attack_deck if is_defense_record else TacticalDeck(),
+            source="내 기록",
             notes=panel["notes"].toPlainText().strip(),
             created_at=now,
         )
@@ -5457,15 +5902,42 @@ class StudentViewerWindow(QMainWindow):
             self._refresh_tactical_match_list()
         finally:
             self._hide_busy_overlay()
-        self._set_tactical_status(f"{match.date} {opponent} 전적을 저장했습니다.")
+        self._set_tactical_status(f"{self._tactical_date_label(match)} {opponent} 전적을 저장했습니다.", panel=panel)
 
     def _clear_tactical_match_panel(self, panel: dict) -> None:
         panel["opponent"].clear()
         panel["notes"].clear()
+        self._set_tactical_status("", panel=panel)
         self._set_tactical_panel_result(panel, "win")
         self._set_tactical_panel_mode(panel, "attack")
         self._clear_tactical_deck_inputs(panel["attack"])
         self._clear_tactical_deck_inputs(panel["defense"])
+
+    def _load_recent_tactical_match_panel(self, panel: dict, mode: str) -> None:
+        opponent = panel["opponent"].text().strip()
+        if not opponent:
+            self._set_tactical_status("상대 이름을 입력해 주세요.", error=True, panel=panel)
+            return
+        mode = "defense" if mode == "defense" else "attack"
+        self._show_busy_overlay("불러오는 중...")
+        try:
+            match = latest_tactical_match_for_opponent(self._tactical_path, opponent, mode)
+        finally:
+            self._hide_busy_overlay()
+        if match is None:
+            label = "방어" if mode == "defense" else "공격"
+            self._set_tactical_status(f"{opponent}의 최근 {label} 기록을 찾지 못했습니다.", error=True, panel=panel)
+            return
+        self._set_tactical_panel_mode(panel, mode)
+        self._set_tactical_panel_result(panel, match.result)
+        if mode == "defense":
+            self._set_tactical_deck_inputs(panel["attack"], match.opponent_attack)
+            self._set_tactical_deck_inputs(panel["defense"], match.my_defense)
+        else:
+            self._set_tactical_deck_inputs(panel["attack"], match.my_attack)
+            self._set_tactical_deck_inputs(panel["defense"], match.opponent_defense)
+        label = "방어" if mode == "defense" else "공격"
+        self._set_tactical_status(f"{self._tactical_date_label(match)} {opponent} 최근 {label} 기록을 가져왔습니다.", panel=panel)
 
     def _save_tactical_season(self) -> None:
         if self._tactical_data.season == self._tactical_season.text().strip():
@@ -5526,11 +5998,34 @@ class StudentViewerWindow(QMainWindow):
         self._save_tactical_metadata()
         return True
 
-    def _set_tactical_status(self, text: str, *, error: bool = False) -> None:
-        if not hasattr(self, "_tactical_status"):
+    def _compact_tactical_message(self, text: str, *, max_lines: int = 2, max_chars: int = 150) -> str:
+        full_text = str(text or "").strip()
+        if not full_text:
+            return ""
+        lines = [line.strip() for line in full_text.splitlines() if line.strip()]
+        if len(lines) > max_lines:
+            visible = lines[:max_lines]
+            visible.append(f"...외 {len(lines) - max_lines}개")
+            return "\n".join(visible)
+        compact = "\n".join(lines) if lines else full_text
+        if len(compact) > max_chars:
+            return compact[: max(0, max_chars - 3)].rstrip() + "..."
+        return compact
+
+    def _set_tactical_status(self, text: str, *, error: bool = False, panel: dict | None = None) -> None:
+        target = panel.get("status") if panel is not None else None
+        if target is None and getattr(self, "_tactical_match_panels", None):
+            target = self._tactical_match_panels[0].get("status")
+        if target is None and hasattr(self, "_tactical_status"):
+            target = self._tactical_status
+        if target is None:
             return
-        self._tactical_status.setStyleSheet("color: #ff6b6b; font-weight: 800;" if error else "")
-        self._tactical_status.setText(text)
+        full_text = str(text or "").strip()
+        compact_text = self._compact_tactical_message(full_text)
+        target.setStyleSheet("color: #ff6b6b; font-weight: 800;" if error else "")
+        target.setText(compact_text)
+        target.setToolTip(full_text if full_text and full_text != compact_text else "")
+        target.setVisible(bool(full_text))
 
     def _tactical_lookup_key(self, value: object) -> str:
         cleaned = " ".join(str(value or "").strip().split())
@@ -5598,13 +6093,14 @@ class StudentViewerWindow(QMainWindow):
         needle = self._tactical_lookup_key(name)
         if not needle:
             return []
-        matches: list[str] = []
+        index = self._tactical_student_lookup_index_map()
+        return list(index.get(needle, []))
 
-        def _add_if_match(student_id: str, terms: list[object]) -> None:
-            for term in terms:
-                if self._tactical_lookup_key(term) == needle:
-                    matches.append(student_id)
-                    return
+    def _tactical_student_lookup_index_map(self) -> dict[str, list[str]]:
+        cached = getattr(self, "_tactical_student_lookup_index", None)
+        if cached is not None:
+            return cached
+        index: dict[str, set[str]] = defaultdict(set)
 
         for student_id in student_meta.all_ids():
             record = self._records_by_id.get(student_id)
@@ -5617,14 +6113,58 @@ class StudentViewerWindow(QMainWindow):
             ]
             terms.extend(student_meta.search_tags(student_id))
             terms.extend(student_meta.kr_search_tags(student_id))
-            _add_if_match(student_id, terms)
-        return sorted(set(matches), key=lambda student_id: student_meta.display_name(student_id).casefold())
+            for term in terms:
+                key = self._tactical_lookup_key(term)
+                if key:
+                    index[key].add(student_id)
+        built = {
+            key: sorted(values, key=lambda student_id: student_meta.display_name(student_id).casefold())
+            for key, values in index.items()
+        }
+        self._tactical_student_lookup_index = built
+        return built
 
     def _tactical_student_display_name(self, student_id: str) -> str:
         record = self._records_by_id.get(student_id)
         return record.title if record is not None else student_meta.display_name(student_id)
 
     def _canonical_tactical_deck_or_error(self, deck: TacticalDeck, label: str) -> tuple[TacticalDeck, str]:
+        errors: list[str] = []
+
+        def _is_empty_token(value: str) -> bool:
+            key = self._tactical_import_key(value)
+            return key in {"", "-", "?", "unknown", "none", "null", "na", "n/a", "알수없음", "미상"}
+
+        def _resolve_slots(values: list[str], prefix: str, expected_class: str, expected_label: str) -> list[str]:
+            resolved: list[str] = []
+            for index, raw_name in enumerate(values, start=1):
+                raw_name = str(raw_name or "").strip()
+                if _is_empty_token(raw_name):
+                    resolved.append("")
+                    continue
+                matches = self._tactical_student_ids_for_name(raw_name)
+                if not matches:
+                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 학생을 인식할 수 없어 저장할 수 없습니다.")
+                    resolved.append(raw_name)
+                elif len(matches) > 1:
+                    names = ", ".join(self._tactical_student_display_name(student_id) for student_id in matches[:6])
+                    suffix = "..." if len(matches) > 6 else ""
+                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 중복 태그입니다. ({names}{suffix})")
+                    resolved.append(raw_name)
+                else:
+                    student_id = matches[0]
+                    if student_meta.combat_class(student_id) != expected_class:
+                        errors.append(f"{label} {prefix}{index}: '{self._tactical_student_display_name(student_id)}'는 {expected_label} 자리에 배치할 수 없습니다.")
+                    resolved.append(self._tactical_student_display_name(student_id))
+            return resolved
+
+        canonical = TacticalDeck(
+            strikers=_resolve_slots(deck.strikers[:TACTICAL_STRIKER_SLOTS], "S", "striker", "스트라이커"),
+            supports=_resolve_slots(deck.supports[:TACTICAL_SUPPORT_SLOTS], "SP", "special", "스페셜"),
+        )
+        return canonical, "\n".join(errors)
+
+    def _canonical_tactical_search_deck_or_error(self, deck: TacticalDeck, label: str) -> tuple[TacticalDeck, str]:
         errors: list[str] = []
 
         def _resolve_slots(values: list[str], prefix: str, expected_class: str, expected_label: str) -> list[str]:
@@ -5634,9 +6174,12 @@ class StudentViewerWindow(QMainWindow):
                 if not raw_name:
                     resolved.append("")
                     continue
+                if raw_name == "*":
+                    resolved.append("*")
+                    continue
                 matches = self._tactical_student_ids_for_name(raw_name)
                 if not matches:
-                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 학생을 인식할 수 없어 저장할 수 없습니다.")
+                    errors.append(f"{label} {prefix}{index}: '{raw_name}' 학생을 인식할 수 없습니다.")
                     resolved.append(raw_name)
                 elif len(matches) > 1:
                     names = ", ".join(self._tactical_student_display_name(student_id) for student_id in matches[:6])
@@ -5759,6 +6302,9 @@ class StudentViewerWindow(QMainWindow):
             return None
         return get_tactical_match(self._tactical_path, selected_id)
 
+    def _tactical_date_label(self, match: TacticalMatch) -> str:
+        return match.date or "날짜 없음"
+
     def _copy_selected_tactical_defense_to_search(self) -> None:
         match = self._selected_tactical_match()
         if match is None:
@@ -5805,6 +6351,7 @@ class StudentViewerWindow(QMainWindow):
         for match in matches:
             result_text = "승" if match.result == "win" else "패"
             season_text = f" · {match.season}" if match.season else ""
+            source_text = f" · {match.source}" if match.source and match.source != "내 기록" else ""
             item = QListWidgetItem()
             item.setData(Qt.UserRole, match.id)
             item.setToolTip(self._tactical_match_tooltip(match))
@@ -5814,7 +6361,7 @@ class StudentViewerWindow(QMainWindow):
             row_layout = QVBoxLayout(row)
             row_layout.setContentsMargins(scale_px(8, self._ui_scale), scale_px(7, self._ui_scale), scale_px(8, self._ui_scale), scale_px(7, self._ui_scale))
             top_row = QHBoxLayout()
-            text = QLabel(f"{match.date}{season_text}  [{result_text}] {match.opponent}")
+            text = QLabel(f"{self._tactical_date_label(match)}{season_text}{source_text}  [{result_text}] {match.opponent}")
             text.setWordWrap(True)
             text.setObjectName("sectionTitle")
             top_row.addWidget(text, 1)
@@ -5889,7 +6436,8 @@ class StudentViewerWindow(QMainWindow):
 
     def _tactical_match_tooltip(self, match: TacticalMatch) -> str:
         lines = [
-            f"{match.date} {match.season} {match.opponent}".strip(),
+            f"{self._tactical_date_label(match)} {match.season} {match.opponent}".strip(),
+            f"출처: {match.source or '내 기록'}",
             f"내 공격덱: {deck_label(match.my_attack)}",
             f"상대 방어덱: {deck_label(match.opponent_defense)}",
         ]
@@ -5920,7 +6468,7 @@ class StudentViewerWindow(QMainWindow):
             return
         result_text = "승리" if match.result == "win" else "패배"
         lines = [
-            f"{match.date} · {match.season or '-'} · {match.opponent} · {result_text}",
+            f"{self._tactical_date_label(match)} · {match.season or '-'} · {match.source or '내 기록'} · {match.opponent} · {result_text}",
             f"내 공격덱: {deck_label(match.my_attack)}",
             f"상대 방어덱: {deck_label(match.opponent_defense)}",
         ]
@@ -6005,6 +6553,15 @@ class StudentViewerWindow(QMainWindow):
             self._tactical_jokbo_results.clear()
             self._tactical_jokbo_results.addItem("방어덱을 입력하거나 전적을 선택하면 족보를 검색합니다.")
             return
+        defense, error = self._canonical_tactical_search_deck_or_error(defense, "족보 검색 방어덱")
+        if error:
+            self._tactical_jokbo_results.clear()
+            item = QListWidgetItem(self._compact_tactical_message(error, max_lines=2, max_chars=130))
+            item.setToolTip(error)
+            self._tactical_jokbo_results.addItem(item)
+            self._set_tactical_status(error, error=True)
+            return
+        self._set_tactical_deck_inputs(self._tactical_jokbo_search_inputs, defense)
         results = search_jokbo_from_storage(self._tactical_path, self._tactical_data, defense)
         self._tactical_jokbo_results.clear()
         for result in results["manual"]:
@@ -7902,6 +8459,7 @@ class StudentViewerWindow(QMainWindow):
         self._invalidate_plan_caches()
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._records_by_id = {record.student_id: record for record in self._all_students}
+        self._tactical_student_lookup_index = None
         self._filter_options = build_filter_options(self._all_students)
         self._unowned_icon_cache.clear()
         self._apply_filters()
