@@ -14,6 +14,7 @@ import sys
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field, fields
 from datetime import date, datetime, timedelta
+from html import escape
 from pathlib import Path
 from uuid import uuid4
 
@@ -107,6 +108,148 @@ from PySide6.QtWidgets import (
 )
 
 _PLAN_GOAL_CACHE_FIELDS = tuple(field.name for field in fields(StudentGoal))
+_UI_LANGUAGE = os.environ.get("BA_PLANNER_LANG", "ko").split(".", 1)[0].replace("-", "_").lower()
+if _UI_LANGUAGE not in {"ko", "en"}:
+    _UI_LANGUAGE = "ko"
+
+_I18N: dict[str, dict[str, str]] = {
+    "ko": {
+        "tab.students": "학생",
+        "tab.plans": "플랜",
+        "tab.inventory": "인벤토리",
+        "inventory.title": "재화 부족 진단",
+        "inventory.subtitle": "인벤토리 분석 · 부족 추적 · 성장 계획 최적화",
+        "inventory.empty": "아직 스캔된 인벤토리가 없습니다.",
+        "inventory.empty_with_hint": "아직 스캔된 인벤토리가 없습니다. 아이템 또는 장비 스캔을 실행하면 이 탭이 채워집니다.",
+        "inventory.sort_label": "오파츠 / BD / 노트 정렬",
+        "inventory.sort_category": "카테고리별 T4-T1",
+        "inventory.sort_tier": "티어별 T4-T1",
+        "inventory.root_equipment": "장비",
+        "inventory.root_items": "아이템",
+        "inventory.category.ooparts": "오파츠",
+        "inventory.category.wb": "WB",
+        "inventory.category.stones": "강화석",
+        "inventory.category.reports": "활동 보고서",
+        "inventory.category.weapon_parts": "무기 성장 재료",
+        "inventory.category.tech_notes": "기술 노트",
+        "inventory.category.bd": "BD",
+        "inventory.category.other": "기타",
+        "inventory.header.material": "재화",
+        "inventory.header.owned": "보유",
+        "inventory.header.plan_need": "계획 필요",
+        "inventory.header.plan_short": "계획 부족",
+        "inventory.header.pool_remain": "풀 남은 수요",
+        "inventory.header.status": "상태",
+        "inventory.pressure_title": "부족 진단",
+        "inventory.pressure_empty": "인벤토리를 스캔하고 오파츠를 선택하면 계획 부족 상태를 확인할 수 있습니다.",
+        "inventory.plan_shortage_top": "계획 부족 TOP",
+        "inventory.full_pool_top": "전체 풀 부족 TOP",
+        "inventory.common_bottleneck": "공통 병목 요약",
+        "inventory.school_shortage": "학교 / 카테고리 부족",
+        "inventory.detail.select_oopart": "오파츠를 선택하세요",
+        "inventory.detail.pick_item": "위 아이템을 선택하면 계획 사용처와 영향을 받는 학생을 볼 수 있습니다.",
+        "inventory.detail.inventory_status": "인벤토리 상태",
+        "inventory.detail.owned": "보유",
+        "inventory.detail.plan_need": "계획 필요",
+        "inventory.detail.plan_short": "계획 부족",
+        "inventory.detail.plan_coverage": "계획 충족률",
+        "inventory.detail.full_pool_need": "전체 풀 필요",
+        "inventory.detail.pool_left": "풀 남은 수요",
+        "inventory.detail.full_coverage": "전체 충족률",
+        "inventory.detail.skill_demand": "스킬 수요",
+        "inventory.detail.ex_skill": "EX 스킬",
+        "inventory.detail.normal_skills": "일반 스킬",
+        "inventory.detail.affected_students": "영향 학생",
+        "inventory.detail.current_full_pool": "현재 / 전체 풀",
+        "inventory.detail.decision_hints": "판단 힌트",
+        "inventory.detail.related_pressure": "연관 부족 현황",
+        "inventory.detail.student_breakdown": "학생별 분해",
+        "inventory.status.sufficient": "충분",
+        "inventory.status.plan_shortage": "계획 부족",
+        "inventory.status.long_term_pressure": "장기적으로 부족",
+        "inventory.status.unused": "미사용",
+        "inventory.status.high_tier_bottleneck": "고티어 병목",
+        "inventory.no_scanned_category": "이 카테고리에 스캔된 아이템이 아직 없습니다.",
+        "inventory.scan_to_populate": "아이템 또는 장비 스캔을 실행하면 이 카테고리가 채워집니다.",
+        "inventory.summary": "{count}개 · 총 수량 {quantity}",
+        "inventory.summary_scanned": "{count}개 스캔 · 총 수량 {quantity}{suffix}",
+        "inventory.last_updated": " · 마지막 갱신 {time}",
+    }
+}
+
+
+def _tr(key: str, default: str | None = None, **kwargs: object) -> str:
+    text = _I18N.get(_UI_LANGUAGE, {}).get(key)
+    if text is None:
+        text = _I18N.get("en", {}).get(key, default if default is not None else key)
+    return text.format(**kwargs) if kwargs else text
+
+
+def _format_count(value: int | float | None, *, compact: bool = False, signed: bool = False) -> str:
+    if value is None:
+        return "-"
+    number = int(value)
+    if signed and number > 0:
+        return f"-{_format_count(number, compact=compact)}"
+    sign = "-" if number < 0 else ""
+    amount = abs(number)
+    if compact and amount >= 100_000_000_0000:
+        compact_value = amount / 100_000_000_0000
+        return f"{sign}{compact_value:.1f}조".replace(".0조", "조")
+    if compact and amount >= 100_000_000:
+        compact_value = amount / 100_000_000
+        return f"{sign}{compact_value:.1f}억".replace(".0억", "억")
+    if compact and amount >= 10_000:
+        compact_value = amount / 10_000
+        return f"{sign}{compact_value:.1f}만".replace(".0만", "만")
+    return f"{number:,}"
+
+
+def _full_count_tooltip(value: int | float | None) -> str:
+    return "-" if value is None else f"{int(value):,}"
+
+
+def _inventory_status_key(status: str) -> str:
+    normalized = (status or "").replace("-", " ").replace("_", " ").strip().lower()
+    mapping = {
+        "sufficient": "sufficient",
+        "충분": "sufficient",
+        "plan shortage": "plan_shortage",
+        "계획 부족": "plan_shortage",
+        "long term pressure": "long_term_pressure",
+        "long-term pressure": "long_term_pressure",
+        "장기적으로 부족": "long_term_pressure",
+        "unused": "unused",
+        "미사용": "unused",
+        "high tier bottleneck": "high_tier_bottleneck",
+        "high-tier bottleneck": "high_tier_bottleneck",
+        "고티어 병목": "high_tier_bottleneck",
+    }
+    return mapping.get(normalized, normalized.replace(" ", "_") or "unused")
+
+
+def _inventory_status_label(status: str) -> str:
+    key = _inventory_status_key(status)
+    return _tr(f"inventory.status.{key}", status)
+
+
+def _inventory_category_label(category: str) -> str:
+    return _tr(f"inventory.category.{category}", category.replace("_", " ").title() if category else "")
+
+
+def _equipment_series_label(series_key: str) -> str:
+    labels = {
+        "Necklace": "목걸이",
+        "Watch": "시계",
+        "Charm": "부적",
+        "Hairpin": "헤어핀",
+        "Badge": "배지",
+        "Bag": "가방",
+        "Shoes": "신발",
+        "Gloves": "장갑",
+        "Hat": "모자",
+    }
+    return labels.get(series_key, series_key)
 
 try:
     from PIL import Image
@@ -518,6 +661,41 @@ def _school_logo_path(school: str | None) -> Path | None:
     filename = mapping.get((school or "").strip(), "School_Icon_ETC.png")
     path = SCHOOL_LOGO_DIR / filename
     return path if path.exists() else None
+
+
+def _school_logo_badge_path(school: str | None, *, size: int) -> Path | None:
+    logo_path = _school_logo_path(school)
+    if logo_path is None:
+        return None
+    badge_dir = Path(os.environ.get("BA_PLANNER_CACHE_DIR") or (BASE_DIR / "debug" / "school_badges"))
+    badge_dir.mkdir(parents=True, exist_ok=True)
+    safe_school = re.sub(r"[^A-Za-z0-9_-]+", "_", (school or "ETC").strip() or "ETC")
+    badge_path = badge_dir / f"{safe_school}_{size}.png"
+    source_mtime = max(
+        logo_path.stat().st_mtime if logo_path.exists() else 0,
+        ITEM_ICON_DEFAULT_BACKGROUND.stat().st_mtime if ITEM_ICON_DEFAULT_BACKGROUND.exists() else 0,
+    )
+    if badge_path.exists() and badge_path.stat().st_mtime >= source_mtime:
+        return badge_path
+
+    badge = QPixmap(size, size)
+    badge.fill(Qt.transparent)
+    painter = QPainter(badge)
+    if ITEM_ICON_DEFAULT_BACKGROUND.exists():
+        background = QPixmap(str(ITEM_ICON_DEFAULT_BACKGROUND))
+        if not background.isNull():
+            painter.drawPixmap(0, 0, size, size, background)
+    logo = QPixmap(str(logo_path))
+    if not logo.isNull():
+        logo_size = max(1, int(size * 0.78))
+        inset = (size - logo_size) // 2
+        painter.drawPixmap(
+            QRect(inset, inset, logo_size, logo_size),
+            logo.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
+        )
+    painter.end()
+    badge.save(str(badge_path), "PNG")
+    return badge_path if badge_path.exists() else logo_path
 
 
 def _tinted_pixmap(pixmap: QPixmap, color: str, size: QSize | None = None) -> QPixmap:
@@ -2049,6 +2227,10 @@ class InventoryListItem(QFrame):
         super().__init__(parent)
         self._ui_scale = ui_scale
         self.setObjectName("planBand")
+        self.setFixedHeight(scale_px(64, self._ui_scale))
+        icon_width = scale_px(40, self._ui_scale)
+        value_width = scale_px(84, self._ui_scale)
+        status_width = scale_px(112, self._ui_scale)
 
         layout = QGridLayout(self)
         layout.setContentsMargins(
@@ -2061,33 +2243,39 @@ class InventoryListItem(QFrame):
         layout.setVerticalSpacing(scale_px(1, self._ui_scale))
 
         self._icon = QLabel()
-        self._icon.setFixedSize(scale_px(40, self._ui_scale), scale_px(40, self._ui_scale))
+        self._icon.setFixedSize(icon_width, icon_width)
         self._icon.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._icon, 0, 0, 2, 1, Qt.AlignVCenter)
 
+        self._text_host = QWidget()
+        self._text_host.setObjectName("planTransparent")
+        self._text_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         text_wrap = QVBoxLayout()
         text_wrap.setContentsMargins(0, 0, 0, 0)
         text_wrap.setSpacing(scale_px(2, self._ui_scale))
+        self._text_host.setLayout(text_wrap)
 
         self._name = QLabel("-")
         self._name.setObjectName("sectionTitle")
-        self._name.setWordWrap(True)
+        self._name.setWordWrap(False)
+        self._name.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         text_wrap.addWidget(self._name)
 
         self._meta = QLabel("")
         self._meta.setObjectName("detailMiniSub")
-        self._meta.setWordWrap(True)
+        self._meta.setWordWrap(False)
+        self._meta.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         text_wrap.addWidget(self._meta)
-        layout.addLayout(text_wrap, 0, 1, 2, 1)
+        layout.addWidget(self._text_host, 0, 1, 2, 1)
 
-        self._owned = self._build_value_label()
-        self._plan_need = self._build_value_label()
-        self._plan_short = self._build_value_label()
-        self._pool_remain = self._build_value_label()
+        self._owned = self._build_value_label(value_width)
+        self._plan_need = self._build_value_label(value_width)
+        self._plan_short = self._build_value_label(value_width)
+        self._pool_remain = self._build_value_label(value_width)
         self._status = QLabel("-")
         self._status.setObjectName("inventoryStatus")
         self._status.setAlignment(Qt.AlignCenter)
-        self._status.setMinimumWidth(scale_px(104, self._ui_scale))
+        self._status.setFixedWidth(status_width)
 
         for column, widget in enumerate(
             (self._owned, self._plan_need, self._plan_short, self._pool_remain, self._status),
@@ -2095,15 +2283,17 @@ class InventoryListItem(QFrame):
         ):
             layout.addWidget(widget, 0, column, 2, 1, Qt.AlignVCenter)
 
+        layout.setColumnMinimumWidth(0, icon_width)
         layout.setColumnStretch(1, 1)
         for column in range(2, 6):
-            layout.setColumnMinimumWidth(column, scale_px(74, self._ui_scale))
+            layout.setColumnMinimumWidth(column, value_width)
+        layout.setColumnMinimumWidth(6, status_width)
 
-    def _build_value_label(self) -> QLabel:
+    def _build_value_label(self, width: int) -> QLabel:
         label = QLabel("-")
         label.setObjectName("inventoryValue")
         label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        label.setMinimumWidth(scale_px(70, self._ui_scale))
+        label.setFixedWidth(width)
         return label
 
     def setData(
@@ -2119,20 +2309,32 @@ class InventoryListItem(QFrame):
         plan_short: str = "-",
         pool_remain: str = "-",
         status: str = "",
+        show_text: bool = True,
+        owned_tooltip: str = "",
+        plan_need_tooltip: str = "",
+        plan_short_tooltip: str = "",
+        pool_remain_tooltip: str = "",
     ) -> None:
-        self._name.setText(name)
+        self._text_host.setVisible(show_text)
+        self._name.setText(name if show_text else "")
         self._owned.setText(quantity)
         self._plan_need.setText(plan_need)
         self._plan_short.setText(plan_short)
         self._pool_remain.setText(pool_remain)
-        self._status.setText(status or ("Plan Shortage" if shortage else "Sufficient"))
-        self._meta.setText(meta)
+        status_text = status or ("Plan Shortage" if shortage else "Sufficient")
+        self._status.setText(_inventory_status_label(status_text))
+        self._meta.setText(meta if show_text else "")
+        self._owned.setToolTip(owned_tooltip or quantity)
+        self._plan_need.setToolTip(plan_need_tooltip or plan_need)
+        self._plan_short.setToolTip(plan_short_tooltip or plan_short)
+        self._pool_remain.setToolTip(pool_remain_tooltip or pool_remain)
+        self._status.setToolTip(_inventory_status_label(status_text))
         warning_style = "color: #ff6b6b;" if shortage else ""
         self._name.setStyleSheet(warning_style)
         self._owned.setStyleSheet(warning_style)
         self._plan_short.setStyleSheet(warning_style)
         self._meta.setStyleSheet(warning_style if shortage else "")
-        self._status.setProperty("status", self._status.text().replace(" ", "_").lower())
+        self._status.setProperty("status", _inventory_status_key(status_text))
         self._status.style().unpolish(self._status)
         self._status.style().polish(self._status)
 
@@ -2142,6 +2344,54 @@ class InventoryListItem(QFrame):
                 self._icon.setPixmap(pixmap)
                 return
         self._icon.setPixmap(QPixmap())
+
+
+class InventoryColumnHeader(QWidget):
+    def __init__(self, *, ui_scale: float, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        self.setObjectName("planTransparent")
+        icon_width = scale_px(40, self._ui_scale)
+        value_width = scale_px(84, self._ui_scale)
+        status_width = scale_px(112, self._ui_scale)
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            0,
+            scale_px(12, self._ui_scale),
+            0,
+        )
+        layout.setHorizontalSpacing(scale_px(10, self._ui_scale))
+        layout.setVerticalSpacing(0)
+
+        spacer = QLabel("")
+        spacer.setFixedWidth(icon_width)
+        layout.addWidget(spacer, 0, 0)
+
+        labels = (
+            (_tr("inventory.header.material"), Qt.AlignLeft),
+            (_tr("inventory.header.owned"), Qt.AlignRight),
+            (_tr("inventory.header.plan_need"), Qt.AlignRight),
+            (_tr("inventory.header.plan_short"), Qt.AlignRight),
+            (_tr("inventory.header.pool_remain"), Qt.AlignRight),
+            (_tr("inventory.header.status"), Qt.AlignCenter),
+        )
+        for column, (text, alignment) in enumerate(labels, start=1):
+            label = QLabel(text)
+            label.setObjectName("inventoryColumnHeader")
+            label.setAlignment(alignment | Qt.AlignVCenter)
+            if column in (2, 3, 4, 5):
+                label.setFixedWidth(value_width)
+            elif column == 6:
+                label.setFixedWidth(status_width)
+            layout.addWidget(label, 0, column)
+
+        layout.setColumnMinimumWidth(0, icon_width)
+        layout.setColumnStretch(1, 1)
+        for column in range(2, 6):
+            layout.setColumnMinimumWidth(column, value_width)
+        layout.setColumnMinimumWidth(6, status_width)
 
 
 class InventoryPressureRow(QFrame):
@@ -2183,6 +2433,12 @@ class InventoryPressureRow(QFrame):
         self._amount.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self._amount, 0, Qt.AlignVCenter)
 
+        self._bar = QProgressBar()
+        self._bar.setObjectName("inventoryPressureBar")
+        self._bar.setTextVisible(False)
+        self._bar.setFixedSize(scale_px(48, self._ui_scale), scale_px(7, self._ui_scale))
+        layout.addWidget(self._bar, 0, Qt.AlignVCenter)
+
     def setData(
         self,
         *,
@@ -2190,13 +2446,19 @@ class InventoryPressureRow(QFrame):
         item_id: str,
         name: str,
         amount: int,
+        total: int,
         meta: str,
         pool: bool,
     ) -> None:
         self._name.setText(name)
         self._meta.setText(meta)
-        self._amount.setText(f"{amount:,}")
-        self._amount.setStyleSheet("color: #ff8a00;" if pool else "color: #ff4d6d;")
+        shortage_percentage = 0 if total <= 0 else min(100, int((amount / total) * 100))
+        coverage_percentage = max(0, 100 - shortage_percentage)
+        self._amount.setText(f"{coverage_percentage}%")
+        self._amount.setToolTip(f"부족량: {_full_count_tooltip(amount)} / 필요: {_full_count_tooltip(total)}")
+        self._amount.setStyleSheet("color: #ff304f;")
+        self._bar.setValue(coverage_percentage)
+        self._bar.setToolTip(f"충족률: {coverage_percentage}%")
         if icon_path is not None and icon_path.exists():
             pixmap = _item_icon_pixmap(size=self._icon.size(), item_id=item_id, icon_path=icon_path)
             if not pixmap.isNull():
@@ -2341,17 +2603,12 @@ class PlanResourceChip(QFrame):
         text_wrap.addWidget(self._quantity)
         layout.addLayout(text_wrap, 1)
 
-    @staticmethod
-    def _compact_amount(value: int) -> str:
-        if value >= 1_000_000:
-            text = f"{value / 1_000_000:.1f}".rstrip("0").rstrip(".")
-            return f"{text}M"
-        return f"{value:,}"
-
     def setData(self, requirement: PlanResourceRequirement) -> None:
         self._name.setText(requirement.name)
         self._name.setToolTip(requirement.name)
-        self._quantity.setText(f"{self._compact_amount(requirement.required)} / {self._compact_amount(requirement.owned)}")
+        self._quantity.setText(
+            f"{_format_count(requirement.required, compact=True)} / {_format_count(requirement.owned, compact=True)}"
+        )
         self._quantity.setToolTip(f"{requirement.required:,} / {requirement.owned:,}")
         shortage = requirement.required > requirement.owned
         self._name.setStyleSheet(f"color: #ff6b6b;" if shortage else "")
@@ -2434,6 +2691,81 @@ class TacticalDeckSlot(QWidget):
             painter.setPen(QColor(MUTED))
             painter.drawText(self.rect(), Qt.AlignCenter, "*" if self._text.strip() == "*" else "?")
         painter.end()
+
+
+class InventoryOpartImpactRow(QWidget):
+    def __init__(
+        self,
+        *,
+        card_asset: ParallelogramCardAsset,
+        ui_scale: float,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._ui_scale = ui_scale
+        slot_width = scale_px(54, self._ui_scale)
+        slot_height = max(scale_px(42, self._ui_scale), int(round(slot_width / card_asset.aspect_ratio)))
+        self.setObjectName("planTransparent")
+        self.setMinimumHeight(slot_height + scale_px(8, self._ui_scale))
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(
+            scale_px(6, self._ui_scale),
+            scale_px(4, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(4, self._ui_scale),
+        )
+        layout.setSpacing(scale_px(10, self._ui_scale))
+
+        self._icon = TacticalDeckSlot(
+            card_asset=card_asset,
+            ui_scale=self._ui_scale,
+            preferred_width=slot_width,
+            preferred_height=slot_height,
+        )
+        self._icon.setFixedSize(slot_width, slot_height)
+        layout.addWidget(self._icon, 0, Qt.AlignVCenter)
+
+        text_stack = QVBoxLayout()
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.setSpacing(scale_px(2, self._ui_scale))
+        self._title = QLabel("-")
+        self._title.setObjectName("sectionTitle")
+        self._title.setWordWrap(False)
+        text_stack.addWidget(self._title)
+        self._demand = QLabel("-")
+        self._demand.setObjectName("inventoryStudentDemand")
+        self._demand.setWordWrap(False)
+        text_stack.addWidget(self._demand)
+        layout.addLayout(text_stack, 1)
+
+    def setData(self, *, impact: InventoryOpartStudentImpact, pixmap: QPixmap, planned: bool) -> None:
+        suffix = "  [계획]" if planned else ""
+        self._title.setText(f"{impact.title}{suffix}")
+        self._demand.setText(
+            f"EX {_format_count(impact.ex_required, compact=True)}   "
+            f"일반 {_format_count(impact.skill_required, compact=True)}   "
+            f"x{_format_count(impact.total_required, compact=True)}"
+        )
+        self._icon.setData(name=impact.title, pixmap=pixmap)
+        if planned:
+            self._title.setStyleSheet("color: #ffe1f0;")
+            self._demand.setStyleSheet("color: #ff8fc4;")
+        else:
+            self._title.setStyleSheet("")
+            self._demand.setStyleSheet("")
+
+    def setGenericData(self, *, title: str, demand_text: str, pixmap: QPixmap, planned: bool = True) -> None:
+        suffix = "  [계획]" if planned else ""
+        self._title.setText(f"{title}{suffix}")
+        self._demand.setText(demand_text)
+        self._icon.setData(name=title, pixmap=pixmap)
+        if planned:
+            self._title.setStyleSheet("color: #ffe1f0;")
+            self._demand.setStyleSheet("color: #ff8fc4;")
+        else:
+            self._title.setStyleSheet("")
+            self._demand.setStyleSheet("")
 
 
 class TacticalDeckEditor(QWidget):
@@ -2654,7 +2986,7 @@ class StudentViewerWindow(QMainWindow):
         self._plan_equipment_labels: dict[str, QLabel] = {}
         self._plan_stat_rows: dict[str, QWidget] = {}
         self._plan_ability_release_expanded = False
-        self._resource_selected_ids: set[str] = set()
+        self._resource_selected_ids: set[str] = self._planned_student_ids()
         self._resource_search_pending_ids: set[str] = set()
         self._resource_current_student_id: str | None = None
         self._resource_include_unplanned_level = True
@@ -2785,11 +3117,11 @@ class StudentViewerWindow(QMainWindow):
         outer_layout.addWidget(tabs, 1)
 
         students_tab = QWidget()
-        tabs.addTab(students_tab, "Students")
+        tabs.addTab(students_tab, _tr("tab.students"))
         self._build_students_tab(students_tab)
 
         plan_tab = QWidget()
-        tabs.addTab(plan_tab, "Plans")
+        tabs.addTab(plan_tab, _tr("tab.plans"))
         self._build_plan_tab(plan_tab)
 
         resource_tab = QWidget()
@@ -2798,7 +3130,7 @@ class StudentViewerWindow(QMainWindow):
         self._build_resource_tab(resource_tab)
 
         inventory_tab = QWidget()
-        tabs.addTab(inventory_tab, "Inventory")
+        tabs.addTab(inventory_tab, _tr("tab.inventory"))
         self._build_inventory_tab(inventory_tab)
 
         tactical_tab = QWidget()
@@ -2946,6 +3278,25 @@ class StudentViewerWindow(QMainWindow):
                 font-size: {scale_px(13, self._ui_scale)}px;
                 font-weight: 900;
             }}
+            QLabel#inventoryStudentDemand {{
+                color: {INK};
+                font-size: {scale_px(15, self._ui_scale)}px;
+                font-weight: 900;
+            }}
+            QLabel#inventoryColumnHeader {{
+                color: {MUTED};
+                font-size: {scale_px(10, self._ui_scale)}px;
+                font-weight: 800;
+            }}
+            QProgressBar#inventoryPressureBar {{
+                background: #ffffff;
+                border: 1px solid #e1e4eb;
+                border-radius: {scale_px(3, self._ui_scale)}px;
+            }}
+            QProgressBar#inventoryPressureBar::chunk {{
+                background: #ff304f;
+                border-radius: {scale_px(3, self._ui_scale)}px;
+            }}
             QLabel#inventoryStatus {{
                 border-radius: {scale_px(8, self._ui_scale)}px;
                 padding: {scale_px(4, self._ui_scale)}px {scale_px(7, self._ui_scale)}px;
@@ -2962,7 +3313,7 @@ class StudentViewerWindow(QMainWindow):
                 background: #ffe3e5;
                 color: #ff304f;
             }}
-            QLabel#inventoryStatus[status="long-term_pressure"] {{
+            QLabel#inventoryStatus[status="long_term_pressure"] {{
                 background: #fff2c2;
                 color: #d97900;
             }}
@@ -2970,9 +3321,25 @@ class StudentViewerWindow(QMainWindow):
                 background: #eef0f5;
                 color: #8b93a7;
             }}
-            QLabel#inventoryStatus[status="high-tier_bottleneck"] {{
+            QLabel#inventoryStatus[status="high_tier_bottleneck"] {{
                 background: #ffe3e5;
                 color: #d7193f;
+            }}
+            QLabel#inventoryHintPink {{
+                background: #fff0f7;
+                color: #313b59;
+                border: 1px solid #ffe0ef;
+                border-radius: {scale_px(8, self._ui_scale)}px;
+                padding: {scale_px(8, self._ui_scale)}px;
+                font-weight: 700;
+            }}
+            QLabel#inventoryHintBlue {{
+                background: #eef8ff;
+                color: #313b59;
+                border: 1px solid #dcefff;
+                border-radius: {scale_px(8, self._ui_scale)}px;
+                padding: {scale_px(8, self._ui_scale)}px;
+                font-weight: 700;
             }}
             QLabel#detailMiniSub {{
                 color: {MUTED};
@@ -3902,19 +4269,33 @@ class StudentViewerWindow(QMainWindow):
         )
         header_layout.setSpacing(scale_px(4, self._ui_scale))
 
-        title = QLabel("Material Pressure Analysis")
+        title = QLabel(_tr("inventory.title"))
         title.setObjectName("title")
         header_layout.addWidget(title)
 
-        subtitle = QLabel("Inventory analysis - shortage tracking - growth planning optimization")
+        subtitle = QLabel(_tr("inventory.subtitle"))
         subtitle.setObjectName("count")
         subtitle.setWordWrap(True)
         header_layout.addWidget(subtitle)
 
-        self._inventory_summary = QLabel("No scanned inventory is available yet.")
+        self._inventory_summary = QLabel(_tr("inventory.empty"))
         self._inventory_summary.setObjectName("filterSummary")
         self._inventory_summary.setWordWrap(True)
         header_layout.addWidget(self._inventory_summary)
+
+        sort_layout = QHBoxLayout()
+        sort_layout.setContentsMargins(0, scale_px(6, self._ui_scale), 0, 0)
+        sort_layout.setSpacing(scale_px(8, self._ui_scale))
+        sort_label = QLabel(_tr("inventory.sort_label"))
+        sort_label.setObjectName("detailMiniSub")
+        sort_layout.addWidget(sort_label)
+        self._inventory_material_sort_mode = QComboBox()
+        self._inventory_material_sort_mode.addItem(_tr("inventory.sort_category"), "category_tier_desc")
+        self._inventory_material_sort_mode.addItem(_tr("inventory.sort_tier"), "tier_desc")
+        self._inventory_material_sort_mode.currentIndexChanged.connect(lambda *_: self._refresh_inventory_tab())
+        sort_layout.addWidget(self._inventory_material_sort_mode, 0)
+        sort_layout.addStretch(1)
+        header_layout.addLayout(sort_layout)
         layout.addWidget(header)
 
         self._inventory_root_tabs = QTabWidget()
@@ -3934,6 +4315,7 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_equipment_tabs = QTabWidget()
 
         for series in EQUIPMENT_SERIES:
+            series_label = _equipment_series_label(series.icon_key)
             tab = QWidget()
             tab_layout = QVBoxLayout(tab)
             tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -3949,28 +4331,26 @@ class StudentViewerWindow(QMainWindow):
                 scale_px(14, self._ui_scale),
             )
             panel_layout.setSpacing(scale_px(8, self._ui_scale))
-            section_title = QLabel(f"{series.icon_key} equipment")
+            section_title = QLabel(f"{series_label} 장비")
             section_title.setObjectName("sectionTitle")
             panel_layout.addWidget(section_title)
-            summary = QLabel("No scanned items in this category yet.")
+            summary = QLabel(_tr("inventory.no_scanned_category"))
             summary.setObjectName("detailSub")
             summary.setWordWrap(True)
             panel_layout.addWidget(summary)
             tab_layout.addWidget(panel, 0)
 
-            column_header = QLabel("MATERIAL                                      OWNED      PLAN NEED    PLAN SHORT   POOL REMAIN   STATUS")
-            column_header.setObjectName("detailMiniSub")
-            tab_layout.addWidget(column_header)
+            tab_layout.addWidget(InventoryColumnHeader(ui_scale=self._ui_scale))
 
             item_list = QListWidget()
             item_list.currentItemChanged.connect(self._on_inventory_item_changed)
             tab_layout.addWidget(item_list, 1)
-            self._inventory_equipment_tabs.addTab(tab, series.icon_key)
+            self._inventory_equipment_tabs.addTab(tab, series_label)
             self._inventory_equipment_lists[series.icon_key] = item_list
             self._inventory_equipment_summaries[series.icon_key] = summary
 
         equipment_layout.addWidget(self._inventory_equipment_tabs, 1)
-        self._inventory_root_tabs.addTab(equipment_root, "Equipment")
+        self._inventory_root_tabs.addTab(equipment_root, _tr("inventory.root_equipment"))
 
         item_root = QWidget()
         item_layout = QVBoxLayout(item_root)
@@ -3979,14 +4359,14 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_item_tabs = QTabWidget()
 
         for key, label in (
-            ("ooparts", "Ooparts"),
-            ("wb", "WB"),
-            ("stones", "Stones"),
-            ("reports", "Reports"),
-            ("weapon_parts", "Weapon Parts"),
-            ("tech_notes", "Tech Notes"),
-            ("bd", "BD"),
-            ("other", "Other"),
+            ("ooparts", _tr("inventory.category.ooparts")),
+            ("wb", _tr("inventory.category.wb")),
+            ("stones", _tr("inventory.category.stones")),
+            ("reports", _tr("inventory.category.reports")),
+            ("weapon_parts", _tr("inventory.category.weapon_parts")),
+            ("tech_notes", _tr("inventory.category.tech_notes")),
+            ("bd", _tr("inventory.category.bd")),
+            ("other", _tr("inventory.category.other")),
         ):
             tab = QWidget()
             tab_layout = QVBoxLayout(tab)
@@ -4006,15 +4386,13 @@ class StudentViewerWindow(QMainWindow):
             section_title = QLabel(label)
             section_title.setObjectName("sectionTitle")
             panel_layout.addWidget(section_title)
-            summary = QLabel("No scanned items in this category yet.")
+            summary = QLabel(_tr("inventory.no_scanned_category"))
             summary.setObjectName("detailSub")
             summary.setWordWrap(True)
             panel_layout.addWidget(summary)
             tab_layout.addWidget(panel, 0)
 
-            column_header = QLabel("MATERIAL                                      OWNED      PLAN NEED    PLAN SHORT   POOL REMAIN   STATUS")
-            column_header.setObjectName("detailMiniSub")
-            tab_layout.addWidget(column_header)
+            tab_layout.addWidget(InventoryColumnHeader(ui_scale=self._ui_scale))
 
             item_list = QListWidget()
             item_list.currentItemChanged.connect(self._on_inventory_item_changed)
@@ -4026,7 +4404,7 @@ class StudentViewerWindow(QMainWindow):
             self._inventory_item_summaries[key] = summary
 
         item_layout.addWidget(self._inventory_item_tabs, 1)
-        self._inventory_root_tabs.addTab(item_root, "Items")
+        self._inventory_root_tabs.addTab(item_root, _tr("inventory.root_items"))
 
         inventory_splitter = QSplitter(Qt.Horizontal)
         inventory_splitter.setChildrenCollapsible(False)
@@ -4043,11 +4421,11 @@ class StudentViewerWindow(QMainWindow):
         )
         overview_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        insight_title = QLabel("Material Pressure")
+        insight_title = QLabel(_tr("inventory.pressure_title"))
         insight_title.setObjectName("sectionTitle")
         overview_layout.addWidget(insight_title)
 
-        self._inventory_insight_summary = QLabel("Scan inventory and select Ooparts to inspect plan pressure.")
+        self._inventory_insight_summary = QLabel(_tr("inventory.pressure_empty"))
         self._inventory_insight_summary.setObjectName("detailSub")
         self._inventory_insight_summary.setWordWrap(True)
         overview_layout.addWidget(self._inventory_insight_summary)
@@ -4063,7 +4441,7 @@ class StudentViewerWindow(QMainWindow):
             scale_px(8, self._ui_scale),
         )
         plan_priority_layout.setSpacing(scale_px(6, self._ui_scale))
-        plan_priority_title = QLabel("Plan Shortage TOP")
+        plan_priority_title = QLabel(_tr("inventory.plan_shortage_top"))
         plan_priority_title.setObjectName("detailSectionTitle")
         plan_priority_layout.addWidget(plan_priority_title)
         self._inventory_plan_priority_list = QListWidget()
@@ -4083,7 +4461,7 @@ class StudentViewerWindow(QMainWindow):
             scale_px(8, self._ui_scale),
         )
         pool_pressure_layout.setSpacing(scale_px(6, self._ui_scale))
-        pool_pressure_title = QLabel("Full Pool Pressure TOP")
+        pool_pressure_title = QLabel(_tr("inventory.full_pool_top"))
         pool_pressure_title.setObjectName("detailSectionTitle")
         pool_pressure_layout.addWidget(pool_pressure_title)
         self._inventory_pool_pressure_list = QListWidget()
@@ -4102,14 +4480,13 @@ class StudentViewerWindow(QMainWindow):
             scale_px(8, self._ui_scale),
         )
         bottleneck_layout.setSpacing(scale_px(6, self._ui_scale))
-        bottleneck_title = QLabel("Common Bottleneck Summary")
+        bottleneck_title = QLabel(_tr("inventory.common_bottleneck"))
         bottleneck_title.setObjectName("detailSectionTitle")
         bottleneck_layout.addWidget(bottleneck_title)
         self._inventory_bottleneck_summary = QLabel("-")
         self._inventory_bottleneck_summary.setObjectName("detailSub")
         self._inventory_bottleneck_summary.setWordWrap(True)
         bottleneck_layout.addWidget(self._inventory_bottleneck_summary)
-        overview_layout.addWidget(bottleneck_panel, 0)
 
         school_panel = QFrame()
         school_panel.setObjectName("planBand")
@@ -4121,15 +4498,23 @@ class StudentViewerWindow(QMainWindow):
             scale_px(8, self._ui_scale),
         )
         school_layout.setSpacing(scale_px(6, self._ui_scale))
-        school_title = QLabel("School / Category Shortage")
+        school_title = QLabel(_tr("inventory.school_shortage"))
         school_title.setObjectName("detailSectionTitle")
         school_layout.addWidget(school_title)
         self._inventory_school_summary = QLabel("-")
         self._inventory_school_summary.setObjectName("detailSub")
+        self._inventory_school_summary.setTextFormat(Qt.RichText)
         self._inventory_school_summary.setWordWrap(True)
         school_layout.addWidget(self._inventory_school_summary)
-        overview_layout.addWidget(school_panel, 0)
-        overview_layout.addStretch(3)
+
+        lower_pressure_stack = QWidget()
+        lower_pressure_stack.setObjectName("planTransparent")
+        lower_pressure_layout = QVBoxLayout(lower_pressure_stack)
+        lower_pressure_layout.setContentsMargins(0, 0, 0, 0)
+        lower_pressure_layout.setSpacing(scale_px(10, self._ui_scale))
+        lower_pressure_layout.addWidget(bottleneck_panel, 1)
+        lower_pressure_layout.addWidget(school_panel, 1)
+        overview_layout.addWidget(lower_pressure_stack, 1)
 
         detail_panel = QFrame()
         detail_panel.setObjectName("planSectionPanel")
@@ -4143,29 +4528,55 @@ class StudentViewerWindow(QMainWindow):
         )
         detail_layout.setSpacing(scale_px(10, self._ui_scale))
 
-        self._inventory_oopart_detail_title = QLabel("Select an oopart")
+        detail_header = QWidget()
+        detail_header.setObjectName("planTransparent")
+        detail_header_layout = QHBoxLayout(detail_header)
+        detail_header_layout.setContentsMargins(0, 0, 0, 0)
+        detail_header_layout.setSpacing(scale_px(10, self._ui_scale))
+        self._inventory_oopart_detail_icon = QLabel()
+        self._inventory_oopart_detail_icon.setFixedSize(scale_px(48, self._ui_scale), scale_px(48, self._ui_scale))
+        self._inventory_oopart_detail_icon.setAlignment(Qt.AlignCenter)
+        detail_header_layout.addWidget(self._inventory_oopart_detail_icon, 0, Qt.AlignVCenter)
+        detail_title_stack = QVBoxLayout()
+        detail_title_stack.setContentsMargins(0, 0, 0, 0)
+        detail_title_stack.setSpacing(scale_px(2, self._ui_scale))
+        self._inventory_oopart_detail_title = QLabel(_tr("inventory.detail.select_oopart"))
         self._inventory_oopart_detail_title.setObjectName("sectionTitle")
-        detail_layout.addWidget(self._inventory_oopart_detail_title)
+        detail_title_stack.addWidget(self._inventory_oopart_detail_title)
+        self._inventory_oopart_detail_meta = QLabel("")
+        self._inventory_oopart_detail_meta.setObjectName("detailMiniSub")
+        detail_title_stack.addWidget(self._inventory_oopart_detail_meta)
+        detail_header_layout.addLayout(detail_title_stack, 1)
+        detail_layout.addWidget(detail_header)
 
         self._inventory_oopart_detail_table = QGridLayout()
         self._inventory_oopart_detail_table.setContentsMargins(0, 0, 0, 0)
         self._inventory_oopart_detail_table.setHorizontalSpacing(scale_px(8, self._ui_scale))
         self._inventory_oopart_detail_table.setVerticalSpacing(scale_px(6, self._ui_scale))
+        self._inventory_oopart_detail_table.setColumnStretch(0, 1)
+        self._inventory_oopart_detail_table.setColumnMinimumWidth(1, scale_px(96, self._ui_scale))
         self._inventory_oopart_metric_labels: dict[str, QLabel] = {}
-        for row, (key, label) in enumerate(
-            (
-                ("owned", "Owned"),
-                ("required", "Plan Need"),
-                ("shortage", "Plan Short"),
-                ("coverage", "Plan Coverage"),
-                ("pool_required", "Full Pool Need"),
-                ("pool_shortage", "Pool Left"),
-                ("pool_coverage", "Full Coverage"),
-                ("ex_required", "EX Demand"),
-                ("skill_required", "Normal Skill"),
-                ("affected", "Affected Students"),
-            )
-        ):
+        detail_rows: tuple[tuple[str, str], ...] = (
+            ("__section__", _tr("inventory.detail.inventory_status")),
+            ("owned", _tr("inventory.detail.owned")),
+            ("required", _tr("inventory.detail.plan_need")),
+            ("shortage", _tr("inventory.detail.plan_short")),
+            ("coverage", _tr("inventory.detail.plan_coverage")),
+            ("pool_required", _tr("inventory.detail.full_pool_need")),
+            ("pool_shortage", _tr("inventory.detail.pool_left")),
+            ("pool_coverage", _tr("inventory.detail.full_coverage")),
+            ("__section__", _tr("inventory.detail.skill_demand")),
+            ("ex_required", _tr("inventory.detail.ex_skill")),
+            ("skill_required", _tr("inventory.detail.normal_skills")),
+            ("__section__", _tr("inventory.detail.affected_students")),
+            ("affected", _tr("inventory.detail.current_full_pool")),
+        )
+        for row, (key, label) in enumerate(detail_rows):
+            if key == "__section__":
+                section_label = QLabel(label)
+                section_label.setObjectName("detailSectionTitle")
+                self._inventory_oopart_detail_table.addWidget(section_label, row, 0, 1, 2)
+                continue
             name_label = QLabel(label)
             name_label.setObjectName("detailMiniSub")
             value_label = QLabel("-")
@@ -4176,12 +4587,37 @@ class StudentViewerWindow(QMainWindow):
             self._inventory_oopart_detail_table.addWidget(value_label, row, 1)
         detail_layout.addLayout(self._inventory_oopart_detail_table)
 
-        self._inventory_oopart_detail_summary = QLabel("Pick an item in Items > Ooparts to see planned use and affected students.")
+        self._inventory_oopart_detail_summary = QLabel(_tr("inventory.detail.pick_item"))
         self._inventory_oopart_detail_summary.setObjectName("detailSub")
         self._inventory_oopart_detail_summary.setWordWrap(True)
         detail_layout.addWidget(self._inventory_oopart_detail_summary)
 
+        hint_title = QLabel(_tr("inventory.detail.decision_hints"))
+        hint_title.setObjectName("detailSectionTitle")
+        detail_layout.addWidget(hint_title)
+        self._inventory_oopart_next_hint = QLabel("-")
+        self._inventory_oopart_next_hint.setObjectName("inventoryHintPink")
+        self._inventory_oopart_next_hint.setWordWrap(True)
+        detail_layout.addWidget(self._inventory_oopart_next_hint)
+        self._inventory_oopart_farm_hint = QLabel("-")
+        self._inventory_oopart_farm_hint.setObjectName("inventoryHintBlue")
+        self._inventory_oopart_farm_hint.setWordWrap(True)
+        detail_layout.addWidget(self._inventory_oopart_farm_hint)
+
+        family_title = QLabel(_tr("inventory.detail.related_pressure"))
+        family_title.setObjectName("detailSectionTitle")
+        detail_layout.addWidget(family_title)
+        self._inventory_oopart_family_shortage = QLabel("-")
+        self._inventory_oopart_family_shortage.setObjectName("detailSub")
+        self._inventory_oopart_family_shortage.setWordWrap(True)
+        detail_layout.addWidget(self._inventory_oopart_family_shortage)
+
+        breakdown_title = QLabel(_tr("inventory.detail.student_breakdown"))
+        breakdown_title.setObjectName("detailSectionTitle")
+        detail_layout.addWidget(breakdown_title)
+
         self._inventory_oopart_impact_list = QListWidget()
+        self._inventory_oopart_impact_list.setIconSize(QSize(scale_px(34, self._ui_scale), scale_px(34, self._ui_scale)))
         self._inventory_oopart_impact_list.setMinimumHeight(scale_px(160, self._ui_scale))
         detail_layout.addWidget(self._inventory_oopart_impact_list, 1)
 
@@ -4251,9 +4687,13 @@ class StudentViewerWindow(QMainWindow):
 
     def _resource_compact_cost_text(self, summary: PlanCostSummary | None) -> str:
         if summary is None:
-            return "No planned target yet"
+            return "아직 계획 목표 없음"
         total_materials = sum(summary.star_materials.values()) + sum(summary.equipment_materials.values()) + sum(summary.skill_books.values()) + sum(summary.ex_ooparts.values()) + sum(summary.skill_ooparts.values()) + sum(summary.favorite_item_materials.values()) + sum(summary.stat_materials.values())
-        return f"크레딧 {summary.credits:,} · EXP {summary.level_exp:,} · Items {total_materials:,}"
+        return (
+            f"크레딧 {_format_count(summary.credits, compact=True)} · "
+            f"EXP {_format_count(summary.level_exp, compact=True)} · "
+            f"재화 {_format_count(total_materials, compact=True)}"
+        )
 
     def _resource_focus_label(
         self,
@@ -4522,31 +4962,31 @@ class StudentViewerWindow(QMainWindow):
     def _set_output_from_summary(self, target: QListWidget, summary: PlanCostSummary | None) -> None:
         target.clear()
         if summary is None:
-            target.addItem("No planner target is available for this selection yet.")
+            target.addItem("이 선택에 사용할 계획 목표가 아직 없습니다.")
             return
 
         sections: list[tuple[str, list[tuple[str, int]]]] = []
         if summary.credits:
             sections.append(("크레딧", [("크레딧", summary.credits)]))
         if summary.level_exp:
-            sections.append(("Level EXP", [("Level EXP", summary.level_exp)] + sorted(summary.level_exp_items.items(), key=lambda item: (-item[1], item[0]))))
+            sections.append(("레벨 EXP", [("레벨 EXP", summary.level_exp)] + sorted(summary.level_exp_items.items(), key=lambda item: (-item[1], item[0]))))
         if summary.equipment_exp or summary.equipment_exp_items:
             rows = []
             if summary.equipment_exp:
-                rows.append(("Equipment EXP", summary.equipment_exp))
+                rows.append(("장비 EXP", summary.equipment_exp))
             rows.extend(sorted(summary.equipment_exp_items.items(), key=lambda item: (-item[1], item[0])))
-            sections.append(("Equipment EXP", rows))
+            sections.append(("장비 EXP", rows))
         if summary.weapon_exp or summary.weapon_exp_items:
             rows = []
             if summary.weapon_exp:
-                rows.append(("Weapon EXP", summary.weapon_exp))
+                rows.append(("무기 EXP", summary.weapon_exp))
             rows.extend(sorted(summary.weapon_exp_items.items(), key=lambda item: (-item[1], item[0])))
-            sections.append(("Weapon EXP", rows))
-        for heading, mapping in (("Star materials", summary.star_materials), ("Equipment materials", summary.equipment_materials), ("Skill books", summary.skill_books), ("EX ooparts", summary.ex_ooparts), ("Skill ooparts", summary.skill_ooparts), ("Favorite item materials", summary.favorite_item_materials), ("Stat materials", summary.stat_materials)):
+            sections.append(("무기 EXP", rows))
+        for heading, mapping in (("성급 재화", summary.star_materials), ("장비 재화", summary.equipment_materials), ("스킬북", summary.skill_books), ("EX 오파츠", summary.ex_ooparts), ("일반 스킬 오파츠", summary.skill_ooparts), ("애용품 재화", summary.favorite_item_materials), ("능력개방 재화", summary.stat_materials)):
             if mapping:
                 sections.append((heading, sorted(mapping.items(), key=lambda item: (-item[1], item[0]))))
         if summary.stat_levels:
-            sections.append(("Stat targets", sorted(summary.stat_levels.items(), key=lambda item: item[0])))
+            sections.append(("능력개방 목표", sorted(summary.stat_levels.items(), key=lambda item: item[0])))
 
         if not sections and summary.warnings:
             for warning in dict.fromkeys(summary.warnings):
@@ -4558,9 +4998,9 @@ class StudentViewerWindow(QMainWindow):
             heading_item.setFlags(Qt.ItemIsEnabled)
             target.addItem(heading_item)
             for key, value in rows:
-                target.addItem(f"  {key}: {value:,}" if isinstance(value, int) else f"  {key}: {value}")
+                target.addItem(f"  {key}: {_format_count(value, compact=True)}" if isinstance(value, int) else f"  {key}: {value}")
         if summary.warnings:
-            target.addItem("Notes")
+            target.addItem("메모")
             for warning in dict.fromkeys(summary.warnings):
                 target.addItem(f"  {warning}")
 
@@ -4651,8 +5091,8 @@ class StudentViewerWindow(QMainWindow):
         self._resource_inventory_output.clear()
         inventory = self._inventory_snapshot or {}
         if not inventory:
-            self._resource_inventory_summary.setText("No scanned inventory is available yet.")
-            self._resource_inventory_output.addItem("Run an item or equipment scan to populate current inventory.")
+            self._resource_inventory_summary.setText(_tr("inventory.empty"))
+            self._resource_inventory_output.addItem("아이템 또는 장비 스캔을 실행하면 현재 인벤토리가 채워집니다.")
             return
 
         def sort_key(item: tuple[str, dict]) -> tuple[int, str]:
@@ -4674,12 +5114,16 @@ class StudentViewerWindow(QMainWindow):
                 continue
 
         self._resource_inventory_summary.setText(
-            f"{len(ordered)} items in current inventory snapshot · total quantity {total_quantity:,}"
+            f"현재 인벤토리 스냅샷 {len(ordered)}개 · 총 수량 {_format_count(total_quantity, compact=True)}"
         )
         for key, payload in ordered:
             name = str(payload.get("name") or key)
-            quantity = payload.get("quantity") or "?"
-            self._resource_inventory_output.addItem(f"{name}: {quantity}")
+            quantity_value = _inventory_quantity_value(payload.get("quantity"))
+            quantity = _format_count(quantity_value, compact=True) if quantity_value is not None else str(payload.get("quantity") or "?")
+            item = QListWidgetItem(f"{name}: {quantity}")
+            if quantity_value is not None:
+                item.setToolTip(f"{name}: {_full_count_tooltip(quantity_value)}")
+            self._resource_inventory_output.addItem(item)
 
     def _inventory_plan_requirement_index(self) -> dict[str, PlanResourceRequirement]:
         goal_map = self._plan_goal_map()
@@ -4751,16 +5195,16 @@ class StudentViewerWindow(QMainWindow):
     @staticmethod
     def _inventory_bottleneck_bucket(category: str) -> str:
         if category in {"credits", "level_exp"}:
-            return "Level"
+            return "레벨"
         if category in {"equipment_exp", "equipment_materials"}:
-            return "Equipment"
+            return "장비"
         if category == "weapon_exp":
-            return "Weapon"
+            return "무기"
         if category in {"skill_books", "ex_ooparts", "skill_ooparts"}:
-            return "Skill"
+            return "스킬"
         if category == "stat_materials":
-            return "Ability"
-        return "Other"
+            return "능력개방"
+        return "기타"
 
     @staticmethod
     def _inventory_is_common_requirement_category(category: str) -> bool:
@@ -4794,8 +5238,8 @@ class StudentViewerWindow(QMainWindow):
             rows.append((ratio, shortage, bucket))
         rows.sort(key=lambda item: (-item[0], -item[1], item[2]))
         if not rows:
-            return "No current common-material bottleneck in the plan."
-        return "\n".join(f"{bucket}: {ratio}% short ({shortage:,})" for ratio, shortage, bucket in rows[:5])
+            return "현재 계획의 공통 재화 병목이 없습니다."
+        return "\n".join(f"{bucket}: {ratio}% 부족 ({_format_count(shortage, compact=True)})" for ratio, shortage, bucket in rows[:5])
 
     def _inventory_school_shortage_text(self) -> str:
         school_totals: dict[str, dict[str, int]] = defaultdict(lambda: {"BD": 0, "TN": 0})
@@ -4821,11 +5265,65 @@ class StudentViewerWindow(QMainWindow):
             if values["BD"] or values["TN"]
         ]
         school_rows.sort(key=lambda item: (-item[0], item[1]))
-        lines = [f"{school}: BD {values['BD']:,} - TN {values['TN']:,}" for _total, school, values in school_rows[:4]]
+        lines = []
+        icon_size = scale_px(18, getattr(self, "_ui_scale", 1.0))
+        for _total, school, values in school_rows[:4]:
+            logo_path = _school_logo_badge_path(school, size=icon_size)
+            counts = f"BD {values['BD']:,} · TN {values['TN']:,}"
+            if logo_path is not None:
+                logo_src = escape(logo_path.as_posix(), quote=True)
+                lines.append(
+                    f'<img src="{logo_src}" width="{icon_size}" height="{icon_size}"> '
+                    f'<span style="vertical-align:middle;">{escape(counts)}</span>'
+                )
+            else:
+                lines.append(f"{escape(school)} {escape(counts)}")
         if wb_totals:
             wb_text = ", ".join(f"{name} {amount:,}" for name, amount in sorted(wb_totals.items()))
-            lines.append(f"WB: {wb_text}")
-        return "\n".join(lines) if lines else "No BD, tech note, or WB shortage in the current plan."
+            lines.append(f"WB: {escape(wb_text)}")
+        return "<br>".join(lines) if lines else "현재 계획의 BD, 기술 노트, WB 부족이 없습니다."
+
+    def _inventory_material_sort_mode_key(self) -> str:
+        selector = getattr(self, "_inventory_material_sort_mode", None)
+        value = selector.currentData() if selector is not None else None
+        return str(value or "category_tier_desc")
+
+    def _inventory_oopart_sort_key(self, entry: tuple[str, dict]) -> tuple[int, int, str]:
+        item_id = str(entry[1].get("item_id") or "")
+        family_order = {
+            definition.icon_key: index
+            for index, definition in enumerate(OPART_DEFINITIONS)
+        }
+        match = re.match(r"Item_Icon_Material_(.+)_(\d+)$", item_id)
+        if not match:
+            return (9999, 9999, _inventory_display_label(entry[0], entry[1]).lower())
+        family = match.group(1)
+        tier_index = int(match.group(2))
+        family_index = family_order.get(family, 9999)
+        name = _inventory_display_label(entry[0], entry[1]).lower()
+        if self._inventory_material_sort_mode_key() == "tier_desc":
+            return (-tier_index, family_index, name)
+        return (family_index, -tier_index, name)
+
+    def _inventory_school_material_sort_key(self, entry: tuple[str, dict], *, material: str) -> tuple[int, int, str]:
+        item_id = str(entry[1].get("item_id") or "")
+        school_order = {school: index for index, school in enumerate(_SCHOOL_SEQUENCE)}
+        if material == "bd":
+            pattern = r"Item_Icon_Material_ExSkill_([^_]+)_(\d+)$"
+        else:
+            if item_id == "Item_Icon_SkillBook_Ultimate_Piece":
+                return (9998, 9998, _inventory_display_label(entry[0], entry[1]).lower())
+            pattern = r"Item_Icon_SkillBook_([^_]+)_(\d+)$"
+        match = re.match(pattern, item_id)
+        if not match:
+            return (9999, 9999, _inventory_display_label(entry[0], entry[1]).lower())
+        school = match.group(1)
+        tier_index = int(match.group(2))
+        school_index = school_order.get(school, 9999)
+        name = _inventory_display_label(entry[0], entry[1]).lower()
+        if self._inventory_material_sort_mode_key() == "tier_desc":
+            return (-tier_index, school_index, name)
+        return (school_index, -tier_index, name)
 
     def _inventory_build_oopart_plan_usage(self) -> dict[str, InventoryOpartPlanUsage]:
         usage_by_item: dict[str, InventoryOpartPlanUsage] = {}
@@ -4949,21 +5447,152 @@ class StudentViewerWindow(QMainWindow):
         if label is not None:
             label.setText(value)
 
-    def _inventory_student_consumers(self, item_id: str, name: str) -> list[tuple[str, int]]:
-        consumers: list[tuple[str, int]] = []
-        goal_map = self._plan_goal_map()
-        for student_id, goal in goal_map.items():
-            record = self._records_by_id.get(student_id)
-            if record is None:
+    def _set_inventory_metric_number(self, key: str, value: int, *, compact: bool = True, signed: bool = False, empty_zero: bool = False) -> None:
+        label = getattr(self, "_inventory_oopart_metric_labels", {}).get(key)
+        if label is None:
+            return
+        if empty_zero and value <= 0:
+            label.setText("-")
+            label.setToolTip("-")
+            return
+        label.setText(_format_count(value, compact=compact, signed=signed))
+        label.setToolTip(_full_count_tooltip(value))
+
+    def _set_inventory_detail_icon(self, item_id: str | None, name: str) -> None:
+        icon_label = getattr(self, "_inventory_oopart_detail_icon", None)
+        if icon_label is None:
+            return
+        icon_path = _inventory_icon_path(item_id, name)
+        if icon_path is not None and icon_path.exists():
+            pixmap = _item_icon_pixmap(size=icon_label.size(), item_id=item_id, icon_path=icon_path)
+            if not pixmap.isNull():
+                icon_label.setPixmap(pixmap)
+                return
+        icon_label.setPixmap(QPixmap())
+
+    def _clear_inventory_detail_hints(self) -> None:
+        for attr in (
+            "_inventory_oopart_next_hint",
+            "_inventory_oopart_farm_hint",
+            "_inventory_oopart_family_shortage",
+        ):
+            label = getattr(self, attr, None)
+            if label is not None:
+                label.setText("-")
+
+    def _inventory_student_icon(self, student_id: str) -> QIcon:
+        size = scale_px(34, self._ui_scale)
+        source = ensure_thumbnail(student_id, size, size)
+        if source is not None and source.exists():
+            pixmap = QPixmap(str(source))
+            if not pixmap.isNull():
+                return QIcon(pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        return make_placeholder_icon(size, size)
+
+    def _inventory_student_pixmap(self, student_id: str, size: int) -> QPixmap:
+        source = ensure_thumbnail(student_id, size, size)
+        if source is None or not source.exists():
+            return QPixmap()
+        pixmap = QPixmap(str(source))
+        return pixmap if not pixmap.isNull() else QPixmap()
+
+    def _inventory_oopart_family_shortage_text(self, item_id: str) -> str:
+        prefix = "_".join(item_id.rsplit("_", 1)[:-1])
+        if not prefix:
+            return "-"
+        rows: list[str] = []
+        for tier_index in range(3, -1, -1):
+            sibling_id = f"{prefix}_{tier_index}"
+            usage = self._inventory_oopart_plan_usage.get(sibling_id)
+            if usage is None:
                 continue
-            summary = self._cached_goal_cost(student_id, record=record, goal=goal)
+            shortage = usage.shortage or usage.pool_shortage
+            if shortage > 0:
+                label = f"T{tier_index + 1}"
+                sign = "-" if usage.shortage > 0 else "풀 -"
+                rows.append(f"{label}: {sign}{_format_count(shortage, compact=True)}")
+        return "\n".join(rows) if rows else "같은 계열 부족이 없습니다."
+
+    def _inventory_oopart_decision_hints(self, usage: InventoryOpartPlanUsage) -> tuple[str, str]:
+        if usage.shortage > 0:
+            top = usage.impacts[0] if usage.impacts else None
+            if top is not None:
+                need_parts = []
+                if top.ex_required:
+                    need_parts.append(f"EX {_format_count(top.ex_required, compact=True)}")
+                if top.skill_required:
+                    need_parts.append(f"일반 {_format_count(top.skill_required, compact=True)}")
+                need_text = " / ".join(need_parts) or _format_count(top.total_required, compact=True)
+                next_hint = f"다음 목표\n{top.title} ({need_text})까지 {_format_count(usage.shortage, compact=True)}개 더 필요합니다."
+            else:
+                next_hint = f"다음 목표\n현재 계획 수요를 해소하려면 {_format_count(usage.shortage, compact=True)}개 더 필요합니다."
+            farm_hint = f"파밍 우선순위\n높음 - 현재 계획 학생 {len(usage.impacts):,}명을 막고 있습니다."
+        elif usage.pool_shortage > 0:
+            next_hint = f"다음 목표\n현재 계획은 충족됐지만 전체 풀 기준 {_format_count(usage.pool_shortage, compact=True)}개가 더 필요합니다."
+            farm_hint = f"파밍 우선순위\n중간 - 전체 풀 {len(usage.pool_impacts):,}명 기준 장기적으로 부족합니다."
+        else:
+            next_hint = "다음 목표\n현재 계획과 알려진 전체 풀 수요가 모두 충족됐습니다."
+            farm_hint = "파밍 우선순위\n지금은 낮음."
+        return next_hint, farm_hint
+
+    def _inventory_common_decision_hints(
+        self,
+        *,
+        name: str,
+        shortage: int,
+        pool_left: int,
+        consumers: list[tuple[str, str, int]],
+        pool_consumers: list[tuple[str, str, int]],
+    ) -> tuple[str, str]:
+        if shortage > 0:
+            if consumers:
+                _student_id, title, amount = consumers[0]
+                next_hint = f"다음 목표\n{title} 목표를 열려면 {_format_count(shortage, compact=True)}개 더 필요합니다. (학생 필요 {_format_count(amount, compact=True)})"
+            else:
+                next_hint = f"다음 목표\n현재 계획 수요를 해소하려면 {_format_count(shortage, compact=True)}개 더 필요합니다."
+            farm_hint = f"파밍 우선순위\n높음 - 현재 계획 학생 {len(consumers):,}명을 막고 있습니다."
+        elif pool_left > 0:
+            next_hint = f"다음 목표\n현재 계획은 충족됐지만 전체 풀 기준 {name} {_format_count(pool_left, compact=True)}개가 더 필요합니다."
+            farm_hint = f"파밍 우선순위\n중간 - 전체 풀 {len(pool_consumers):,}명 기준 장기적으로 부족합니다."
+        else:
+            next_hint = "다음 목표\n현재 계획과 알려진 전체 풀 수요가 모두 충족됐습니다."
+            farm_hint = "파밍 우선순위\n지금은 낮음."
+        return next_hint, farm_hint
+
+    def _inventory_common_related_pressure_text(self, item_id: str, category: str) -> str:
+        rows: list[tuple[int, str]] = []
+        for entry in self._inventory_requirement_index.values():
+            if entry.key == item_id or entry.category != category:
+                continue
+            shortage = max(0, entry.required - entry.owned)
+            if shortage > 0:
+                rows.append((shortage, entry.name))
+        rows.sort(key=lambda item: (-item[0], item[1].casefold()))
+        if rows:
+            return "\n".join(f"{name}: -{_format_count(shortage, compact=True)}" for shortage, name in rows[:5])
+        return "연관된 현재 계획 부족이 없습니다."
+
+    def _inventory_student_consumers(self, item_id: str, name: str, *, full_pool: bool = False) -> list[tuple[str, str, int]]:
+        consumers: list[tuple[str, str, int]] = []
+        if full_pool:
+            records_and_goals = []
+            for record in self._all_students:
+                records_and_goals.append((record, self._inventory_full_pool_goal_for_student(record)))
+        else:
+            records_and_goals = []
+            for student_id, goal in self._plan_goal_map().items():
+                record = self._records_by_id.get(student_id)
+                if record is not None:
+                    records_and_goals.append((record, goal))
+        for record, goal in records_and_goals:
+            summary = self._cached_goal_cost(record.student_id, record=record, goal=goal)
             if summary is None:
                 continue
             for entry in self._plan_requirement_entries(summary, record=record):
                 if entry.key == item_id or entry.name.casefold() == name.casefold():
-                    consumers.append((record.title, entry.required))
+                    consumers.append((record.student_id, record.title, entry.required))
                     break
-        consumers.sort(key=lambda item: (-item[1], item[0].casefold()))
+        consumers.sort(key=lambda item: (-item[2], item[1].casefold(), item[0]))
         return consumers
 
     @staticmethod
@@ -4997,36 +5626,78 @@ class StudentViewerWindow(QMainWindow):
         pool_left = int(current.data(Qt.UserRole + 8) or 0)
 
         self._inventory_oopart_detail_title.setText(name)
+        if hasattr(self, "_inventory_oopart_detail_meta"):
+            self._inventory_oopart_detail_meta.setText(_inventory_category_label(category))
+        self._set_inventory_detail_icon(item_id, name)
+        self._clear_inventory_detail_hints()
         self._inventory_oopart_impact_list.clear()
-        self._set_inventory_metric("owned", f"{owned:,}")
-        self._set_inventory_metric("required", f"{required:,}" if required > 0 else "-")
-        self._set_inventory_metric("shortage", f"{shortage:,}" if shortage > 0 else "-")
+        self._set_inventory_metric_number("owned", owned)
+        self._set_inventory_metric_number("required", required, empty_zero=True)
+        self._set_inventory_metric_number("shortage", shortage, empty_zero=True)
         self._set_inventory_metric("coverage", self._inventory_coverage(owned, required))
-        self._set_inventory_metric("pool_required", f"{pool_required:,}" if pool_required > 0 else "-")
-        self._set_inventory_metric("pool_shortage", f"{pool_left:,}" if pool_left > 0 else "-")
+        self._set_inventory_metric_number("pool_required", pool_required, empty_zero=True)
+        self._set_inventory_metric_number("pool_shortage", pool_left, empty_zero=True)
         self._set_inventory_metric("pool_coverage", self._inventory_coverage(owned, pool_required))
         self._set_inventory_metric("ex_required", "-")
         self._set_inventory_metric("skill_required", "-")
 
         consumers = self._inventory_student_consumers(item_id, name) if required > 0 else []
-        self._set_inventory_metric("affected", f"{len(consumers):,}" if consumers else "-")
-        category_text = category.replace("_", " ").title() if category else "Inventory"
+        pool_consumers = self._inventory_student_consumers(item_id, name, full_pool=True) if pool_required > 0 else []
+        if consumers or pool_consumers:
+            self._set_inventory_metric("affected", f"{len(consumers):,} / {len(pool_consumers):,}")
+        else:
+            self._set_inventory_metric("affected", "-")
+        category_text = _inventory_category_label(category) or _tr("tab.inventory")
         self._inventory_oopart_detail_summary.setText(
-            f"Status: {status}. {category_text} material compared against current plan and full-pool demand."
+            f"상태: {_inventory_status_label(status)}. {category_text} 재화를 현재 계획 및 전체 풀 수요와 비교합니다."
         )
+        next_hint, farm_hint = self._inventory_common_decision_hints(
+            name=name,
+            shortage=shortage,
+            pool_left=pool_left,
+            consumers=consumers,
+            pool_consumers=pool_consumers,
+        )
+        if hasattr(self, "_inventory_oopart_next_hint"):
+            self._inventory_oopart_next_hint.setText(next_hint)
+        if hasattr(self, "_inventory_oopart_farm_hint"):
+            self._inventory_oopart_farm_hint.setText(farm_hint)
+        if hasattr(self, "_inventory_oopart_family_shortage"):
+            self._inventory_oopart_family_shortage.setText(self._inventory_common_related_pressure_text(item_id, category))
         if pool_required > 0:
             self._inventory_oopart_impact_list.addItem(
-                f"Full pool demand: need {pool_required:,}, left {pool_left:,}, coverage {self._inventory_coverage(owned, pool_required)}"
+                f"전체 풀 수요: 필요 {_format_count(pool_required, compact=True)}, "
+                f"남음 {_format_count(pool_left, compact=True)}, 충족률 {self._inventory_coverage(owned, pool_required)}"
             )
         exp_yield = self._inventory_exp_yield(category, item_id, name)
         if exp_yield is not None and owned > 0:
             label, value = exp_yield
-            self._inventory_oopart_impact_list.addItem(f"Converted value: {owned * value:,} {label}")
-        if consumers:
-            for title, amount in consumers[:12]:
-                self._inventory_oopart_impact_list.addItem(f"{title} - needs {amount:,}")
+            self._inventory_oopart_impact_list.addItem(f"환산 가치: {_format_count(owned * value, compact=True)} {label}")
+        planned_consumer_ids = {student_id for student_id, _title, _amount in consumers}
+        display_consumers = [(student_id, title, amount, True) for student_id, title, amount in consumers]
+        display_consumers.extend(
+            (student_id, title, amount, False)
+            for student_id, title, amount in pool_consumers
+            if student_id not in planned_consumer_ids
+        )
+        if display_consumers:
+            for student_id, title, amount, planned in display_consumers[:12]:
+                item = QListWidgetItem("")
+                item.setSizeHint(QSize(scale_px(260, self._ui_scale), scale_px(64, self._ui_scale)))
+                row = InventoryOpartImpactRow(card_asset=self._student_card_asset, ui_scale=self._ui_scale)
+                row.setGenericData(
+                    title=title,
+                    demand_text=f"{'필요' if planned else '풀 필요'} {_format_count(amount, compact=True)}",
+                    pixmap=self._inventory_student_pixmap(student_id, scale_px(76, self._ui_scale)),
+                    planned=planned,
+                )
+                if planned:
+                    item.setBackground(QColor("#3a2238"))
+                    item.setForeground(QColor("#ffe1f0"))
+                self._inventory_oopart_impact_list.addItem(item)
+                self._inventory_oopart_impact_list.setItemWidget(item, row)
         else:
-            self._inventory_oopart_impact_list.addItem("No current planned student consumes this item.")
+            self._inventory_oopart_impact_list.addItem("현재 계획에서 이 아이템을 소비하는 학생이 없습니다.")
 
     def _on_inventory_oopart_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None = None) -> None:
         item_id = str(current.data(Qt.UserRole) or "") if current is not None else ""
@@ -5090,27 +5761,36 @@ class StudentViewerWindow(QMainWindow):
         if target is None:
             return
         family_prefix = "_".join(item_id.rsplit("_", 1)[:-1])
+
+        def apply_match(item: QListWidgetItem) -> None:
+            item.setData(Qt.UserRole, item_id)
+            item.setData(Qt.UserRole + 1, _plan_resource_display_name(item_id, item_id))
+            item.setData(Qt.UserRole + 2, self._inventory_quantity_index_cache.get(item_id, 0))
+            usage = self._inventory_oopart_plan_usage.get(item_id) if hasattr(self, "_inventory_oopart_plan_usage") else None
+            item.setData(Qt.UserRole + 3, usage.required if usage else 0)
+            item.setData(Qt.UserRole + 4, usage.shortage if usage else 0)
+            item.setData(Qt.UserRole + 5, self._inventory_oopart_status(usage))
+            item.setData(Qt.UserRole + 6, "ooparts")
+            widget = target.itemWidget(item)
+            if isinstance(widget, InventoryOpartFamilyRow):
+                widget.setSelectedItem(item_id)
+            self._inventory_root_tabs.setCurrentIndex(1)
+            self._inventory_item_tabs.setCurrentIndex(0)
+            target.setCurrentItem(item)
+            target.scrollToItem(item)
+
+        fallback_item: QListWidgetItem | None = None
         for index in range(target.count()):
             item = target.item(index)
             current_id = str(item.data(Qt.UserRole) or "")
             current_prefix = "_".join(current_id.rsplit("_", 1)[:-1])
-            if current_id == item_id or (family_prefix and current_prefix == family_prefix):
-                item.setData(Qt.UserRole, item_id)
-                item.setData(Qt.UserRole + 1, _plan_resource_display_name(item_id, item_id))
-                item.setData(Qt.UserRole + 2, self._inventory_quantity_index_cache.get(item_id, 0))
-                usage = self._inventory_oopart_plan_usage.get(item_id) if hasattr(self, "_inventory_oopart_plan_usage") else None
-                item.setData(Qt.UserRole + 3, usage.required if usage else 0)
-                item.setData(Qt.UserRole + 4, usage.shortage if usage else 0)
-                item.setData(Qt.UserRole + 5, self._inventory_oopart_status(usage))
-                item.setData(Qt.UserRole + 6, "ooparts")
-                widget = target.itemWidget(item)
-                if isinstance(widget, InventoryOpartFamilyRow):
-                    widget.setSelectedItem(item_id)
-                self._inventory_root_tabs.setCurrentIndex(1)
-                self._inventory_item_tabs.setCurrentIndex(0)
-                target.setCurrentItem(item)
-                target.scrollToItem(item)
+            if current_id == item_id:
+                apply_match(item)
                 return
+            if fallback_item is None and family_prefix and current_prefix == family_prefix:
+                fallback_item = item
+        if fallback_item is not None:
+            apply_match(fallback_item)
 
     def _configure_inventory_priority_cards(self, target: QListWidget) -> None:
         target.setViewMode(QListView.ListMode)
@@ -5126,12 +5806,12 @@ class StudentViewerWindow(QMainWindow):
     def _add_inventory_usage_list_item(self, target: QListWidget, usage: InventoryOpartPlanUsage, *, pool: bool) -> None:
         if pool:
             amount = usage.pool_shortage
-            meta = f"{usage.owned:,} / {usage.pool_required:,} - pool left"
-            tooltip = f"{usage.name}\nFull pool left {usage.pool_shortage:,} / need {usage.pool_required:,}"
+            meta = f"{_format_count(usage.owned, compact=True)} / {_format_count(usage.pool_required, compact=True)} · 풀 남음"
+            tooltip = f"{usage.name}\n전체 풀 남음 {usage.pool_shortage:,} / 필요 {usage.pool_required:,}"
         else:
             amount = usage.shortage
-            meta = f"{usage.owned:,} / {usage.required:,} - {len(usage.impacts)} planned"
-            tooltip = f"{usage.name}\nPlan short {usage.shortage:,} / need {usage.required:,}"
+            meta = f"{_format_count(usage.owned, compact=True)} / {_format_count(usage.required, compact=True)} · 계획 {len(usage.impacts)}명"
+            tooltip = f"{usage.name}\n계획 부족 {usage.shortage:,} / 필요 {usage.required:,}"
         item = QListWidgetItem("")
         item.setSizeHint(QSize(scale_px(220, self._ui_scale), scale_px(64, self._ui_scale)))
         item.setData(Qt.UserRole, usage.item_id)
@@ -5144,6 +5824,7 @@ class StudentViewerWindow(QMainWindow):
             item_id=usage.item_id,
             name=usage.name,
             amount=amount,
+            total=usage.pool_required if pool else usage.required,
             meta=meta,
             pool=pool,
         )
@@ -5171,11 +5852,15 @@ class StudentViewerWindow(QMainWindow):
             item_id=entry.key,
             name=entry.name,
             amount=shortage,
-            meta=f"{entry.owned:,} / {entry.required:,} - {'pool left' if pool else 'plan short'}",
+            total=entry.required,
+            meta=(
+                f"{_format_count(entry.owned, compact=True)} / {_format_count(entry.required, compact=True)} · "
+                f"{'풀 남음' if pool else '계획 부족'}"
+            ),
             pool=pool,
         )
         target.setItemWidget(item, row)
-        item.setToolTip(f"{entry.name}\nShort {shortage:,} / need {entry.required:,}")
+        item.setToolTip(f"{entry.name}\n부족 {shortage:,} / 필요 {entry.required:,}")
 
     def _refresh_inventory_insight_panel(self) -> None:
         if not hasattr(self, "_inventory_insight_summary"):
@@ -5206,7 +5891,7 @@ class StudentViewerWindow(QMainWindow):
         ][:5]
 
         if not usages and not plan_requirement_top and not pool_requirement_top:
-            self._inventory_insight_summary.setText("No planned or full-pool Ooparts demand is available yet.")
+            self._inventory_insight_summary.setText("아직 계획 또는 전체 풀 기준 오파츠 수요가 없습니다.")
             self._update_inventory_oopart_detail(None)
             return
 
@@ -5217,9 +5902,11 @@ class StudentViewerWindow(QMainWindow):
         pool_shortage_items = sum(1 for usage in usages if usage.pool_shortage > 0)
         pool_shortage_total = sum(usage.pool_shortage for usage in usages)
         self._inventory_insight_summary.setText(
-            f"Plan demand uses {planned_count} Ooparts; {plan_shortage_items} are short by {plan_shortage_total:,}. "
-            f"Full pool demand uses {pool_count}; {pool_shortage_items} remain short by {pool_shortage_total:,}. "
-            f"Common plan bottlenecks: {len(plan_requirement_top)}."
+            f"계획 수요 오파츠 {planned_count}종 중 {plan_shortage_items}종이 "
+            f"{_format_count(plan_shortage_total, compact=True)} 부족합니다. "
+            f"전체 풀 수요 {pool_count}종 중 {pool_shortage_items}종이 "
+            f"{_format_count(pool_shortage_total, compact=True)} 남았습니다. "
+            f"공통 병목 {len(plan_requirement_top)}건."
         )
 
         plan_top = [usage for usage in sorted(usages, key=lambda usage: (-usage.shortage, usage.name.lower())) if usage.shortage > 0][:8]
@@ -5230,23 +5917,27 @@ class StudentViewerWindow(QMainWindow):
             for entry in plan_requirement_top:
                 self._add_inventory_requirement_list_item(self._inventory_plan_priority_list, entry, pool=False)
         else:
-            self._inventory_plan_priority_list.addItem("No current plan shortages.")
+            self._inventory_plan_priority_list.addItem("현재 계획 부족이 없습니다.")
         if pool_top or pool_requirement_top:
             for usage in pool_top:
                 self._add_inventory_usage_list_item(self._inventory_pool_pressure_list, usage, pool=True)
             for entry in pool_requirement_top:
                 self._add_inventory_requirement_list_item(self._inventory_pool_pressure_list, entry, pool=True)
         else:
-            self._inventory_pool_pressure_list.addItem("No remaining full-pool shortages.")
+            self._inventory_pool_pressure_list.addItem("전체 풀 기준 남은 부족이 없습니다.")
 
     def _update_inventory_oopart_detail(self, current: QListWidgetItem | None) -> None:
         if not hasattr(self, "_inventory_oopart_detail_title"):
             return
         self._inventory_oopart_impact_list.clear()
         if current is None:
-            self._inventory_oopart_detail_title.setText("Select an oopart")
-            self._inventory_oopart_detail_summary.setText("Pick an item above to see planned use and affected students.")
+            self._inventory_oopart_detail_title.setText(_tr("inventory.detail.select_oopart"))
+            if hasattr(self, "_inventory_oopart_detail_meta"):
+                self._inventory_oopart_detail_meta.setText("")
+            self._set_inventory_detail_icon(None, "")
+            self._inventory_oopart_detail_summary.setText(_tr("inventory.detail.pick_item"))
             self._clear_inventory_oopart_metrics()
+            self._clear_inventory_detail_hints()
             return
 
         item_id = str(current.data(Qt.UserRole) or "")
@@ -5254,44 +5945,63 @@ class StudentViewerWindow(QMainWindow):
         owned = int(current.data(Qt.UserRole + 2) or 0)
         usage = self._inventory_oopart_plan_usage.get(item_id)
         self._inventory_oopart_detail_title.setText(name)
+        tier = _tier_from_item_id_or_name(item_id, name)
+        family = re.sub(r"\s+T\d+$", "", name).strip() or name
+        if hasattr(self, "_inventory_oopart_detail_meta"):
+            self._inventory_oopart_detail_meta.setText(f"T{tier} - {family}" if tier else family)
+        self._set_inventory_detail_icon(item_id, name)
         if usage is None:
             usage = InventoryOpartPlanUsage(item_id=item_id, name=name, owned=owned)
         else:
             usage.owned = owned
 
-        self._set_inventory_metric("owned", f"{owned:,}")
-        self._set_inventory_metric("required", f"{usage.required:,}" if usage.required > 0 else "-")
-        self._set_inventory_metric("shortage", f"{usage.shortage:,}" if usage.shortage > 0 else "-")
+        self._set_inventory_metric_number("owned", owned)
+        self._set_inventory_metric_number("required", usage.required, empty_zero=True)
+        self._set_inventory_metric_number("shortage", usage.shortage, empty_zero=True)
         self._set_inventory_metric("coverage", self._inventory_coverage(owned, usage.required))
-        self._set_inventory_metric("pool_required", f"{usage.pool_required:,}" if usage.pool_required > 0 else "-")
-        self._set_inventory_metric("pool_shortage", f"{usage.pool_shortage:,}" if usage.pool_shortage > 0 else "-")
+        self._set_inventory_metric_number("pool_required", usage.pool_required, empty_zero=True)
+        self._set_inventory_metric_number("pool_shortage", usage.pool_shortage, empty_zero=True)
         self._set_inventory_metric("pool_coverage", self._inventory_coverage(owned, usage.pool_required))
-        self._set_inventory_metric("ex_required", f"{usage.ex_required:,}" if usage.ex_required > 0 else "-")
-        self._set_inventory_metric("skill_required", f"{usage.skill_required:,}" if usage.skill_required > 0 else "-")
+        self._set_inventory_metric_number("ex_required", usage.ex_required, empty_zero=True)
+        self._set_inventory_metric_number("skill_required", usage.skill_required, empty_zero=True)
         self._set_inventory_metric("affected", f"{len(usage.impacts):,} / {len(usage.pool_impacts):,}")
 
         status = self._inventory_oopart_status(usage)
         planned_ids = set(self._plan_goal_map())
         planned_pool_count = sum(1 for impact in usage.pool_impacts if impact.student_id in planned_ids)
         self._inventory_oopart_detail_summary.setText(
-            f"Status: {status}. Full pool affected students: {len(usage.pool_impacts)} "
-            f"({planned_pool_count} currently planned)."
+            f"상태: {_inventory_status_label(status)}. 전체 풀 영향 학생 {len(usage.pool_impacts):,}명 "
+            f"(현재 계획 {planned_pool_count:,}명)."
         )
+        next_hint, farm_hint = self._inventory_oopart_decision_hints(usage)
+        if hasattr(self, "_inventory_oopart_next_hint"):
+            self._inventory_oopart_next_hint.setText(next_hint)
+        if hasattr(self, "_inventory_oopart_farm_hint"):
+            self._inventory_oopart_farm_hint.setText(farm_hint)
+        if hasattr(self, "_inventory_oopart_family_shortage"):
+            self._inventory_oopart_family_shortage.setText(self._inventory_oopart_family_shortage_text(item_id))
         if not usage.pool_impacts:
-            self._inventory_oopart_impact_list.addItem("No full-pool student demand.")
+            self._inventory_oopart_impact_list.addItem("전체 풀 기준 학생 수요가 없습니다.")
             return
 
-        for impact in usage.pool_impacts:
+        planned_impacts = [impact for impact in usage.impacts if impact.student_id in planned_ids]
+        planned_seen = {impact.student_id for impact in planned_impacts}
+        remaining_pool = [impact for impact in usage.pool_impacts if impact.student_id not in planned_seen]
+        for impact in planned_impacts + remaining_pool:
             is_planned = impact.student_id in planned_ids
-            prefix = "[Plan] " if is_planned else ""
-            item = QListWidgetItem(
-                f"{prefix}{impact.title} ({impact.student_id}) - "
-                f"EX {impact.ex_required:,} / Skill {impact.skill_required:,} / Total {impact.total_required:,}"
+            item = QListWidgetItem("")
+            item.setSizeHint(QSize(scale_px(260, self._ui_scale), scale_px(64, self._ui_scale)))
+            row = InventoryOpartImpactRow(card_asset=self._student_card_asset, ui_scale=self._ui_scale)
+            row.setData(
+                impact=impact,
+                pixmap=self._inventory_student_pixmap(impact.student_id, scale_px(76, self._ui_scale)),
+                planned=is_planned,
             )
             if is_planned:
                 item.setBackground(QColor("#3a2238"))
                 item.setForeground(QColor("#ffe1f0"))
             self._inventory_oopart_impact_list.addItem(item)
+            self._inventory_oopart_impact_list.setItemWidget(item, row)
 
     def _inventory_classify_item(self, item_key: str, payload: dict) -> str:
         item_id = str(payload.get("item_id") or "")
@@ -5385,16 +6095,12 @@ class StudentViewerWindow(QMainWindow):
         category: str = "",
         oopart_usage: dict[str, InventoryOpartPlanUsage] | None = None,
     ) -> None:
-        if category == "ooparts":
-            self._set_inventory_oopart_family_items(target, summary, oopart_usage or {})
-            return
-
         target.clear()
         requirement_index = getattr(self, "_inventory_requirement_index", {})
         pool_requirement_index = getattr(self, "_inventory_pool_requirement_index", {})
         if not entries:
-            summary.setText("No scanned items in this category yet.")
-            target.addItem("Run an item or equipment scan to populate this category.")
+            summary.setText(_tr("inventory.no_scanned_category"))
+            target.addItem(_tr("inventory.scan_to_populate"))
             if category == "ooparts":
                 self._inventory_oopart_selected_id = None
                 self._update_inventory_oopart_detail(None)
@@ -5405,7 +6111,7 @@ class StudentViewerWindow(QMainWindow):
             for _item_key, payload in entries
             if (quantity := _inventory_quantity_value(payload.get("quantity"))) is not None
         )
-        summary.setText(f"{len(entries)} items 쨌 total quantity {total_quantity:,}")
+        summary.setText(_tr("inventory.summary", count=len(entries), quantity=_format_count(total_quantity, compact=True)))
 
         if category == "ooparts" and oopart_usage:
             shortage_items = sum(1 for usage in oopart_usage.values() if usage.shortage > 0)
@@ -5414,14 +6120,14 @@ class StudentViewerWindow(QMainWindow):
             pool_total_shortage = sum(usage.pool_shortage for usage in oopart_usage.values())
             plan_top = sorted(oopart_usage.values(), key=lambda usage: (-usage.shortage, usage.name.lower()))[:3]
             pool_top = sorted(oopart_usage.values(), key=lambda usage: (-usage.pool_shortage, usage.name.lower()))[:3]
-            plan_top_text = ", ".join(f"{usage.name} {usage.shortage:,}" for usage in plan_top if usage.shortage > 0) or "none"
-            pool_top_text = ", ".join(f"{usage.name} {usage.pool_shortage:,}" for usage in pool_top if usage.pool_shortage > 0) or "none"
+            plan_top_text = ", ".join(f"{usage.name} {_format_count(usage.shortage, compact=True)}" for usage in plan_top if usage.shortage > 0) or "없음"
+            pool_top_text = ", ".join(f"{usage.name} {_format_count(usage.pool_shortage, compact=True)}" for usage in pool_top if usage.pool_shortage > 0) or "없음"
             summary.setText(
-                f"{len(entries)} items - total quantity {total_quantity:,} - "
-                f"plan short {shortage_items} ({total_shortage:,}) - "
-                f"full pool short {pool_shortage_items} ({pool_total_shortage:,})\n"
-                f"Plan priority: {plan_top_text}\n"
-                f"Full pool pressure: {pool_top_text}"
+                f"{len(entries)}개 · 총 수량 {_format_count(total_quantity, compact=True)} · "
+                f"계획 부족 {shortage_items}개 ({_format_count(total_shortage, compact=True)}) · "
+                f"전체 풀 부족 {pool_shortage_items}개 ({_format_count(pool_total_shortage, compact=True)})\n"
+                f"계획 우선순위: {plan_top_text}\n"
+                f"전체 풀 부족: {pool_top_text}"
             )
 
         restore_item: QListWidgetItem | None = None
@@ -5440,24 +6146,24 @@ class StudentViewerWindow(QMainWindow):
             usage = oopart_usage.get(item_id_text) if oopart_usage else None
             shortage = bool(usage and (usage.shortage > 0 or usage.pool_shortage > 0))
             if usage and usage.required > 0:
-                quantity = f"{owned:,} / {usage.required:,}"
+                quantity = _format_count(owned, compact=True)
                 meta = (
-                    f"Plan need {usage.required:,} - Plan short {usage.shortage:,} - "
-                    f"Full pool need {usage.pool_required:,} - Pool left {usage.pool_shortage:,} - "
-                    f"EX {usage.ex_required:,} / Skill {usage.skill_required:,} - {len(usage.impacts)} planned"
+                    f"계획 필요 {_format_count(usage.required, compact=True)} · 계획 부족 {_format_count(usage.shortage, compact=True)} · "
+                    f"전체 풀 필요 {_format_count(usage.pool_required, compact=True)} · 풀 남음 {_format_count(usage.pool_shortage, compact=True)} · "
+                    f"EX {_format_count(usage.ex_required, compact=True)} / 일반 {_format_count(usage.skill_required, compact=True)} · 계획 {len(usage.impacts)}명"
                 )
             elif usage and usage.pool_required > 0:
-                quantity = f"{owned:,} / 0"
+                quantity = _format_count(owned, compact=True)
                 meta = (
-                    f"No plan demand - Full pool need {usage.pool_required:,} - "
-                    f"Pool left {usage.pool_shortage:,} - EX {usage.pool_ex_required:,} / Skill {usage.pool_skill_required:,}"
+                    f"계획 수요 없음 · 전체 풀 필요 {_format_count(usage.pool_required, compact=True)} · "
+                    f"풀 남음 {_format_count(usage.pool_shortage, compact=True)} · EX {_format_count(usage.pool_ex_required, compact=True)} / 일반 {_format_count(usage.pool_skill_required, compact=True)}"
                 )
             else:
-                quantity = f"{quantity_value:,}" if quantity_value is not None else str(payload.get("quantity") or "?")
+                quantity = _format_count(quantity_value, compact=True) if quantity_value is not None else str(payload.get("quantity") or "?")
                 tier = _tier_from_item_id_or_name(item_id_text, name)
                 meta_parts = []
                 if category:
-                    meta_parts.append(category.replace("_", " ").title())
+                    meta_parts.append(_inventory_category_label(category))
                 if tier:
                     meta_parts.append(f"T{tier}")
                 meta = " - ".join(meta_parts)
@@ -5465,26 +6171,31 @@ class StudentViewerWindow(QMainWindow):
                 tier = _tier_from_item_id_or_name(item_id_text, name)
                 status = self._inventory_status_for_values(owned=owned, required=required, pool_left=pool_left, tier=tier)
                 shortage = plan_short > 0
-                plan_need_text = f"{required:,}" if required > 0 else "-"
-                plan_short_text = f"-{plan_short:,}" if plan_short > 0 else "-"
-                pool_remain_text = f"{pool_left:,}" if pool_left > 0 else "-"
+                plan_need_text = _format_count(required, compact=True) if required > 0 else "-"
+                plan_short_text = _format_count(plan_short, compact=True, signed=True) if plan_short > 0 else "-"
+                pool_remain_text = _format_count(pool_left, compact=True) if pool_left > 0 else "-"
             else:
                 status = self._inventory_oopart_status(usage)
-                plan_need_text = f"{usage.required:,}" if usage.required > 0 else "-"
-                plan_short_text = f"-{usage.shortage:,}" if usage.shortage > 0 else "-"
-                pool_remain_text = f"{usage.pool_shortage:,}" if usage.pool_shortage > 0 else "-"
+                plan_need_text = _format_count(usage.required, compact=True) if usage.required > 0 else "-"
+                plan_short_text = _format_count(usage.shortage, compact=True, signed=True) if usage.shortage > 0 else "-"
+                pool_remain_text = _format_count(usage.pool_shortage, compact=True) if usage.pool_shortage > 0 else "-"
             widget = InventoryListItem(ui_scale=self._ui_scale)
             widget.setData(
                 icon_path=_inventory_icon_path(str(item_id) if item_id else None, name),
                 item_id=item_id_text or None,
                 name=name,
                 quantity=quantity,
-                meta=meta,
+                meta="" if category == "ooparts" else meta,
                 shortage=shortage,
                 plan_need=plan_need_text,
                 plan_short=plan_short_text,
                 pool_remain=pool_remain_text,
                 status=status,
+                show_text=True,
+                owned_tooltip=_full_count_tooltip(owned),
+                plan_need_tooltip=_full_count_tooltip(required if not usage else usage.required),
+                plan_short_tooltip=_full_count_tooltip(plan_short if not usage else usage.shortage),
+                pool_remain_tooltip=_full_count_tooltip(pool_left if not usage else usage.pool_shortage),
             )
             item = QListWidgetItem()
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -5517,7 +6228,7 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_requirement_index = self._inventory_plan_requirement_index()
         self._inventory_pool_requirement_index = self._inventory_full_pool_requirement_index()
         if not inventory:
-            self._inventory_summary.setText("No scanned inventory is available yet. Run an item or equipment scan to populate this tab.")
+            self._inventory_summary.setText(_tr("inventory.empty_with_hint"))
             self._inventory_oopart_plan_usage = self._inventory_build_oopart_plan_usage()
             for key, widget in self._inventory_equipment_lists.items():
                 self._set_inventory_list_items(widget, self._inventory_equipment_summaries[key], [])
@@ -5535,7 +6246,7 @@ class StudentViewerWindow(QMainWindow):
                         )
                         for item_id, usage in self._inventory_oopart_plan_usage.items()
                     ]
-                    entries.sort(key=lambda entry: _OPART_ITEM_IDS.index(entry[0]) if entry[0] in _OPART_ITEM_IDS else 9999)
+                    entries.sort(key=self._inventory_oopart_sort_key)
                     self._set_inventory_list_items(
                         widget,
                         self._inventory_item_summaries[key],
@@ -5554,9 +6265,9 @@ class StudentViewerWindow(QMainWindow):
             if (quantity := _inventory_quantity_value(payload.get("quantity"))) is not None
         )
         latest_seen = max((str(payload.get("last_seen_at") or "") for payload in inventory.values()), default="")
-        latest_suffix = f" 쨌 last updated {latest_seen}" if latest_seen else ""
+        latest_suffix = _tr("inventory.last_updated", time=latest_seen) if latest_seen else ""
         self._inventory_summary.setText(
-            f"{len(inventory)} scanned entries 쨌 total quantity {total_quantity:,}{latest_suffix}"
+            _tr("inventory.summary_scanned", count=len(inventory), quantity=_format_count(total_quantity, compact=True), suffix=latest_suffix)
         )
 
         self._inventory_oopart_plan_usage = self._inventory_build_oopart_plan_usage()
@@ -5630,7 +6341,6 @@ class StudentViewerWindow(QMainWindow):
             item_groups[self._inventory_classify_item(item_id, payload)].append((item_id, payload))
             known_requirement_ids.add(item_id)
 
-        opart_order = {item_id: index for index, item_id in enumerate(_OPART_ITEM_IDS)}
         wb_order = {
             item_id: index
             for index, item_id in enumerate(tuple(_WORKBOOK_ID_TO_NAME) + _WB_ITEM_IDS)
@@ -5647,28 +6357,6 @@ class StudentViewerWindow(QMainWindow):
                 ]
             )
         }
-        tech_order = {
-            item_id: index
-            for index, item_id in enumerate(
-                [
-                    f"Item_Icon_SkillBook_{school}_{tier}"
-                    for school in _SCHOOL_SEQUENCE
-                    for tier in ("0", "1", "2", "3")
-                ]
-                + ["Item_Icon_SkillBook_Ultimate_Piece"]
-            )
-        }
-        bd_order = {
-            item_id: index
-            for index, item_id in enumerate(
-                [
-                    f"Item_Icon_Material_ExSkill_{school}_{tier}"
-                    for school in _SCHOOL_SEQUENCE
-                    for tier in ("0", "1", "2", "3")
-                ]
-            )
-        }
-
         def equipment_sort_key(entry: tuple[str, dict]) -> tuple[int, str]:
             item_id = str(entry[1].get("item_id") or "")
             try:
@@ -5690,7 +6378,7 @@ class StudentViewerWindow(QMainWindow):
             )
 
         ordered_items = {
-            "ooparts": sorted(item_groups["ooparts"], key=lambda entry: ordered_sort_key(opart_order, entry)),
+            "ooparts": sorted(item_groups["ooparts"], key=self._inventory_oopart_sort_key),
             "wb": sorted(item_groups["wb"], key=lambda entry: ordered_sort_key(wb_order, entry)),
             "stones": sorted(item_groups["stones"], key=lambda entry: ordered_sort_key(stone_order, entry)),
             "reports": sorted(
@@ -5708,8 +6396,8 @@ class StudentViewerWindow(QMainWindow):
                 ),
             ),
             "weapon_parts": sorted(item_groups["weapon_parts"], key=lambda entry: ordered_sort_key(weapon_order, entry)),
-            "tech_notes": sorted(item_groups["tech_notes"], key=lambda entry: ordered_sort_key(tech_order, entry)),
-            "bd": sorted(item_groups["bd"], key=lambda entry: ordered_sort_key(bd_order, entry)),
+            "tech_notes": sorted(item_groups["tech_notes"], key=lambda entry: self._inventory_school_material_sort_key(entry, material="tech_notes")),
+            "bd": sorted(item_groups["bd"], key=lambda entry: self._inventory_school_material_sort_key(entry, material="bd")),
             "other": sorted(item_groups["other"], key=lambda entry: _inventory_display_label(entry[0], entry[1]).lower()),
         }
 
@@ -7777,6 +8465,13 @@ class StudentViewerWindow(QMainWindow):
         for cache_key in [cache_key for cache_key in self._plan_cost_cache if cache_key[0] == student_id]:
             del self._plan_cost_cache[cache_key]
 
+    def _planned_student_ids(self) -> set[str]:
+        return {goal.student_id for goal in self._plan.goals if goal.student_id in self._records_by_id}
+
+    def _add_plan_student_to_resource_scope(self, student_id: str) -> None:
+        if student_id in self._records_by_id:
+            self._resource_selected_ids.add(student_id)
+
     def _goal_cache_signature(self, goal: StudentGoal) -> tuple[object, ...]:
         return tuple(getattr(goal, field_name, None) for field_name in _PLAN_GOAL_CACHE_FIELDS)
 
@@ -8339,6 +9034,8 @@ class StudentViewerWindow(QMainWindow):
 
         self._sync_plan_goal(goal, record)
         self._invalidate_plan_caches(student_id)
+        if not was_planned:
+            self._add_plan_student_to_resource_scope(student_id)
         self._save_plan()
         self._selected_plan_student_id = student_id
         self._refresh_after_plan_goal_change(student_id, rebuild_lists=not was_planned, changed_field=field_name)
@@ -8374,6 +9071,8 @@ class StudentViewerWindow(QMainWindow):
 
         self._sync_plan_goal(goal, record)
         self._invalidate_plan_caches(student_id)
+        if not was_planned:
+            self._add_plan_student_to_resource_scope(student_id)
         self._save_plan()
         self._selected_plan_student_id = student_id
         self._refresh_after_plan_goal_change(student_id, rebuild_lists=not was_planned, changed_field=field_name)
@@ -8510,6 +9209,7 @@ class StudentViewerWindow(QMainWindow):
         if not student_id:
             return
         self._get_or_create_goal(student_id)
+        self._add_plan_student_to_resource_scope(student_id)
         self._selected_plan_student_id = student_id
         self._save_plan()
         self._refresh_plan_lists()
@@ -8598,6 +9298,7 @@ class StudentViewerWindow(QMainWindow):
         if not student_id:
             return
         self._get_or_create_goal(student_id)
+        self._add_plan_student_to_resource_scope(student_id)
         self._selected_plan_student_id = student_id
         self._save_plan()
         self._refresh_plan_lists()
@@ -8982,59 +9683,59 @@ class StudentViewerWindow(QMainWindow):
 
     def _format_cost_summary(self, summary: PlanCostSummary) -> str:
         lines = [
-            f"크레딧: {summary.credits:,}",
-            f"EXP: {summary.level_exp:,}",
+            f"크레딧: {_format_count(summary.credits, compact=True)}",
+            f"EXP: {_format_count(summary.level_exp, compact=True)}",
         ]
         if summary.level_exp_items:
-            lines.append("Level reports:")
+            lines.append("활동 보고서:")
             for key, value in sorted(summary.level_exp_items.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.equipment_exp:
-            lines.append(f"Equipment EXP: {summary.equipment_exp:,}")
+            lines.append(f"장비 EXP: {_format_count(summary.equipment_exp, compact=True)}")
         if summary.equipment_exp_items:
-            lines.append("Equipment exp items:")
+            lines.append("장비 강화석:")
             for key, value in sorted(summary.equipment_exp_items.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.weapon_exp:
-            lines.append(f"Weapon EXP: {summary.weapon_exp:,}")
+            lines.append(f"무기 EXP: {_format_count(summary.weapon_exp, compact=True)}")
         if summary.weapon_exp_items:
-            lines.append("Weapon exp items:")
+            lines.append("무기 성장 재료:")
             for key, value in sorted(summary.weapon_exp_items.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.star_materials:
-            lines.append("Star materials:")
+            lines.append("성급 재화:")
             for key, value in sorted(summary.star_materials.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.equipment_materials:
-            lines.append("Equipment materials:")
+            lines.append("장비 재화:")
             for key, value in sorted(summary.equipment_materials.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.skill_books:
-            lines.append("Skill books:")
+            lines.append("스킬북:")
             for key, value in sorted(summary.skill_books.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.ex_ooparts:
-            lines.append("EX ooparts:")
+            lines.append("EX 오파츠:")
             for key, value in sorted(summary.ex_ooparts.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.skill_ooparts:
-            lines.append("Skill ooparts:")
+            lines.append("일반 스킬 오파츠:")
             for key, value in sorted(summary.skill_ooparts.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.favorite_item_materials:
-            lines.append("Favorite item materials:")
+            lines.append("애용품 재화:")
             for key, value in sorted(summary.favorite_item_materials.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.stat_materials:
-            lines.append("Stat materials:")
+            lines.append("능력개방 재화:")
             for key, value in sorted(summary.stat_materials.items(), key=lambda item: (-item[1], item[0])):
-                lines.append(f"- {key}: {value}")
+                lines.append(f"- {key}: {_format_count(value, compact=True)}")
         if summary.stat_levels:
-            lines.append("Stat targets:")
+            lines.append("능력개방 목표:")
             for key, value in sorted(summary.stat_levels.items()):
                 lines.append(f"- {key}: +{value}")
         if summary.warnings:
-            lines.append("Notes:")
+            lines.append("메모:")
             for warning in dict.fromkeys(summary.warnings):
                 lines.append(f"- {warning}")
         return "\n".join(lines)
