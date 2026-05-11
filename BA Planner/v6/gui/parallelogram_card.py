@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QScrollArea, QSizePolicy, QWidget
 
@@ -625,6 +625,7 @@ class ParallelogramCardGrid(QScrollArea):
     selection_changed = Signal(object)
     card_double_clicked = Signal(str)
     layout_changed = Signal(int, int)
+    order_changed = Signal(object)
 
     def __init__(
         self,
@@ -633,11 +634,13 @@ class ParallelogramCardGrid(QScrollArea):
         parent: QWidget | None = None,
         *,
         multi_select: bool = False,
+        reorder_enabled: bool = False,
     ) -> None:
         super().__init__(parent)
         self._card_asset = card_asset
         self._ui_scale = ui_scale
         self._multi_select = multi_select
+        self._reorder_enabled = reorder_enabled
         self._content = QWidget()
         self._content.setAttribute(Qt.WA_StyledBackground, True)
         self.setWidget(self._content)
@@ -648,6 +651,10 @@ class ParallelogramCardGrid(QScrollArea):
         self._card_by_id: dict[str, StudentCardWidget] = {}
         self._current_id: str | None = None
         self._selected_ids: set[str] = set()
+        self._drag_candidate_id: str | None = None
+        self._drag_start_global = QPoint()
+        self._dragging_reorder = False
+        self._drag_threshold = max(8, int(round(8 * max(0.8, ui_scale))))
         self._base_size = card_asset.base_size
         self._min_card_width = max(160, int(round(self._base_size.width() * max(0.72, min(1.0, ui_scale)))))
         self._current_card_size = QSize(self._base_size)
@@ -667,7 +674,22 @@ class ParallelogramCardGrid(QScrollArea):
         card.setParent(self._content)
         card.clicked.connect(self._on_card_clicked)
         card.double_clicked.connect(self.card_double_clicked)
+        if self._reorder_enabled:
+            card.installEventFilter(self)
         card.show()
+
+    def set_reorder_enabled(self, enabled: bool) -> None:
+        if self._reorder_enabled == enabled:
+            return
+        self._reorder_enabled = enabled
+        for card in self._cards:
+            if enabled:
+                card.installEventFilter(self)
+            else:
+                card.removeEventFilter(self)
+
+    def card_ids(self) -> list[str]:
+        return [card.student_id for card in self._cards]
 
     def add_card(self, card: StudentCardWidget) -> None:
         self._attach_card(card)
@@ -778,6 +800,67 @@ class ParallelogramCardGrid(QScrollArea):
         card = self._card_by_id.get(student_id)
         if card is not None:
             card.setPixmap(pixmap)
+
+    def _index_at_content_pos(self, pos: QPoint) -> int:
+        if not self._cards:
+            return -1
+        margin = max(12, self._card_asset.style.grid_gap_y)
+        for index, card in enumerate(self._cards):
+            if card.geometry().adjusted(-margin, -margin, margin, margin).contains(pos):
+                return index
+        return min(
+            range(len(self._cards)),
+            key=lambda index: (
+                (self._cards[index].geometry().center().x() - pos.x()) ** 2
+                + (self._cards[index].geometry().center().y() - pos.y()) ** 2
+            ),
+        )
+
+    def eventFilter(self, watched, event) -> bool:
+        if not getattr(self, "_reorder_enabled", False) or not hasattr(self, "_cards") or watched not in self._cards:
+            return super().eventFilter(watched, event)
+
+        card = watched
+        event_type = event.type()
+        if event_type == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            if self._card_asset.contains(card.size(), event.position().toPoint()):
+                self._drag_candidate_id = card.student_id
+                self._drag_start_global = event.globalPosition().toPoint()
+                self._dragging_reorder = False
+            return False
+
+        if event_type == QEvent.MouseMove and self._drag_candidate_id == card.student_id:
+            if not (event.buttons() & Qt.LeftButton):
+                return False
+            distance = (event.globalPosition().toPoint() - self._drag_start_global).manhattanLength()
+            if not self._dragging_reorder and distance < self._drag_threshold:
+                return False
+            self._dragging_reorder = True
+            target_index = self._index_at_content_pos(card.mapTo(self._content, event.position().toPoint()))
+            current_index = self._cards.index(card)
+            if target_index >= 0 and target_index != current_index:
+                moved = self._cards.pop(current_index)
+                self._cards.insert(target_index, moved)
+                self._relayout()
+                moved.raise_()
+            event.accept()
+            return True
+
+        if event_type == QEvent.MouseButtonRelease and self._drag_candidate_id == card.student_id:
+            was_dragging = self._dragging_reorder
+            self._drag_candidate_id = None
+            self._dragging_reorder = False
+            if was_dragging:
+                if hasattr(card, "_pressed"):
+                    card._pressed = False
+                    card.update()
+                self.set_current_card(card.student_id)
+                self.order_changed.emit(self.card_ids())
+                event.accept()
+                return True
+            return False
+
+        return super().eventFilter(watched, event)
 
     def current_card_size(self) -> QSize:
         return QSize(self._current_card_size)

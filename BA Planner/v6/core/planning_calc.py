@@ -61,7 +61,21 @@ STAT_WORKBOOK_NAME = "Item_Icon_WorkBook_PotentialMaxHP"
 FAVORITE_GIFT_SELECTION_NAME = "Item_Icon_Favor_Selection"
 LEVEL_EXP_ITEM_NAME = "Item_Icon_ExpItem_0"
 EQUIPMENT_EXP_ITEM_NAME = "Equipment_Icon_Exp_0"
-WEAPON_EXP_ITEM_NAME = "Equipment_Icon_WeaponExpGrowthA_0"
+WEAPON_EXP_ITEM_PREFIX = "Equipment_Icon_WeaponExpGrowth"
+WEAPON_EXP_WILDCARD_PART_KEY = "Z"
+WEAPON_EXP_BONUS_YIELDS = (15, 75, 300, 1_500)
+_WEAPON_EXP_PART_BY_WEAPON_TYPE = {
+    "SG": "A",
+    "SMG": "A",
+    "HG": "A",
+    "GL": "B",
+    "AR": "B",
+    "RL": "B",
+    "SR": "C",
+    "RG": "C",
+    "MT": "C",
+    "MG": "C",
+}
 _STAR_CREDIT_CUMULATIVE = {
     0: 0,
     1: 0,
@@ -539,6 +553,26 @@ def _exp_item_breakdown(item_name: str, total_exp: int, yields: tuple[int, int, 
     return materials
 
 
+def weapon_exp_part_for_weapon_type(weapon_type: object) -> str:
+    weapon_type_key = str(weapon_type or "").strip().upper()
+    return _WEAPON_EXP_PART_BY_WEAPON_TYPE.get(weapon_type_key, WEAPON_EXP_WILDCARD_PART_KEY)
+
+
+def weapon_exp_item_name_for_part(part_key: str) -> str:
+    normalized_part = str(part_key or WEAPON_EXP_WILDCARD_PART_KEY).strip().upper()
+    if normalized_part not in {"A", "B", "C", WEAPON_EXP_WILDCARD_PART_KEY}:
+        normalized_part = WEAPON_EXP_WILDCARD_PART_KEY
+    return f"{WEAPON_EXP_ITEM_PREFIX}{normalized_part}_0"
+
+
+def _weapon_exp_item_name_for_record(record) -> str:
+    weapon_type = getattr(record, "weapon_type", None)
+    if not weapon_type:
+        student_id = getattr(record, "student_id", "") or ""
+        weapon_type = student_meta.weapon_type(student_id) if student_id else None
+    return weapon_exp_item_name_for_part(weapon_exp_part_for_weapon_type(weapon_type))
+
+
 _EQUIPMENT_FULL_TIER_EXP_ITEM_COUNTS: dict[int, tuple[int, int, int, int]] = {
     1: (0, 0, 1, 1),
     2: (0, 1, 1, 1),
@@ -816,9 +850,9 @@ def calculate_goal_cost(record, goal: StudentGoal) -> PlanCostSummary:
     summary.credits += weapon_level_credits
     summary.weapon_exp += weapon_exp
     summary.weapon_exp_items = _exp_item_breakdown(
-        WEAPON_EXP_ITEM_NAME,
+        _weapon_exp_item_name_for_record(record),
         summary.weapon_exp,
-        (10, 50, 200, 1_000),
+        WEAPON_EXP_BONUS_YIELDS,
     )
 
     current_skills = [
