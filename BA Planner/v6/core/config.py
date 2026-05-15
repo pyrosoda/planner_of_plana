@@ -35,6 +35,7 @@ class StoragePaths:
     db_path: Path
     current_students_json: Path
     current_inventory_json: Path
+    current_raid_guides_json: Path
     student_changes_json: Path
     inventory_changes_json: Path
 
@@ -207,6 +208,7 @@ def get_storage_paths(profile_name: str | None = None) -> StoragePaths:
         db_path=db_path,
         current_students_json=current_dir / "students.json",
         current_inventory_json=current_dir / "inventory.json",
+        current_raid_guides_json=current_dir / "raid_guides.json",
         student_changes_json=history_dir / "student_changes.json",
         inventory_changes_json=history_dir / "inventory_changes.json",
     )

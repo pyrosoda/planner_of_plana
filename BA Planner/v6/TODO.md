@@ -1,8 +1,156 @@
 # TODO
 
+- [x] Statistics tab implementation pass
+  - [x] Summary cards, main sunburst, and five selectable chart cards are wired in the requested order.
+  - [x] Sunburst modes cover collection composition, combat position, attack/defense/role, required resources, shortage resources, and skill/function tags.
+  - [x] Sunburst drill-down uses the selected segment as the temporary root, including grouped Other segments.
+  - [x] Breadcrumb, root, back, and clear-selection controls are available.
+  - [x] Value modes are limited by sunburst mode: student modes for collection/skill and resource modes for plan/resource views.
+  - [x] Resource coverage is calculated from aggregated owned/required values for the selected path.
+  - [x] The detail panel separates current-root Top Branches from selected segment detail and resource impact lists.
+  - [x] Lower chart cards recalculate from the selected sunburst scope.
+  - [x] Growth, plan, resource, collection, and skill chart cards expose the TODO metric groups as selectable options.
+  - [x] Chart bar clicks surface the selected chart row in the statistics detail panel.
+  - [ ] Remaining polish: richer matched student/resource lists for every non-sunburst chart row and animated sunburst transitions.
+
+- [ ] Statistics window chart roadmap
+  - [ ] Overall layout order
+    - [ ] Summary cards first: visible students, owned/unowned/ownership rate, planned students/planning rate, averages, plan completion, shortage count.
+    - [ ] Multi-level overview second: sunburst/tree chart for school > role > attack type, class > role > position, and resource category > item > tier.
+    - [ ] Dashboard chart sections after that: collection composition, growth status, plan progress, resource/inventory pressure, skill/function tags, rankings/drill-down.
+    - [ ] Add per-chart option controls so each section can switch the metric it displays without adding more fixed panels.
+  - [ ] Basic statistics chart mapping
+    - [ ] Visible student count: KPI card.
+    - [ ] Owned/unowned count and ownership rate: KPI card plus donut chart.
+    - [ ] Planned student count and planning rate: KPI card plus donut chart.
+    - [ ] Average level: KPI card plus level bucket bar chart.
+    - [ ] Average star: KPI card plus star distribution bar chart.
+    - [ ] Weapon equipped/unlocked/none: donut chart.
+    - [ ] Average weapon level: KPI card plus weapon level bucket bar chart.
+    - [ ] Average EX skill level: KPI card plus EX skill level bar chart.
+    - [ ] Average normal skill level: KPI card plus grouped bar chart for basic/enhanced/sub skills.
+    - [ ] Average equipment tier: KPI card plus slot average bar chart.
+    - [ ] Favorite item none/T1/T2: segmented bar or donut chart.
+    - [ ] Ability release HP/ATK/HEAL average and Lv25 completion: three KPI cards plus small multiple bar charts.
+  - [ ] Student attribute/composition chart mapping
+    - [ ] School distribution: donut chart, with optional sunburst school > role > attack type.
+    - [ ] Initial rarity distribution: bar chart or donut chart.
+    - [ ] Attack type distribution: donut chart.
+    - [ ] Defense type distribution: donut chart.
+    - [ ] Striker/Special distribution: donut chart.
+    - [ ] Role distribution: donut chart.
+    - [ ] Position distribution: horizontal bar chart.
+    - [ ] Weapon type distribution: horizontal bar chart.
+    - [ ] Cover usage: donut chart.
+    - [ ] Range type: horizontal bar chart.
+    - [ ] Farmable yes/no: donut chart.
+    - [ ] Main/sub ooparts distribution: ranked bar chart, with optional sunburst oopart family > tier.
+  - [ ] Growth status chart mapping
+    - [ ] Level buckets: ordered horizontal bar chart.
+    - [ ] Star count 1-5: ordered bar chart.
+    - [ ] Weapon stage none/unlocked/equipped/1-4 star: stacked or ordered bar chart.
+    - [ ] EX skill 1-5: ordered bar chart.
+    - [ ] Basic/enhanced/sub skill 1-10: grouped bar chart or selectable small multiples.
+    - [ ] Equipment tier T1-T10: ordered bar chart.
+    - [ ] Equipment slot average tier: three KPI cards plus grouped bar chart.
+    - [ ] Equipment slot missing/locked/maxed rate: stacked bar chart per slot.
+    - [ ] Favorite item T0/T1/T2: ordered bar chart.
+    - [ ] Ability release HP/ATK/HEAL 0-25: selectable ordered bar chart or heatmap.
+    - [ ] Completion score: KPI card plus histogram/bucket bar chart.
+  - [ ] Plan statistics chart mapping
+    - [ ] Planned student count: KPI card.
+    - [ ] Planned owned/unowned ratio: donut chart.
+    - [ ] Plan completion rate: KPI card plus progress bar.
+    - [ ] Remaining growth per student: ranked bar chart.
+    - [ ] Most expensive students TOP N: ranked bar chart.
+    - [ ] Most short resources TOP N: ranked bar chart.
+    - [ ] Target level/star/weapon/skill/equipment/ability distribution: selectable ordered bar chart.
+    - [ ] Before/after average level/star/skill/equipment delta: before-after bar chart.
+    - [ ] Plan power-up summary: KPI cards for average delta and completion score delta.
+    - [ ] Planned students by school/role/attack type: sunburst chart.
+  - [ ] Resource/inventory chart mapping
+    - [ ] Total required credits: KPI card.
+    - [ ] Total required activity report EXP: KPI card plus item breakdown bar chart.
+    - [ ] Total required equipment EXP: KPI card plus item breakdown bar chart.
+    - [ ] Total required weapon EXP: KPI card plus weapon part/tier bar chart.
+    - [ ] Eleph requirement: ranked bar chart by student/item.
+    - [ ] Equipment blueprint requirement: sunburst equipment type > tier plus ranked bar chart.
+    - [ ] BD/tech note requirement: sunburst school > material type > tier.
+    - [ ] Ooparts requirement: sunburst family > tier.
+    - [ ] Ability release material requirement: ranked bar chart.
+    - [ ] Favorite item material requirement: ranked bar chart.
+    - [ ] Owned vs required shortage: stacked required/owned/shortage bar chart.
+    - [ ] Highest shortage-rate resources TOP N: ranked bar chart using shortage percentage.
+    - [ ] Shortage by resource category: donut or bar chart.
+    - [ ] School BD/tech note demand: school ranked bar chart.
+    - [ ] Oopart family demand: ranked bar chart.
+    - [ ] Equipment type/tier demand: heatmap or grouped bar chart.
+  - [ ] Skill/function tag chart mapping
+    - [ ] Buff ownership: multi-select tag bar chart.
+    - [ ] Debuff ownership: multi-select tag bar chart.
+    - [ ] CC ownership: multi-select tag bar chart.
+    - [ ] Heal target self/ally/all: bar chart.
+    - [ ] Dispel availability: donut chart plus target bar chart.
+    - [ ] Movement/pull/knockback availability: bar chart.
+    - [ ] Summon type: bar chart.
+    - [ ] EX area damage yes/no: donut chart.
+    - [ ] Ignore cover yes/no: donut chart.
+    - [ ] Passive stat distribution: multi-select tag bar chart.
+    - [ ] Weapon passive stat distribution: multi-select tag bar chart.
+    - [ ] Extra passive stat distribution: multi-select tag bar chart.
+  - [ ] Maximum dashboard/drill-down features
+    - [ ] Collection dashboard: ownership rate, average growth, attribute balance, missing roles.
+    - [ ] Growth dashboard: level/star/skill/equipment/weapon/ability completion.
+    - [ ] Plan dashboard: target progress, remaining cost, student burden.
+    - [ ] Resource dashboard: required, owned, shortage, bottleneck categories.
+    - [ ] Combat composition dashboard: attack/defense/role/position/skill tag combinations.
+    - [ ] Multi-level charts: school > role > attack type, class > role > position, resource type > item > tier.
+    - [ ] Ranking lists: least developed students, farthest from target, highest cost, students consuming shortage resources.
+    - [ ] Filter-linked analysis: every chart recalculates from the current Students tab filter state.
+    - [ ] Drill-down: clicking chart slices/bars opens the matching student list or resource usage list.
+
 - [ ] Statistics sunburst chart follow-ups
   - [ ] Add zoom/drill-down interaction so tiny segments can be inspected.
   - [ ] Refine visual design: ring spacing, labels, hover states, palette, and center summary.
   - [ ] Add animated transitions when filters or chart modes change.
+  - [ ] Make the main sunburst the primary exploration control for the statistics tab.
+    - [ ] Place the main sunburst directly after summary cards and before secondary charts.
+    - [ ] Default the main sunburst mode to plan shortage resources once shortage data is available.
+    - [ ] Add mode presets for collection composition, combat position composition, attack/defense matchup composition, required resources, shortage resources, and skill/function map.
+  - [ ] Add richer sunburst mode hierarchies.
+    - [ ] Collection composition: school > role > attack type.
+    - [ ] Combat position composition: Striker/Special > role > position.
+    - [ ] Attack/defense composition: attack type > defense type > role.
+    - [ ] Required resources: resource category > item family/school/type > tier/item.
+    - [ ] Shortage resources: shortage category > shortage item > affected student.
+    - [ ] Skill/function map: function group > tag > student.
+  - [ ] Add sunburst interaction and navigation.
+    - [ ] Clicking a segment should drill down and make that segment the temporary root.
+    - [ ] Add breadcrumb navigation for the current drill-down path.
+    - [ ] Add root/back controls.
+    - [ ] Add a selected-segment state with clear visual emphasis.
+    - [ ] Group very small segments into an "Other" segment and allow expanding it.
+  - [ ] Add sunburst detail panel behavior.
+    - [ ] Center label should show current root name and total student/resource/shortage amount.
+    - [ ] Hover tooltip should show full path, count/amount, percent, and representative students/resources.
+    - [ ] Right-side Top Branches should update from the current drill-down root.
+    - [ ] Selected segment detail should show count, ratio, required, owned, shortage, and coverage where applicable.
+  - [ ] Make sunburst selection drive the rest of the statistics tab.
+    - [ ] Filtering a sunburst segment should update the lower chart cards to the selected scope.
+    - [ ] Clicking a student/category segment should show the matching student list.
+    - [ ] Clicking a resource segment should show affected students and the goals that require that resource.
+    - [ ] Add clear-selection behavior to return lower charts to the full filtered scope.
+  - [ ] Add sunburst value modes.
+    - [ ] Student count.
+    - [ ] Owned students only.
+    - [ ] Planned students only.
+    - [ ] Required resource amount.
+    - [ ] Shortage amount.
+    - [ ] Shortage rate / coverage rate.
+  - [ ] Add plan shortage drill-down output.
+    - [ ] For a selected shortage resource, list impacted planned students.
+    - [ ] For each impacted student, show which target field or growth category creates the requirement.
+    - [ ] Show the selected resource's required, owned, shortage, and coverage.
+    - [ ] Rank impacted students by shortage contribution.
 
 - [ ] Inventory/Equipment 6자리 수량 템플릿 및 레이아웃 지원 추가

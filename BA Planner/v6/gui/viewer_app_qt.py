@@ -11,7 +11,7 @@ import os
 import re
 import sqlite3
 import sys
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from dataclasses import dataclass, field, fields
 from datetime import date, datetime, timedelta
 from html import escape
@@ -49,6 +49,23 @@ from core.planning_calc import (
     WEAPON_EXP_WILDCARD_PART_KEY,
     calculate_goal_cost,
 )
+from core.raid_guide import (
+    RAID_GUIDE_MODES,
+    GuideDeckSlot,
+    RaidGuide,
+    TimelineStep,
+    clone_guide,
+    default_deck_for_mode,
+    load_raid_guides,
+    parse_cue,
+    new_raid_guide,
+    parse_timeline_text,
+    sanitize_guide,
+    save_raid_guides,
+    slot_counts_for_mode,
+    update_step_cue,
+    validate_guide,
+)
 from core.tactical_challenge import (
     TACTICAL_STRIKER_SLOTS,
     TACTICAL_SUPPORT_SLOTS,
@@ -79,9 +96,11 @@ from core.tactical_challenge import (
     upsert_tactical_match,
     upsert_tactical_matches,
 )
-from PySide6.QtCore import QEvent, QObject, QRect, QRectF, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QPainter, QPainterPath, QPen, QPixmap, QRegion
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QIcon, QImage, QIntValidator, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRegion
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QAbstractScrollArea,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -102,11 +121,14 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QHeaderView,
     QSpinBox,
     QSplitter,
     QStackedWidget,
     QTabBar,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
     QScrollArea,
@@ -369,10 +391,27 @@ _PLAN_RESOURCE_CATEGORY_ORDER = {
     "equipment_materials": 120,
     "star_materials": 130,
 }
+_PLAN_RESOURCE_CATEGORY_LABELS = {
+    "credits": "크레딧",
+    "level_exp": "활동 보고서",
+    "equipment_exp": "장비 강화석",
+    "weapon_exp": "무기 성장 재료",
+    "skill_books": "BD / 기술 노트",
+    "ex_ooparts": "EX 오파츠",
+    "skill_ooparts": "일반 스킬 오파츠",
+    "stat_materials": "능력개방",
+    "favorite_item_materials": "애용품",
+    "equipment_materials": "장비 설계도",
+    "star_materials": "엘레프",
+}
 _EQUIPMENT_NAME_TO_ITEM_ID = {
     name: item_id
     for item_id, name in EQUIPMENT_ITEM_ID_TO_NAME.items()
 }
+
+
+def _plan_resource_category_label(category: str) -> str:
+    return _PLAN_RESOURCE_CATEGORY_LABELS.get(category, category.replace("_", " ").title())
 
 from gui.student_filters import (
     FILTER_FIELD_LABELS,
@@ -381,6 +420,7 @@ from gui.student_filters import (
     build_filter_options,
     format_filter_value,
     get_student_value,
+    get_student_values,
     matches_student_filters,
     summarize_filters,
 )
@@ -396,7 +436,7 @@ from gui.parallelogram_card import (
     StudentPortraitWidget,
     build_card_style,
 )
-from gui.student_stats import DonutWidget, SunburstNode, SunburstWidget, build_distribution
+from gui.student_stats import DistributionRow, DonutWidget, PALETTE, SunburstNode, SunburstWidget, build_distribution
 
 
 def _normalize_hex(color: str, fallback: str) -> str:
@@ -2674,6 +2714,7 @@ class RoundedListWidget(QListWidget):
     def __init__(self, *, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._ui_scale = ui_scale
+        self.setObjectName("roundedList")
         self.setFrameShape(QFrame.NoFrame)
         self.setLineWidth(0)
         self.setMidLineWidth(0)
@@ -2748,6 +2789,139 @@ class InventoryPriorityListWidget(RoundedListWidget):
             event.accept()
             return
         super().keyPressEvent(event)
+
+
+class PlannerScrollHandle(QWidget):
+    def __init__(self, owner: QAbstractScrollArea, *, ui_scale: float, radius_margin: int = 14) -> None:
+        super().__init__(owner)
+        self._owner = owner
+        self._ui_scale = ui_scale
+        self._radius_margin = radius_margin
+        self._dragging = False
+        self._drag_offset_y = 0
+        self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        owner.verticalScrollBar().valueChanged.connect(lambda *_: self.update_position())
+        owner.verticalScrollBar().rangeChanged.connect(lambda *_: self.update_position())
+        self._sync_timer = QTimer(self)
+        self._sync_timer.setInterval(250)
+        self._sync_timer.timeout.connect(self.update_position)
+        self._sync_timer.start()
+        self.hide()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        rect = QRectF(0.5, 0.5, max(0.0, self.width() - 1.0), max(0.0, self.height() - 1.0))
+        path = QPainterPath()
+        radius = max(1, self.width() / 2)
+        path.addRoundedRect(rect, radius, radius)
+        painter.fillPath(path, QColor(ACCENT_SOFT))
+        painter.setPen(QPen(QColor(ACCENT), 1))
+        painter.drawPath(path)
+        painter.end()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        self._dragging = True
+        self._drag_offset_y = int(event.position().y())
+        event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if not self._dragging:
+            return super().mouseMoveEvent(event)
+        self.set_scroll_from_handle_y(self.y() + int(event.position().y()) - self._drag_offset_y)
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton and self._dragging:
+            self._dragging = False
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _track_rect(self) -> QRect:
+        top_margin = scale_px(self._radius_margin, self._ui_scale)
+        width = scale_px(6, self._ui_scale)
+        right_margin = scale_px(6, self._ui_scale)
+        top = top_margin
+        bottom = max(top, self._owner.height() - top_margin)
+        return QRect(max(0, self._owner.width() - right_margin - width), top, width, max(0, bottom - top))
+
+    def update_position(self) -> None:
+        bar = self._owner.verticalScrollBar()
+        track = self._track_rect()
+        if track.height() <= 0 or bar.maximum() <= bar.minimum() or not self._owner.isVisible():
+            self.hide()
+            return
+        page = max(1, bar.pageStep())
+        total = max(page, (bar.maximum() - bar.minimum()) + page)
+        handle_height = max(scale_px(28, self._ui_scale), int(round(track.height() * page / total)))
+        handle_height = min(track.height(), handle_height)
+        travel = max(0, track.height() - handle_height)
+        ratio = 0.0 if bar.maximum() <= bar.minimum() else (bar.value() - bar.minimum()) / (bar.maximum() - bar.minimum())
+        y = track.y() + int(round(travel * ratio))
+        self.setGeometry(track.x(), y, track.width(), handle_height)
+        self.raise_()
+        self.show()
+
+    def set_scroll_from_handle_y(self, y: int) -> None:
+        bar = self._owner.verticalScrollBar()
+        track = self._track_rect()
+        handle_height = self.height()
+        travel = max(1, track.height() - handle_height)
+        clamped_y = max(track.y(), min(track.y() + travel, y))
+        ratio = (clamped_y - track.y()) / travel
+        bar.setValue(bar.minimum() + int(round((bar.maximum() - bar.minimum()) * ratio)))
+        self.update_position()
+
+
+class PlanQuickAddListWidget(RoundedListWidget):
+    def __init__(self, *, ui_scale: float = 1.0, parent: QWidget | None = None) -> None:
+        super().__init__(ui_scale=ui_scale, parent=parent)
+        self.setObjectName("planQuickAddList")
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setViewportMargins(
+            scale_px(1, self._ui_scale),
+            scale_px(1, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(1, self._ui_scale),
+        )
+        self._scroll_handle = PlannerScrollHandle(self, ui_scale=self._ui_scale)
+        QTimer.singleShot(0, self._scroll_handle.update_position)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._scroll_handle.update_position()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._scroll_handle.update_position()
+
+    def _sync_after_layout(self) -> None:
+        super()._sync_after_layout()
+        self._scroll_handle.update_position()
+
+
+def _install_planner_scroll_handle(scroll_area: QAbstractScrollArea, *, ui_scale: float) -> PlannerScrollHandle:
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    margins = scroll_area.viewportMargins()
+    right_margin = scale_px(18, ui_scale)
+    scroll_area.setViewportMargins(
+        margins.left(),
+        margins.top(),
+        max(margins.right(), right_margin),
+        margins.bottom(),
+    )
+    handle = getattr(scroll_area, "_planner_scroll_handle", None)
+    if not isinstance(handle, PlannerScrollHandle):
+        handle = PlannerScrollHandle(scroll_area, ui_scale=ui_scale)
+        setattr(scroll_area, "_planner_scroll_handle", handle)
+    QTimer.singleShot(0, handle.update_position)
+    return handle
 
 
 def _apply_rounded_mask(widget: QWidget, *, radius: int) -> None:
@@ -2875,6 +3049,53 @@ class InventorySubTabWidget(RoundedMaskFrame):
         page.setAutoFillBackground(False)
         page.setAttribute(Qt.WA_TranslucentBackground, True)
         page.clearMask()
+
+
+class PlanEditorSectionCard(RoundedMaskFrame):
+    def __init__(self, *, ui_scale: float, radius: int = 18, parent: QWidget | None = None) -> None:
+        super().__init__(ui_scale=ui_scale, radius=radius, parent=parent)
+        self.setObjectName("planEditorSectionCard")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setAutoFillBackground(False)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        radius = max(0, scale_px(self._radius, self._ui_scale))
+        rect = QRectF(0.5, 0.5, max(0.0, self.width() - 1.0), max(0.0, self.height() - 1.0))
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        fill = QLinearGradient(rect.topLeft(), rect.topRight())
+        fill.setColorAt(0.0, QColor(_mix_hex(SURFACE_ALT, "#ffffff", 0.03)))
+        fill.setColorAt(1.0, QColor(_mix_hex(SURFACE_ALT, BG, 0.14)))
+        painter.fillPath(path, fill)
+        painter.setPen(QPen(QColor(_mix_hex(BORDER, SURFACE_ALT, 0.24)), 1))
+        painter.drawPath(path)
+        painter.end()
+
+
+class PlanEditorContentPanel(RoundedMaskFrame):
+    def __init__(self, *, ui_scale: float, radius: int = 18, parent: QWidget | None = None) -> None:
+        super().__init__(ui_scale=ui_scale, radius=radius, parent=parent)
+        self.setObjectName("planEditorContentPanel")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setAutoFillBackground(False)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        radius = max(0, scale_px(self._radius, self._ui_scale))
+        rect = QRectF(0, 0, max(0.0, self.width()), max(0.0, self.height()))
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.fillPath(path, QColor(BG))
+        painter.end()
+
+
+class PlanGridContentPanel(PlanEditorContentPanel):
+    pass
 
 
 class InventorySortDropdownButton(QPushButton):
@@ -3511,6 +3732,12 @@ class StudentViewerWindow(QMainWindow):
         self._plan = load_plan(self._plan_path)
         self._tactical_path = get_storage_paths().current_dir / "tactical_challenge.db"
         self._tactical_data = load_tactical_challenge(self._tactical_path, load_matches=False)
+        self._raid_guide_path = get_storage_paths().current_raid_guides_json
+        self._raid_guide_data = load_raid_guides(self._raid_guide_path)
+        self._selected_raid_guide_id: str | None = None
+        self._raid_guide_editor_guard = False
+        self._raid_deck_rows: list[dict[str, object]] = []
+        self._raid_student_lookup_index: dict[str, list[str]] | None = None
         self._plan_editor_guard = False
         self._selected_plan_student_id: str | None = None
         self._plan_segment_inputs: dict[str, PlanSegmentSelector] = {}
@@ -3542,13 +3769,31 @@ class StudentViewerWindow(QMainWindow):
             storage_paths.current_inventory_json,
             self._plan_path,
             self._tactical_path,
+            self._raid_guide_path,
         )
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._stats_cards_layout: QGridLayout | None = None
         self._stats_summary_host: QWidget | None = None
         self._stats_sunburst: SunburstWidget | None = None
         self._stats_sunburst_mode: QComboBox | None = None
+        self._stats_sunburst_value_mode: QComboBox | None = None
         self._stats_sunburst_detail: QLabel | None = None
+        self._stats_sunburst_top_detail: QLabel | None = None
+        self._stats_sunburst_breadcrumb_host: QWidget | None = None
+        self._stats_sunburst_breadcrumb_layout: QHBoxLayout | None = None
+        self._stats_sunburst_root_button: QPushButton | None = None
+        self._stats_sunburst_back_button: QPushButton | None = None
+        self._stats_sunburst_clear_button: QPushButton | None = None
+        self._stats_collection_mode = "school"
+        self._stats_growth_mode = "level_bucket"
+        self._stats_plan_mode = "shortage_items"
+        self._stats_resource_mode = "shortage_items"
+        self._stats_skill_mode = "skill_buff"
+        self._stats_sunburst_selected_path: tuple[str, ...] = ()
+        self._stats_sunburst_breadcrumb_path: tuple[str, ...] = ()
+        self._stats_sunburst_selected_context: dict[str, object] = {}
+        self._stats_sunburst_selected_node: SunburstNode | None = None
+        self._stats_sunburst_drill_stack: list[tuple[str, ...]] = []
         self._tactical_selected_match_id: str | None = None
         self._tactical_match_page_size = 100
         self._tactical_match_loaded_count = self._tactical_match_page_size
@@ -3660,6 +3905,7 @@ class StudentViewerWindow(QMainWindow):
         tabs = QTabWidget()
         self._main_tabs = tabs
         tabs.setObjectName("mainTabs")
+        tabs.tabBar().setObjectName("mainTabBar")
         outer_layout.addWidget(tabs, 1)
 
         students_tab = QWidget()
@@ -3684,6 +3930,10 @@ class StudentViewerWindow(QMainWindow):
         tabs.addTab(tactical_tab, "Tactical Challenge")
         self._build_tactical_tab(tactical_tab)
 
+        raid_guide_tab = QWidget()
+        tabs.addTab(raid_guide_tab, "공략 타임라인")
+        self._build_raid_guide_tab(raid_guide_tab)
+
         stats_tab = QWidget()
         tabs.addTab(stats_tab, "Statistics")
         self._build_stats_tab(stats_tab)
@@ -3694,11 +3944,16 @@ class StudentViewerWindow(QMainWindow):
             f"""
             QMainWindow, QWidget {{ background: {BG}; color: {INK}; }}
             QLabel {{ background: transparent; }}
-            QTabWidget::pane {{
-                border: 1px solid {BORDER};
+            QTabWidget#mainTabs::pane {{
+                border: none;
                 border-radius: {scale_px(18, self._ui_scale)}px;
-                background: {SURFACE};
-                top: -1px;
+                background: transparent;
+                top: {scale_px(3, self._ui_scale)}px;
+            }}
+            QTabWidget#tacticalInsightTabs::pane {{
+                border: none;
+                background: transparent;
+                border-radius: {scale_px(14, self._ui_scale)}px;
             }}
             QTabBar::tab {{
                 background: transparent;
@@ -3715,6 +3970,29 @@ class StudentViewerWindow(QMainWindow):
                 background: {ACCENT_PALE};
                 color: {ACCENT_STRONG};
                 font-weight: 700;
+            }}
+            QTabBar#mainTabBar {{
+                margin-bottom: {scale_px(2, self._ui_scale)}px;
+            }}
+            QTabBar#mainTabBar::tab {{
+                background: transparent;
+                color: {MUTED};
+                border: 2px solid transparent;
+                border-radius: {scale_px(10, self._ui_scale)}px;
+                padding: {scale_px(8, self._ui_scale)}px {scale_px(14, self._ui_scale)}px;
+                margin-right: {scale_px(6, self._ui_scale)}px;
+                font-weight: 700;
+            }}
+            QTabBar#mainTabBar::tab:hover {{
+                background: transparent;
+                color: #ffb5f0;
+                border-color: {_mix_hex("#ffb5f0", SURFACE_ALT, 0.28)};
+            }}
+            QTabBar#mainTabBar::tab:selected {{
+                background: transparent;
+                color: #ffb5f0;
+                border: 2px solid #ffb5f0;
+                font-weight: 800;
             }}
             QTabWidget#inventoryRootTabs {{
                 background: {_mix_hex(SURFACE_ALT, BG, 0.08)};
@@ -3735,7 +4013,20 @@ class StudentViewerWindow(QMainWindow):
                 background: transparent;
                 border: none;
             }}
+            QStackedWidget#sectionTransparentStack,
+            QStackedWidget#planEditorStack {{
+                background: transparent;
+                border: none;
+            }}
             QWidget#inventoryPaneContent {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea#sectionScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea#sectionScrollArea > QWidget > QWidget {{
                 background: transparent;
                 border: none;
             }}
@@ -3767,6 +4058,20 @@ class StudentViewerWindow(QMainWindow):
                 background: {SURFACE};
                 border: 1px solid {BORDER};
                 border-radius: {scale_px(14, self._ui_scale)}px;
+            }}
+            QSplitter#inventorySplitter,
+            QSplitter#sectionSplitter {{
+                background: transparent;
+                border: none;
+            }}
+            QSplitter#inventorySplitter::handle,
+            QSplitter#sectionSplitter::handle {{
+                background: transparent;
+                border: none;
+            }}
+            QSplitter#inventorySplitter::handle:horizontal,
+            QSplitter#sectionSplitter::handle:horizontal {{
+                width: {scale_px(10, self._ui_scale)}px;
             }}
             QFrame#heroWrap {{
                 background: {SURFACE_ALT};
@@ -3821,18 +4126,21 @@ class StudentViewerWindow(QMainWindow):
                 color: {MUTED};
                 spacing: {scale_px(8, self._ui_scale)}px;
             }}
-            QListWidget {{
+            QListWidget#roundedList,
+            QListWidget#planQuickAddList {{
                 background: {SURFACE_ALT};
                 border: 1px solid {_mix_hex(BORDER, '#ffffff', 0.36)};
                 border-radius: {scale_px(14, self._ui_scale)}px;
                 padding: 0px;
             }}
-            QListWidget::item {{
+            QListWidget#roundedList::item,
+            QListWidget#planQuickAddList::item {{
                 background: transparent;
                 border: none;
                 padding: 0px;
             }}
-            QListWidget::item:selected {{
+            QListWidget#roundedList::item:selected,
+            QListWidget#planQuickAddList::item:selected {{
                 background: transparent;
                 border: none;
             }}
@@ -4115,13 +4423,26 @@ class StudentViewerWindow(QMainWindow):
                 border: 1px solid {_mix_hex(BORDER, '#ffffff', 0.18)};
                 border-radius: {scale_px(16, self._ui_scale)}px;
             }}
-            QFrame#planBand {{
+            #planEditorInventoryShell {{
+                background: {_mix_hex(SURFACE_ALT, BG, 0.08)};
+                border: 1px solid {_mix_hex(BORDER, '#ffffff', 0.36)};
+                border-radius: {scale_px(14, self._ui_scale)}px;
+            }}
+            #planEditorSectionCard {{
+                background: transparent;
+                border: none;
+            }}
+            #planBand {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {_mix_hex(SURFACE_ALT, '#ffffff', 0.03)}, stop:1 {_mix_hex(SURFACE_ALT, BG, 0.14)});
                 border: 1px solid {_mix_hex(BORDER, SURFACE_ALT, 0.24)};
-                border-radius: {scale_px(12, self._ui_scale)}px;
+                border-radius: {scale_px(18, self._ui_scale)}px;
             }}
-            QFrame#planBand QLabel#sectionTitle,
-            QFrame#planBand QLabel#detailSectionTitle {{
+            #planBand QLabel#sectionTitle,
+            #planBand QLabel#detailSectionTitle {{
+                color: #f7fbff;
+            }}
+            #planEditorSectionCard QLabel#sectionTitle,
+            #planEditorSectionCard QLabel#detailSectionTitle {{
                 color: #f7fbff;
             }}
             QFrame#inventoryPressureRow {{
@@ -4328,11 +4649,12 @@ class StudentViewerWindow(QMainWindow):
         layout.addWidget(self._filter_summary)
 
         content = QSplitter(Qt.Horizontal)
+        content.setObjectName("sectionSplitter")
         content.setChildrenCollapsible(False)
         layout.addWidget(content, 1)
 
         list_panel = QFrame()
-        list_panel.setObjectName("panel")
+        list_panel.setObjectName("planSectionPanel")
         list_layout = QVBoxLayout(list_panel)
         list_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -4343,12 +4665,13 @@ class StudentViewerWindow(QMainWindow):
         list_layout.setSpacing(scale_px(10, self._ui_scale))
 
         detail = QFrame()
-        detail.setObjectName("panel")
+        detail.setObjectName("planSectionPanel")
         detail_shell_layout = QVBoxLayout(detail)
         detail_shell_layout.setContentsMargins(0, 0, 0, 0)
         detail_shell_layout.setSpacing(0)
         detail_scroll = QScrollArea()
         self._detail_scroll = detail_scroll
+        detail_scroll.setObjectName("sectionScrollArea")
         detail_scroll.setFrameShape(QScrollArea.NoFrame)
         detail_scroll.setWidgetResizable(True)
         detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -4417,7 +4740,7 @@ class StudentViewerWindow(QMainWindow):
         name_col = QVBoxLayout()
         name_col.setContentsMargins(0, 0, 0, 0)
         name_col.setSpacing(scale_px(2, self._ui_scale))
-        self._name = QLabel("Select a student")
+        self._name = QLabel("학생을 선택하세요")
         self._name.setObjectName("detailInlineName")
         self._subtitle = QLabel("")
         self._subtitle.setObjectName("detailInlineSub")
@@ -4442,7 +4765,7 @@ class StudentViewerWindow(QMainWindow):
         chip_row.addStretch(1)
         detail_card_layout.addLayout(chip_row)
 
-        self._detail_plan_button = ParallelogramButton("Add To Plan", style=self._card_button_style)
+        self._detail_plan_button = ParallelogramButton("플랜에 추가", style=self._card_button_style)
         self._detail_plan_button.clicked.connect(self._add_current_student_to_plan)
         self._detail_plan_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._detail_plan_button.setFixedHeight(scale_px(32, self._ui_scale))
@@ -4733,12 +5056,23 @@ class StudentViewerWindow(QMainWindow):
             for student_id in sorted(
                 set(self._item_by_id)
                 | set(self._plan_card_by_id)
+                | set(getattr(self, "_plan_search_card_by_id", {}))
                 | set(getattr(self, "_resource_scope_card_by_id", {}))
                 | set(getattr(self, "_resource_search_card_by_id", {}))
             ):
                 self._enqueue_thumb(student_id)
         finally:
             self._card_layout_guard = False
+
+    def _on_plan_grid_layout_changed(self, width: int, height: int) -> None:
+        if hasattr(self, "_plan_search_grid"):
+            search_width = max(80, int(round(width * 0.5)))
+            search_height = max(scale_px(96, self._ui_scale), int(round(height * 0.5)) + scale_px(28, self._ui_scale))
+            self._plan_search_grid.set_min_card_width(search_width)
+            self._plan_search_grid.setFixedHeight(search_height)
+            if hasattr(self, "_plan_search_grid_panel"):
+                self._plan_search_grid_panel.setFixedHeight(search_height + scale_px(20, self._ui_scale))
+        self._refresh_card_layout()
 
     def _build_resource_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
@@ -4815,10 +5149,11 @@ class StudentViewerWindow(QMainWindow):
         self._resource_filter_summary.setObjectName("filterSummary")
 
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("sectionSplitter")
         splitter.setChildrenCollapsible(False)
 
         left_panel = QFrame()
-        left_panel.setObjectName("panel")
+        left_panel.setObjectName("planSectionPanel")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -4837,10 +5172,12 @@ class StudentViewerWindow(QMainWindow):
         left_layout.addWidget(self._resource_left_tabs, 0, Qt.AlignLeft)
 
         self._resource_left_stack = QStackedWidget()
+        self._resource_left_stack.setObjectName("sectionTransparentStack")
         left_layout.addWidget(self._resource_left_stack, 1)
         self._resource_left_tabs.currentChanged.connect(self._resource_left_stack.setCurrentIndex)
 
         scope_tab = QWidget()
+        scope_tab.setObjectName("planTransparent")
         scope_layout = QVBoxLayout(scope_tab)
         scope_layout.setContentsMargins(0, 0, 0, 0)
         scope_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -4915,6 +5252,7 @@ class StudentViewerWindow(QMainWindow):
         self._resource_left_stack.addWidget(scope_tab)
 
         search_tab = QWidget()
+        search_tab.setObjectName("planTransparent")
         search_layout = QVBoxLayout(search_tab)
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -4955,7 +5293,7 @@ class StudentViewerWindow(QMainWindow):
         self._resource_left_stack.addWidget(search_tab)
 
         right_panel = QFrame()
-        right_panel.setObjectName("panel")
+        right_panel.setObjectName("planSectionPanel")
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -4992,12 +5330,12 @@ class StudentViewerWindow(QMainWindow):
         right_layout.addWidget(self._resource_requirement_empty)
 
         self._resource_requirement_scroll = QScrollArea()
+        self._resource_requirement_scroll.setObjectName("sectionScrollArea")
         self._resource_requirement_scroll.setFrameShape(QFrame.NoFrame)
         self._resource_requirement_scroll.setWidgetResizable(True)
         self._resource_requirement_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._resource_requirement_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._resource_requirement_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._resource_requirement_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
 
         self._resource_requirement_grid_host = QWidget()
         self._resource_requirement_grid_host.setObjectName("planTransparent")
@@ -5198,6 +5536,7 @@ class StudentViewerWindow(QMainWindow):
         self._sync_inventory_mode_buttons()
 
         inventory_splitter = QSplitter(Qt.Horizontal)
+        inventory_splitter.setObjectName("inventorySplitter")
         inventory_splitter.setChildrenCollapsible(False)
 
         overview_panel = QFrame()
@@ -5331,11 +5670,11 @@ class StudentViewerWindow(QMainWindow):
         overview_layout.addWidget(lower_pressure_stack, 1)
 
         detail_scroll = QScrollArea()
+        detail_scroll.setObjectName("sectionScrollArea")
         detail_scroll.setFrameShape(QFrame.NoFrame)
         detail_scroll.setWidgetResizable(True)
         detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        detail_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
 
         detail_panel = QFrame()
         detail_panel.setObjectName("planSectionPanel")
@@ -7740,6 +8079,643 @@ class StudentViewerWindow(QMainWindow):
             )
         self._schedule_inventory_layout_sync()
 
+    def _build_raid_guide_tab(self, root: QWidget) -> None:
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scale_px(12, self._ui_scale))
+
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(
+            scale_px(18, self._ui_scale),
+            scale_px(16, self._ui_scale),
+            scale_px(18, self._ui_scale),
+            scale_px(16, self._ui_scale),
+        )
+        title = QLabel("공략 타임라인")
+        title.setObjectName("title")
+        subtitle = QLabel("총력전, 대결전, 제약해제결전의 덱과 스킬 사용 타이밍을 오버레이용 데이터로 정리합니다.")
+        subtitle.setObjectName("count")
+        header_layout.addWidget(title)
+        header_layout.addWidget(subtitle)
+        layout.addWidget(header)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("sectionSplitter")
+        splitter.setChildrenCollapsible(False)
+        layout.addWidget(splitter, 1)
+
+        list_panel = QFrame()
+        list_panel.setObjectName("planSectionPanel")
+        list_layout = QVBoxLayout(list_panel)
+        list_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        list_layout.setSpacing(scale_px(8, self._ui_scale))
+        list_title = QLabel("공략 목록")
+        list_title.setObjectName("sectionTitle")
+        list_layout.addWidget(list_title)
+        self._raid_filter_text = QLineEdit()
+        self._raid_filter_text.setPlaceholderText("보스, 난이도, 제목 검색")
+        self._raid_filter_text.textChanged.connect(lambda *_: self._refresh_raid_guide_list())
+        list_layout.addWidget(self._raid_filter_text)
+        self._raid_filter_mode = QComboBox()
+        self._raid_filter_mode.addItem("전체 모드", "")
+        for mode, label in RAID_GUIDE_MODES.items():
+            self._raid_filter_mode.addItem(label, mode)
+        self._raid_filter_mode.currentIndexChanged.connect(lambda *_: self._refresh_raid_guide_list())
+        list_layout.addWidget(self._raid_filter_mode)
+        self._raid_guide_list = RoundedListWidget(ui_scale=self._ui_scale)
+        self._raid_guide_list.currentItemChanged.connect(self._on_raid_guide_selected)
+        list_layout.addWidget(self._raid_guide_list, 1)
+        list_buttons = QGridLayout()
+        list_buttons.setContentsMargins(0, 0, 0, 0)
+        list_buttons.setHorizontalSpacing(scale_px(6, self._ui_scale))
+        list_buttons.setVerticalSpacing(scale_px(6, self._ui_scale))
+        self._raid_new_button = QPushButton("새 공략")
+        self._raid_duplicate_button = QPushButton("복제")
+        self._raid_delete_button = QPushButton("삭제")
+        self._raid_new_button.clicked.connect(self._new_raid_guide)
+        self._raid_duplicate_button.clicked.connect(self._duplicate_selected_raid_guide)
+        self._raid_delete_button.clicked.connect(self._delete_selected_raid_guide)
+        list_buttons.addWidget(self._raid_new_button, 0, 0)
+        list_buttons.addWidget(self._raid_duplicate_button, 0, 1)
+        list_buttons.addWidget(self._raid_delete_button, 1, 0, 1, 2)
+        list_layout.addLayout(list_buttons)
+        splitter.addWidget(list_panel)
+
+        editor_panel = QFrame()
+        editor_panel.setObjectName("planSectionPanel")
+        editor_layout = QVBoxLayout(editor_panel)
+        editor_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(14, self._ui_scale),
+        )
+        editor_layout.setSpacing(scale_px(10, self._ui_scale))
+
+        meta_panel = QFrame()
+        meta_panel.setObjectName("planBand")
+        meta_layout = QGridLayout(meta_panel)
+        meta_layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        meta_layout.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        meta_layout.setVerticalSpacing(scale_px(8, self._ui_scale))
+        self._raid_title_input = QLineEdit()
+        self._raid_title_input.setPlaceholderText("공략 제목")
+        self._raid_mode_input = QComboBox()
+        for mode, label in RAID_GUIDE_MODES.items():
+            self._raid_mode_input.addItem(label, mode)
+        self._raid_mode_input.currentIndexChanged.connect(self._on_raid_mode_changed)
+        self._raid_boss_input = QLineEdit()
+        self._raid_boss_input.setPlaceholderText("보스")
+        self._raid_difficulty_input = QLineEdit()
+        self._raid_difficulty_input.setPlaceholderText("난이도")
+        self._raid_terrain_input = QLineEdit()
+        self._raid_terrain_input.setPlaceholderText("지형")
+        self._raid_time_limit_input = QSpinBox()
+        self._raid_time_limit_input.setRange(0, 9999)
+        self._raid_time_limit_input.setSuffix(" sec")
+        self._raid_notes_input = QPlainTextEdit()
+        self._raid_notes_input.setPlaceholderText("공략 전체 메모")
+        self._raid_notes_input.setMaximumHeight(scale_px(72, self._ui_scale))
+        meta_layout.addWidget(QLabel("제목"), 0, 0)
+        meta_layout.addWidget(self._raid_title_input, 0, 1, 1, 5)
+        meta_layout.addWidget(QLabel("모드"), 1, 0)
+        meta_layout.addWidget(self._raid_mode_input, 1, 1)
+        meta_layout.addWidget(QLabel("보스"), 1, 2)
+        meta_layout.addWidget(self._raid_boss_input, 1, 3)
+        meta_layout.addWidget(QLabel("난이도"), 1, 4)
+        meta_layout.addWidget(self._raid_difficulty_input, 1, 5)
+        meta_layout.addWidget(QLabel("지형"), 2, 0)
+        meta_layout.addWidget(self._raid_terrain_input, 2, 1)
+        meta_layout.addWidget(QLabel("제한시간"), 2, 2)
+        meta_layout.addWidget(self._raid_time_limit_input, 2, 3)
+        meta_layout.addWidget(self._raid_notes_input, 3, 0, 1, 6)
+        editor_layout.addWidget(meta_panel)
+
+        deck_panel = QFrame()
+        deck_panel.setObjectName("planBand")
+        deck_layout = QVBoxLayout(deck_panel)
+        deck_layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        deck_header = QLabel("덱")
+        deck_header.setObjectName("sectionTitle")
+        deck_layout.addWidget(deck_header)
+        self._raid_deck_host = QWidget()
+        self._raid_deck_host.setObjectName("planTransparent")
+        self._raid_deck_grid = QGridLayout(self._raid_deck_host)
+        self._raid_deck_grid.setContentsMargins(0, 0, 0, 0)
+        self._raid_deck_grid.setHorizontalSpacing(scale_px(8, self._ui_scale))
+        self._raid_deck_grid.setVerticalSpacing(scale_px(8, self._ui_scale))
+        deck_layout.addWidget(self._raid_deck_host)
+        editor_layout.addWidget(deck_panel)
+
+        timeline_panel = QFrame()
+        timeline_panel.setObjectName("planBand")
+        timeline_layout = QVBoxLayout(timeline_panel)
+        timeline_layout.setContentsMargins(
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        timeline_layout.setSpacing(scale_px(8, self._ui_scale))
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        timeline_title = QLabel("타임라인")
+        timeline_title.setObjectName("sectionTitle")
+        action_row.addWidget(timeline_title)
+        action_row.addStretch(1)
+        for label, callback in (
+            ("행 추가", self._add_raid_timeline_row),
+            ("복제", self._duplicate_raid_timeline_row),
+            ("삭제", self._delete_raid_timeline_row),
+            ("위", lambda: self._move_raid_timeline_row(-1)),
+            ("아래", lambda: self._move_raid_timeline_row(1)),
+        ):
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            action_row.addWidget(button)
+        timeline_layout.addLayout(action_row)
+
+        self._raid_timeline_table = QTableWidget(0, 8)
+        self._raid_timeline_table.setHorizontalHeaderLabels(
+            ["시점", "정밀도", "학생", "행동", "대상", "조건/체크", "메모", "카드 힌트"]
+        )
+        self._raid_timeline_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._raid_timeline_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._raid_timeline_table.setAlternatingRowColors(True)
+        self._raid_timeline_table.verticalHeader().setVisible(False)
+        header_view = self._raid_timeline_table.horizontalHeader()
+        header_view.setSectionResizeMode(QHeaderView.Interactive)
+        header_view.setSectionResizeMode(6, QHeaderView.Stretch)
+        self._raid_timeline_table.setColumnWidth(0, scale_px(112, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(1, scale_px(82, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(2, scale_px(120, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(3, scale_px(88, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(4, scale_px(120, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(5, scale_px(160, self._ui_scale))
+        self._raid_timeline_table.setColumnWidth(7, scale_px(150, self._ui_scale))
+        self._raid_timeline_table.itemChanged.connect(self._on_raid_timeline_item_changed)
+        timeline_layout.addWidget(self._raid_timeline_table, 1)
+
+        paste_row = QHBoxLayout()
+        paste_row.setContentsMargins(0, 0, 0, 0)
+        self._raid_paste_input = QPlainTextEdit()
+        self._raid_paste_input.setPlaceholderText("아카라이브 표나 텍스트 타임라인을 붙여넣고 가져오기를 누르세요.")
+        self._raid_paste_input.setMaximumHeight(scale_px(86, self._ui_scale))
+        paste_button = QPushButton("붙여넣기 가져오기")
+        paste_button.clicked.connect(self._import_raid_timeline_text)
+        paste_row.addWidget(self._raid_paste_input, 1)
+        paste_row.addWidget(paste_button)
+        timeline_layout.addLayout(paste_row)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 0, 0, 0)
+        self._raid_status = QLabel("")
+        self._raid_status.setObjectName("filterSummary")
+        self._raid_status.setWordWrap(True)
+        bottom_row.addWidget(self._raid_status, 1)
+        save_button = QPushButton("저장")
+        save_button.clicked.connect(self._save_current_raid_guide)
+        bottom_row.addWidget(save_button)
+        timeline_layout.addLayout(bottom_row)
+        editor_layout.addWidget(timeline_panel, 1)
+        splitter.addWidget(editor_panel)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 7)
+
+        if not self._raid_guide_data.guides:
+            self._raid_guide_data.guides.append(new_raid_guide())
+            self._save_raid_guide_data()
+        self._selected_raid_guide_id = self._raid_guide_data.guides[0].id if self._raid_guide_data.guides else None
+        self._refresh_raid_guide_list()
+        self._load_selected_raid_guide()
+
+    def _current_raid_guide(self) -> RaidGuide | None:
+        selected_id = getattr(self, "_selected_raid_guide_id", None)
+        for guide in self._raid_guide_data.guides:
+            if guide.id == selected_id:
+                return guide
+        return self._raid_guide_data.guides[0] if self._raid_guide_data.guides else None
+
+    def _save_raid_guide_data(self) -> None:
+        save_raid_guides(self._raid_guide_path, self._raid_guide_data)
+        self._storage_mtimes = self._snapshot_storage_mtimes()
+
+    def _raid_student_label(self, student_id: str) -> str:
+        if not student_id:
+            return ""
+        record = self._records_by_id.get(student_id)
+        return record.title if record is not None else student_meta.display_name(student_id)
+
+    def _raid_lookup_key(self, value: object) -> str:
+        cleaned = " ".join(str(value or "").strip().split())
+        cleaned = re.sub(r"\s*([()])\s*", r"\1", cleaned)
+        return cleaned.casefold()
+
+    def _raid_student_lookup_index_map(self) -> dict[str, list[str]]:
+        cached = getattr(self, "_raid_student_lookup_index", None)
+        if cached is not None:
+            return cached
+        index: dict[str, set[str]] = defaultdict(set)
+        for student_id in student_meta.all_ids():
+            record = self._records_by_id.get(student_id)
+            terms: list[object] = [
+                student_id,
+                student_id.replace("_", " "),
+                student_meta.display_name(student_id),
+                record.title if record is not None else "",
+                record.display_name if record is not None else "",
+            ]
+            terms.extend(student_meta.search_tags(student_id))
+            terms.extend(student_meta.kr_search_tags(student_id))
+            for term in terms:
+                key = self._raid_lookup_key(term)
+                if key:
+                    index[key].add(student_id)
+        self._raid_student_lookup_index = {
+            key: sorted(values, key=lambda student_id: self._raid_student_label(student_id).casefold())
+            for key, values in index.items()
+        }
+        return self._raid_student_lookup_index
+
+    def _raid_student_id_for_text(self, text: str) -> str:
+        raw = str(text or "").strip()
+        if not raw:
+            return ""
+        if raw in self._records_by_id or raw in set(student_meta.all_ids()):
+            return raw
+        matches = self._raid_student_lookup_index_map().get(self._raid_lookup_key(raw), [])
+        return matches[0] if len(matches) == 1 else raw
+
+    def _make_raid_student_combo(self, expected_class: str | None = None) -> QComboBox:
+        combo = QComboBox()
+        combo.setEditable(True)
+        combo.addItem("", "")
+        records = sorted(self._all_students, key=lambda record: record.title.casefold())
+        for record in records:
+            if expected_class and student_meta.combat_class(record.student_id) != expected_class:
+                continue
+            combo.addItem(record.title, record.student_id)
+        return combo
+
+    def _set_combo_student(self, combo: QComboBox, student_id: str) -> None:
+        if not student_id:
+            combo.setCurrentIndex(0)
+            return
+        index = combo.findData(student_id)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+        else:
+            combo.setEditText(self._raid_student_label(student_id) if student_id in self._records_by_id else student_id)
+
+    def _combo_student_id(self, combo: QComboBox) -> str:
+        data = combo.currentData()
+        if data:
+            return str(data)
+        return self._raid_student_id_for_text(combo.currentText())
+
+    def _refresh_raid_guide_list(self) -> None:
+        if not hasattr(self, "_raid_guide_list"):
+            return
+        selected_id = self._selected_raid_guide_id
+        self._raid_guide_list.blockSignals(True)
+        self._raid_guide_list.clear()
+        query = self._raid_filter_text.text().strip().casefold() if hasattr(self, "_raid_filter_text") else ""
+        mode_filter = self._raid_filter_mode.currentData() if hasattr(self, "_raid_filter_mode") else ""
+        selected_row = -1
+        for guide in self._raid_guide_data.guides:
+            haystack = " ".join([guide.title, guide.boss, guide.difficulty, guide.terrain]).casefold()
+            if query and query not in haystack:
+                continue
+            if mode_filter and guide.mode != mode_filter:
+                continue
+            label = f"{guide.title} · {RAID_GUIDE_MODES.get(guide.mode, guide.mode)}"
+            if guide.boss:
+                label += f" · {guide.boss}"
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, guide.id)
+            self._raid_guide_list.addItem(item)
+            if guide.id == selected_id:
+                selected_row = self._raid_guide_list.count() - 1
+        self._raid_guide_list.blockSignals(False)
+        if selected_row >= 0:
+            self._raid_guide_list.setCurrentRow(selected_row)
+        elif self._raid_guide_list.count():
+            self._raid_guide_list.setCurrentRow(0)
+
+    def _on_raid_guide_selected(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+        if self._raid_guide_editor_guard or current is None:
+            return
+        self._selected_raid_guide_id = str(current.data(Qt.UserRole) or "")
+        self._load_selected_raid_guide()
+
+    def _load_selected_raid_guide(self) -> None:
+        guide = self._current_raid_guide()
+        if guide is None or not hasattr(self, "_raid_title_input"):
+            return
+        guide = sanitize_guide(guide)
+        self._raid_guide_editor_guard = True
+        self._raid_title_input.setText(guide.title)
+        mode_index = self._raid_mode_input.findData(guide.mode)
+        self._raid_mode_input.setCurrentIndex(max(0, mode_index))
+        self._raid_boss_input.setText(guide.boss)
+        self._raid_difficulty_input.setText(guide.difficulty)
+        self._raid_terrain_input.setText(guide.terrain)
+        self._raid_time_limit_input.setValue(int(guide.time_limit_seconds or 0))
+        self._raid_notes_input.setPlainText(guide.notes)
+        self._rebuild_raid_deck_editor(guide)
+        self._set_raid_timeline_steps(guide.timeline)
+        self._raid_guide_editor_guard = False
+        self._refresh_raid_validation()
+
+    def _rebuild_raid_deck_editor(self, guide: RaidGuide | None = None) -> None:
+        guide = sanitize_guide(guide or self._collect_raid_guide_from_editor())
+        while self._raid_deck_grid.count():
+            item = self._raid_deck_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._raid_deck_rows = []
+        for index, slot in enumerate(guide.deck):
+            row = QFrame()
+            row.setObjectName("planSectionPanel")
+            row_layout = QGridLayout(row)
+            row_layout.setContentsMargins(
+                scale_px(8, self._ui_scale),
+                scale_px(8, self._ui_scale),
+                scale_px(8, self._ui_scale),
+                scale_px(8, self._ui_scale),
+            )
+            slot_label = "S" if slot.slot_type == "striker" else "SP"
+            title = QLabel(f"{slot_label}{slot.slot_index}")
+            title.setObjectName("detailSectionTitle")
+            combo = self._make_raid_student_combo("striker" if slot.slot_type == "striker" else "special")
+            self._set_combo_student(combo, slot.student_id)
+            alias = QLineEdit(slot.alias)
+            alias.setPlaceholderText("별칭")
+            borrowed = QCheckBox("대여")
+            borrowed.setChecked(bool(slot.is_borrowed))
+            notes = QLineEdit(slot.notes)
+            notes.setPlaceholderText("메모")
+            row_layout.addWidget(title, 0, 0)
+            row_layout.addWidget(combo, 0, 1, 1, 3)
+            row_layout.addWidget(alias, 1, 0, 1, 2)
+            row_layout.addWidget(borrowed, 1, 2)
+            row_layout.addWidget(notes, 1, 3)
+            target_column = index % 2
+            target_row = index // 2
+            self._raid_deck_grid.addWidget(row, target_row, target_column)
+            self._raid_deck_rows.append(
+                {
+                    "slot_type": slot.slot_type,
+                    "slot_index": slot.slot_index,
+                    "student": combo,
+                    "alias": alias,
+                    "borrowed": borrowed,
+                    "notes": notes,
+                }
+            )
+
+    def _set_raid_timeline_steps(self, steps: list[TimelineStep]) -> None:
+        self._raid_guide_editor_guard = True
+        self._raid_timeline_table.setRowCount(0)
+        for step in steps:
+            self._append_raid_timeline_step(step)
+        self._raid_guide_editor_guard = False
+
+    def _table_text(self, row: int, column: int) -> str:
+        item = self._raid_timeline_table.item(row, column)
+        return item.text().strip() if item is not None else ""
+
+    def _set_table_text(self, row: int, column: int, text: object) -> None:
+        item = QTableWidgetItem(str(text or ""))
+        if column == 0:
+            item.setToolTip("예: 3:45.800, 약 3.6코, 즉시, AUTO, 코감 즉시")
+        self._raid_timeline_table.setItem(row, column, item)
+
+    def _append_raid_timeline_step(self, step: TimelineStep | None = None) -> None:
+        row = self._raid_timeline_table.rowCount()
+        self._raid_timeline_table.insertRow(row)
+        step = step or TimelineStep(order=row + 1)
+        actor = self._raid_student_label(step.actor_student_id) if step.actor_student_id in self._records_by_id else step.actor_student_id
+        target = self._raid_student_label(step.target_student_id) if step.target_student_id in self._records_by_id else step.target_student_id
+        values = [
+            step.cue_text,
+            step.precision,
+            actor,
+            step.action_type,
+            target,
+            step.condition or step.damage_check or step.phase,
+            step.note,
+            step.card_hint,
+        ]
+        for column, value in enumerate(values):
+            self._set_table_text(row, column, value)
+
+    def _timeline_steps_from_table(self) -> list[TimelineStep]:
+        steps: list[TimelineStep] = []
+        for row in range(self._raid_timeline_table.rowCount()):
+            step = TimelineStep(order=row + 1)
+            update_step_cue(step, self._table_text(row, 0))
+            if self._table_text(row, 1):
+                step.precision = self._table_text(row, 1)
+            step.actor_student_id = self._raid_student_id_for_text(self._table_text(row, 2))
+            step.action_type = self._table_text(row, 3) or "EX"
+            step.target_student_id = self._raid_student_id_for_text(self._table_text(row, 4))
+            step.condition = self._table_text(row, 5)
+            step.note = self._table_text(row, 6)
+            step.card_hint = self._table_text(row, 7)
+            steps.append(step)
+        return steps
+
+    def _collect_raid_guide_from_editor(self) -> RaidGuide:
+        current = self._current_raid_guide()
+        guide = current or new_raid_guide()
+        mode = self._raid_mode_input.currentData() if hasattr(self, "_raid_mode_input") else guide.mode
+        deck: list[GuideDeckSlot] = []
+        for row in getattr(self, "_raid_deck_rows", []):
+            deck.append(
+                GuideDeckSlot(
+                    slot_type=str(row["slot_type"]),
+                    slot_index=int(row["slot_index"]),
+                    student_id=self._combo_student_id(row["student"]),
+                    alias=row["alias"].text().strip(),
+                    is_borrowed=row["borrowed"].isChecked(),
+                    notes=row["notes"].text().strip(),
+                )
+            )
+        return sanitize_guide(
+            RaidGuide(
+                id=guide.id,
+                title=self._raid_title_input.text().strip() if hasattr(self, "_raid_title_input") else guide.title,
+                mode=str(mode or guide.mode),
+                boss=self._raid_boss_input.text().strip() if hasattr(self, "_raid_boss_input") else guide.boss,
+                difficulty=self._raid_difficulty_input.text().strip() if hasattr(self, "_raid_difficulty_input") else guide.difficulty,
+                terrain=self._raid_terrain_input.text().strip() if hasattr(self, "_raid_terrain_input") else guide.terrain,
+                time_limit_seconds=self._raid_time_limit_input.value() if hasattr(self, "_raid_time_limit_input") else guide.time_limit_seconds,
+                notes=self._raid_notes_input.toPlainText().strip() if hasattr(self, "_raid_notes_input") else guide.notes,
+                deck=deck or default_deck_for_mode(str(mode or guide.mode)),
+                timeline=self._timeline_steps_from_table() if hasattr(self, "_raid_timeline_table") else guide.timeline,
+            )
+        )
+
+    def _on_raid_mode_changed(self) -> None:
+        if self._raid_guide_editor_guard:
+            return
+        guide = self._collect_raid_guide_from_editor()
+        guide.deck = default_deck_for_mode(guide.mode)
+        self._rebuild_raid_deck_editor(guide)
+        self._refresh_raid_validation()
+
+    def _on_raid_timeline_item_changed(self, item: QTableWidgetItem) -> None:
+        if self._raid_guide_editor_guard:
+            return
+        if item.column() == 0:
+            _cue_kind, _time_ms, precision, _cost_value = parse_cue(item.text())
+            if precision and not self._table_text(item.row(), 1):
+                self._raid_guide_editor_guard = True
+                self._set_table_text(item.row(), 1, precision)
+                self._raid_guide_editor_guard = False
+        self._refresh_raid_validation()
+
+    def _add_raid_timeline_row(self) -> None:
+        self._append_raid_timeline_step(TimelineStep(order=self._raid_timeline_table.rowCount() + 1, action_type="EX"))
+        self._raid_timeline_table.setCurrentCell(self._raid_timeline_table.rowCount() - 1, 0)
+
+    def _duplicate_raid_timeline_row(self) -> None:
+        row = self._raid_timeline_table.currentRow()
+        if row < 0:
+            return
+        step = TimelineStep(order=row + 2)
+        update_step_cue(step, self._table_text(row, 0))
+        step.precision = self._table_text(row, 1)
+        step.actor_student_id = self._raid_student_id_for_text(self._table_text(row, 2))
+        step.action_type = self._table_text(row, 3) or "EX"
+        step.target_student_id = self._raid_student_id_for_text(self._table_text(row, 4))
+        step.condition = self._table_text(row, 5)
+        step.note = self._table_text(row, 6)
+        step.card_hint = self._table_text(row, 7)
+        self._raid_timeline_table.insertRow(row + 1)
+        self._raid_guide_editor_guard = True
+        for column, value in enumerate([
+            step.cue_text,
+            step.precision,
+            self._raid_student_label(step.actor_student_id) if step.actor_student_id in self._records_by_id else step.actor_student_id,
+            step.action_type,
+            self._raid_student_label(step.target_student_id) if step.target_student_id in self._records_by_id else step.target_student_id,
+            step.condition,
+            step.note,
+            step.card_hint,
+        ]):
+            self._set_table_text(row + 1, column, value)
+        self._raid_guide_editor_guard = False
+
+    def _delete_raid_timeline_row(self) -> None:
+        row = self._raid_timeline_table.currentRow()
+        if row >= 0:
+            self._raid_timeline_table.removeRow(row)
+            self._refresh_raid_validation()
+
+    def _move_raid_timeline_row(self, direction: int) -> None:
+        row = self._raid_timeline_table.currentRow()
+        target = row + direction
+        if row < 0 or target < 0 or target >= self._raid_timeline_table.rowCount():
+            return
+        rows = self._timeline_steps_from_table()
+        rows[row], rows[target] = rows[target], rows[row]
+        self._set_raid_timeline_steps(rows)
+        self._raid_timeline_table.setCurrentCell(target, 0)
+
+    def _import_raid_timeline_text(self) -> None:
+        text = self._raid_paste_input.toPlainText()
+        if not text.strip():
+            return
+        steps = parse_timeline_text(text, start_order=self._raid_timeline_table.rowCount() + 1)
+        for step in steps:
+            resolved = self._raid_student_id_for_text(step.actor_student_id)
+            step.actor_student_id = resolved
+            self._append_raid_timeline_step(step)
+        self._raid_paste_input.clear()
+        self._refresh_raid_validation()
+
+    def _new_raid_guide(self) -> None:
+        guide = new_raid_guide(title="새 공략")
+        self._raid_guide_data.guides.append(guide)
+        self._selected_raid_guide_id = guide.id
+        self._save_raid_guide_data()
+        self._refresh_raid_guide_list()
+        self._load_selected_raid_guide()
+
+    def _duplicate_selected_raid_guide(self) -> None:
+        current = self._collect_raid_guide_from_editor()
+        cloned = clone_guide(current)
+        self._raid_guide_data.guides.append(cloned)
+        self._selected_raid_guide_id = cloned.id
+        self._save_raid_guide_data()
+        self._refresh_raid_guide_list()
+        self._load_selected_raid_guide()
+
+    def _delete_selected_raid_guide(self) -> None:
+        current = self._current_raid_guide()
+        if current is None:
+            return
+        self._raid_guide_data.guides = [guide for guide in self._raid_guide_data.guides if guide.id != current.id]
+        if not self._raid_guide_data.guides:
+            self._raid_guide_data.guides.append(new_raid_guide())
+        self._selected_raid_guide_id = self._raid_guide_data.guides[0].id
+        self._save_raid_guide_data()
+        self._refresh_raid_guide_list()
+        self._load_selected_raid_guide()
+
+    def _save_current_raid_guide(self) -> None:
+        guide = self._collect_raid_guide_from_editor()
+        for index, existing in enumerate(self._raid_guide_data.guides):
+            if existing.id == guide.id:
+                self._raid_guide_data.guides[index] = guide
+                break
+        else:
+            self._raid_guide_data.guides.append(guide)
+        self._selected_raid_guide_id = guide.id
+        self._save_raid_guide_data()
+        self._refresh_raid_guide_list()
+        self._refresh_raid_validation(saved=True)
+
+    def _refresh_raid_validation(self, *, saved: bool = False) -> None:
+        if not hasattr(self, "_raid_status"):
+            return
+        guide = self._collect_raid_guide_from_editor()
+        warnings = validate_guide(guide, known_student_ids=set(student_meta.all_ids()))
+        prefix = "저장 완료. " if saved else ""
+        if warnings:
+            visible = warnings[:3]
+            suffix = f" 외 {len(warnings) - 3}개" if len(warnings) > 3 else ""
+            self._raid_status.setStyleSheet("color: #ffb84d; font-weight: 800;")
+            self._raid_status.setText(prefix + " / ".join(visible) + suffix)
+            self._raid_status.setToolTip("\n".join(warnings))
+        else:
+            striker_count, support_count = slot_counts_for_mode(guide.mode)
+            self._raid_status.setStyleSheet("")
+            self._raid_status.setText(
+                prefix + f"{RAID_GUIDE_MODES.get(guide.mode, guide.mode)} · 덱 {striker_count}+{support_count} · 행 {len(guide.timeline)}개"
+            )
+            self._raid_status.setToolTip("")
+
     def _build_tactical_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -7763,13 +8739,18 @@ class StudentViewerWindow(QMainWindow):
         layout.addWidget(header)
 
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("sectionSplitter")
+        splitter.setChildrenCollapsible(False)
         layout.addWidget(splitter, 1)
 
         input_panel = QFrame()
-        input_panel.setObjectName("panel")
+        input_panel.setObjectName("planSectionPanel")
         input_scroll = QScrollArea()
+        input_scroll.setObjectName("sectionScrollArea")
         input_scroll.setWidgetResizable(True)
         input_scroll.setFrameShape(QFrame.NoFrame)
+        input_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        input_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         input_scroll.setWidget(input_panel)
         input_layout = QVBoxLayout(input_panel)
         input_layout.setContentsMargins(
@@ -7812,7 +8793,7 @@ class StudentViewerWindow(QMainWindow):
         splitter.addWidget(input_scroll)
 
         history_panel = QFrame()
-        history_panel.setObjectName("panel")
+        history_panel.setObjectName("planSectionPanel")
         history_layout = QVBoxLayout(history_panel)
         history_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -7862,7 +8843,7 @@ class StudentViewerWindow(QMainWindow):
         splitter.addWidget(history_panel)
 
         insight_panel = QFrame()
-        insight_panel.setObjectName("panel")
+        insight_panel.setObjectName("planSectionPanel")
         insight_layout = QVBoxLayout(insight_panel)
         insight_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -7871,9 +8852,11 @@ class StudentViewerWindow(QMainWindow):
             scale_px(14, self._ui_scale),
         )
         insight_tabs = QTabWidget()
+        insight_tabs.setObjectName("tacticalInsightTabs")
         insight_layout.addWidget(insight_tabs, 1)
 
         opponent_tab = QWidget()
+        opponent_tab.setObjectName("planTransparent")
         opponent_layout = QVBoxLayout(opponent_tab)
         opponent_layout.setContentsMargins(0, 0, 0, 0)
         opponent_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -7895,6 +8878,7 @@ class StudentViewerWindow(QMainWindow):
         insight_tabs.addTab(opponent_tab, "상대")
 
         jokbo_tab = QWidget()
+        jokbo_tab.setObjectName("planTransparent")
         jokbo_layout = QVBoxLayout(jokbo_tab)
         jokbo_layout.setContentsMargins(0, 0, 0, 0)
         jokbo_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -9264,7 +10248,7 @@ class StudentViewerWindow(QMainWindow):
         )
         title = QLabel("Collection Statistics")
         title.setObjectName("title")
-        subtitle = QLabel("Use ring summaries to compare ownership, roles, schools, and combat composition at a glance.")
+        subtitle = QLabel("요약 카드, 구성 분포, 육성 상태, 계획 재화, 스킬 태그를 현재 필터 기준으로 봅니다.")
         subtitle.setObjectName("count")
         header_layout.addWidget(title)
         header_layout.addWidget(subtitle)
@@ -9274,8 +10258,26 @@ class StudentViewerWindow(QMainWindow):
         self._stats_summary_line.setObjectName("filterSummary")
         layout.addWidget(self._stats_summary_line)
 
+        scroll = QScrollArea()
+        scroll.setObjectName("sectionScrollArea")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        host = QWidget()
+        host_layout = QVBoxLayout(host)
+        host_layout.setContentsMargins(0, 0, 0, 0)
+        host_layout.setSpacing(scale_px(12, self._ui_scale))
+
+        self._stats_summary_host = QWidget()
+        self._stats_summary_cards = QGridLayout(self._stats_summary_host)
+        self._stats_summary_cards.setContentsMargins(0, 0, 0, 0)
+        self._stats_summary_cards.setHorizontalSpacing(scale_px(12, self._ui_scale))
+        self._stats_summary_cards.setVerticalSpacing(scale_px(12, self._ui_scale))
+        host_layout.addWidget(self._stats_summary_host)
+
         sunburst_panel = QFrame()
-        sunburst_panel.setObjectName("statPanel")
+        sunburst_panel.setObjectName("planSectionPanel")
         sunburst_layout = QVBoxLayout(sunburst_panel)
         sunburst_layout.setContentsMargins(
             scale_px(16, self._ui_scale),
@@ -9288,22 +10290,44 @@ class StudentViewerWindow(QMainWindow):
         sunburst_header = QHBoxLayout()
         sunburst_header.setContentsMargins(0, 0, 0, 0)
         sunburst_header.setSpacing(scale_px(10, self._ui_scale))
-        sunburst_title = QLabel("분포 요약")
+        sunburst_title = QLabel("복합 분포")
         sunburst_title.setObjectName("sectionTitle")
         sunburst_header.addWidget(sunburst_title)
+        self._stats_sunburst_root_button = QPushButton("전체")
+        self._stats_sunburst_root_button.clicked.connect(self._stats_reset_sunburst_root)
+        sunburst_header.addWidget(self._stats_sunburst_root_button, 0, Qt.AlignRight)
+        self._stats_sunburst_back_button = QPushButton("뒤로")
+        self._stats_sunburst_back_button.clicked.connect(self._stats_sunburst_back)
+        sunburst_header.addWidget(self._stats_sunburst_back_button, 0, Qt.AlignRight)
+        self._stats_sunburst_clear_button = QPushButton("선택 해제")
+        self._stats_sunburst_clear_button.clicked.connect(self._stats_clear_sunburst_selection)
+        sunburst_header.addWidget(self._stats_sunburst_clear_button, 0, Qt.AlignRight)
+        self._stats_sunburst_value_mode = QComboBox()
+        self._stats_sunburst_value_mode.currentIndexChanged.connect(lambda *_: self._stats_refresh_sunburst_mode())
+        sunburst_header.addWidget(self._stats_sunburst_value_mode, 0, Qt.AlignRight)
         self._stats_sunburst_mode = QComboBox()
-        self._stats_sunburst_mode.addItem("학교 > 역할 > 공격", "collection_school_role_attack")
-        self._stats_sunburst_mode.addItem("클래스 > 역할 > 위치", "collection_class_role_position")
-        self._stats_sunburst_mode.addItem("계획 필요 재화", "plan_required")
-        self._stats_sunburst_mode.addItem("계획 부족 재화", "plan_shortage")
-        self._stats_sunburst_mode.currentIndexChanged.connect(lambda *_: self._refresh_stats_tab())
+        self._stats_sunburst_mode.addItem("학교 > 역할 > 공격 타입", "collection_school_role_attack")
+        self._stats_sunburst_mode.addItem("Striker/Special > 역할 > 포지션", "collection_class_role_position")
+        self._stats_sunburst_mode.addItem("공격 타입 > 방어 타입 > 역할", "collection_attack_defense_role")
+        self._stats_sunburst_mode.addItem("필요 재화 > 세부 재화 > 티어/계열", "plan_required")
+        self._stats_sunburst_mode.addItem("부족 재화 > 세부 재화 > 영향 학생", "plan_shortage")
+        self._stats_sunburst_mode.addItem("기능군 > 태그 > 학생", "skill_function")
+        self._stats_sunburst_mode.setCurrentIndex(4)
+        self._stats_sunburst_mode.currentIndexChanged.connect(lambda *_: self._stats_refresh_sunburst_mode())
         sunburst_header.addWidget(self._stats_sunburst_mode, 0, Qt.AlignRight)
         sunburst_layout.addLayout(sunburst_header)
+        self._stats_sunburst_breadcrumb_host = QWidget()
+        self._stats_sunburst_breadcrumb_layout = QHBoxLayout(self._stats_sunburst_breadcrumb_host)
+        self._stats_sunburst_breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+        self._stats_sunburst_breadcrumb_layout.setSpacing(scale_px(6, self._ui_scale))
+        sunburst_layout.addWidget(self._stats_sunburst_breadcrumb_host)
+        self._stats_update_sunburst_value_options()
 
         sunburst_body = QHBoxLayout()
         sunburst_body.setContentsMargins(0, 0, 0, 0)
         sunburst_body.setSpacing(scale_px(12, self._ui_scale))
         self._stats_sunburst = SunburstWidget(self._ui_scale)
+        self._stats_sunburst.segmentSelected.connect(self._on_stats_sunburst_segment_selected)
         sunburst_body.addWidget(self._stats_sunburst, 3)
         detail_panel = QFrame()
         detail_panel.setObjectName("planBand")
@@ -9318,6 +10342,13 @@ class StudentViewerWindow(QMainWindow):
         detail_title = QLabel("Top Branches")
         detail_title.setObjectName("detailSectionTitle")
         detail_layout.addWidget(detail_title)
+        self._stats_sunburst_top_detail = QLabel("")
+        self._stats_sunburst_top_detail.setObjectName("detailSub")
+        self._stats_sunburst_top_detail.setWordWrap(True)
+        detail_layout.addWidget(self._stats_sunburst_top_detail)
+        selected_title = QLabel("Selected Segment")
+        selected_title.setObjectName("detailSectionTitle")
+        detail_layout.addWidget(selected_title)
         self._stats_sunburst_detail = QLabel("")
         self._stats_sunburst_detail.setObjectName("detailSub")
         self._stats_sunburst_detail.setWordWrap(True)
@@ -9325,22 +10356,7 @@ class StudentViewerWindow(QMainWindow):
         detail_layout.addStretch(1)
         sunburst_body.addWidget(detail_panel, 2)
         sunburst_layout.addLayout(sunburst_body, 1)
-        layout.addWidget(sunburst_panel, 2)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        host = QWidget()
-        host_layout = QVBoxLayout(host)
-        host_layout.setContentsMargins(0, 0, 0, 0)
-        host_layout.setSpacing(scale_px(12, self._ui_scale))
-
-        self._stats_summary_host = QWidget()
-        self._stats_summary_cards = QGridLayout(self._stats_summary_host)
-        self._stats_summary_cards.setContentsMargins(0, 0, 0, 0)
-        self._stats_summary_cards.setHorizontalSpacing(scale_px(12, self._ui_scale))
-        self._stats_summary_cards.setVerticalSpacing(scale_px(12, self._ui_scale))
-        host_layout.addWidget(self._stats_summary_host)
+        host_layout.addWidget(sunburst_panel)
 
         cards_wrap = QWidget()
         self._stats_cards_layout = QGridLayout(cards_wrap)
@@ -9354,7 +10370,7 @@ class StudentViewerWindow(QMainWindow):
 
     def _build_plan_tab(self, root: QWidget) -> None:
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, scale_px(12, self._ui_scale))
         layout.setSpacing(scale_px(12, self._ui_scale))
 
         header = QFrame()
@@ -9378,7 +10394,8 @@ class StudentViewerWindow(QMainWindow):
         layout.addWidget(header)
 
         quick_add_panel = QFrame()
-        quick_add_panel.setObjectName("panel")
+        self._plan_quick_add_panel = quick_add_panel
+        quick_add_panel.setObjectName("planBand")
         quick_add_layout = QVBoxLayout(quick_add_panel)
         quick_add_layout.setContentsMargins(
             scale_px(14, self._ui_scale),
@@ -9407,27 +10424,69 @@ class StudentViewerWindow(QMainWindow):
         self._plan_search.setPlaceholderText("학생 이름, ID, 태그 입력")
         self._plan_search.liveTextChanged.connect(self._schedule_plan_search_refresh)
         quick_add_row.addWidget(self._plan_search, 1)
-        self._plan_add_button = ParallelogramButton("추가", style=self._card_button_style)
+        self._plan_add_button = QPushButton("추가")
         self._plan_add_button.clicked.connect(self._add_selected_student_to_plan)
         quick_add_row.addWidget(self._plan_add_button, 0, Qt.AlignVCenter)
         quick_add_layout.addLayout(quick_add_row)
 
-        self._plan_all_list = RoundedListWidget(ui_scale=self._ui_scale)
-        self._plan_all_list.currentItemChanged.connect(self._on_plan_all_item_changed)
-        self._plan_all_list.setMaximumHeight(scale_px(132, self._ui_scale))
-        self._plan_all_list.setVisible(False)
-        quick_add_layout.addWidget(self._plan_all_list)
+        self._plan_search_card_by_id: dict[str, StudentCardWidget] = {}
+        plan_search_width = max(80, int(round(self._student_card_asset.base_size.width() * 0.5)))
+        self._plan_search_grid = ParallelogramCardGrid(
+            self._student_card_asset,
+            self._ui_scale,
+            drag_enabled=True,
+            min_card_width=plan_search_width,
+        )
+        self._plan_search_grid.setObjectName("studentGrid")
+        plan_search_grid_height = max(
+            scale_px(150, self._ui_scale),
+            int(round(plan_search_width / self._student_card_asset.aspect_ratio)) + scale_px(28, self._ui_scale),
+        )
+        plan_search_panel_vertical_margins = scale_px(20, self._ui_scale)
+        self._plan_search_grid.setFixedHeight(plan_search_grid_height)
+        self._plan_search_grid.setFrameShape(QFrame.NoFrame)
+        self._plan_search_grid.setAutoFillBackground(False)
+        self._plan_search_grid.setAttribute(Qt.WA_TranslucentBackground, True)
+        self._plan_search_grid.viewport().setAutoFillBackground(False)
+        self._plan_search_grid.viewport().setAttribute(Qt.WA_TranslucentBackground, True)
+        self._plan_search_grid.viewport().setStyleSheet("background: transparent; border: none;")
+        if self._plan_search_grid.widget() is not None:
+            self._plan_search_grid.widget().setAutoFillBackground(False)
+            self._plan_search_grid.widget().setAttribute(Qt.WA_TranslucentBackground, True)
+            self._plan_search_grid.widget().setStyleSheet("background: transparent; border: none;")
+        _install_planner_scroll_handle(self._plan_search_grid, ui_scale=self._ui_scale)
+        self._plan_search_grid.current_changed.connect(self._on_plan_search_card_changed)
+        self._plan_search_grid.card_drag_moved.connect(self._on_plan_search_card_drag_moved)
+        self._plan_search_grid.card_drag_finished.connect(self._on_plan_search_card_drag_finished)
+        self._plan_search_grid.setVisible(False)
+        self._plan_search_grid_panel = PlanGridContentPanel(ui_scale=self._ui_scale)
+        self._plan_search_grid_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._plan_search_grid_panel.setFixedHeight(plan_search_grid_height + plan_search_panel_vertical_margins)
+        self._plan_search_grid_panel.setVisible(False)
+        plan_search_grid_panel_layout = QVBoxLayout(self._plan_search_grid_panel)
+        plan_search_grid_panel_layout.setContentsMargins(
+            scale_px(10, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(4, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        plan_search_grid_panel_layout.setSpacing(0)
+        plan_search_grid_panel_layout.addWidget(self._plan_search_grid)
+        quick_add_layout.addWidget(self._plan_search_grid_panel)
 
-        self._plan_search_state = QLabel("학생 이름, ID, 태그를 입력해 검색하세요.")
+        self._plan_search_state = QLabel("학생 순서를 드래그해서 변경할 수 있으며, 학생 순서대로 인벤토리 탭에서 재화 우선 목표를 보여줍니다.")
         self._plan_search_state.setObjectName("filterSummary")
+        self._plan_search_state.setWordWrap(True)
         quick_add_layout.addWidget(self._plan_search_state)
 
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("sectionSplitter")
         splitter.setChildrenCollapsible(False)
         layout.addWidget(splitter, 1)
 
         plan_panel = QFrame()
-        plan_panel.setObjectName("panel")
+        self._plan_panel = plan_panel
+        plan_panel.setObjectName("planSectionPanel")
         plan_layout = QVBoxLayout(plan_panel)
         plan_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale), scale_px(14, self._ui_scale))
         plan_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -9448,12 +10507,34 @@ class StudentViewerWindow(QMainWindow):
         self._plan_empty_label.setWordWrap(True)
         plan_layout.addWidget(self._plan_empty_label)
 
+        self._plan_grid_panel = PlanGridContentPanel(ui_scale=self._ui_scale)
+        plan_grid_layout = QVBoxLayout(self._plan_grid_panel)
+        plan_grid_layout.setContentsMargins(
+            scale_px(10, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(4, self._ui_scale),
+            scale_px(10, self._ui_scale),
+        )
+        plan_grid_layout.setSpacing(0)
+
         self._plan_grid = ParallelogramCardGrid(self._student_card_asset, self._ui_scale, reorder_enabled=True)
         self._plan_grid.setObjectName("studentGrid")
+        self._plan_grid.setFrameShape(QFrame.NoFrame)
+        self._plan_grid.setAutoFillBackground(False)
+        self._plan_grid.setAttribute(Qt.WA_TranslucentBackground, True)
+        self._plan_grid.viewport().setAutoFillBackground(False)
+        self._plan_grid.viewport().setAttribute(Qt.WA_TranslucentBackground, True)
+        self._plan_grid.viewport().setStyleSheet("background: transparent; border: none;")
+        if self._plan_grid.widget() is not None:
+            self._plan_grid.widget().setAutoFillBackground(False)
+            self._plan_grid.widget().setAttribute(Qt.WA_TranslucentBackground, True)
+            self._plan_grid.widget().setStyleSheet("background: transparent; border: none;")
+        _install_planner_scroll_handle(self._plan_grid, ui_scale=self._ui_scale)
         self._plan_grid.current_changed.connect(self._on_plan_card_changed)
-        self._plan_grid.layout_changed.connect(lambda *_: self._refresh_card_layout())
+        self._plan_grid.layout_changed.connect(self._on_plan_grid_layout_changed)
         self._plan_grid.order_changed.connect(self._on_plan_order_changed)
-        plan_layout.addWidget(self._plan_grid, 1)
+        plan_grid_layout.addWidget(self._plan_grid, 1)
+        plan_layout.addWidget(self._plan_grid_panel, 1)
 
         plan_layout.addWidget(quick_add_panel, 0)
 
@@ -9469,17 +10550,21 @@ class StudentViewerWindow(QMainWindow):
 
         splitter.addWidget(plan_panel)
 
-        editor_panel = QFrame()
-        editor_panel.setObjectName("panel")
+        editor_panel = RoundedMaskFrame(ui_scale=self._ui_scale)
+        editor_panel.setObjectName("planEditorInventoryShell")
+        editor_panel.setFrameShape(QFrame.NoFrame)
+        editor_panel.setAutoFillBackground(False)
+        editor_panel.setAttribute(Qt.WA_StyledBackground, True)
         editor_outer_layout = QVBoxLayout(editor_panel)
-        editor_outer_layout.setContentsMargins(0, 0, 0, 0)
-        editor_outer_layout.setSpacing(0)
+        self._configure_inventory_panel_layout(editor_outer_layout)
 
         editor_scroll = QScrollArea()
+        editor_scroll.setObjectName("sectionScrollArea")
         editor_scroll.setWidgetResizable(True)
         editor_scroll.setFrameShape(QFrame.NoFrame)
         editor_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        editor_scroll.setObjectName("planEditorScroll")
+        editor_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        _install_planner_scroll_handle(editor_scroll, ui_scale=self._ui_scale)
         editor_outer_layout.addWidget(editor_scroll, 1)
 
         editor_content = QWidget()
@@ -9489,15 +10574,19 @@ class StudentViewerWindow(QMainWindow):
         editor_layout.setSpacing(scale_px(10, self._ui_scale))
         editor_scroll.setWidget(editor_content)
 
-        editor_header = QWidget()
-        editor_header.setObjectName("planTransparent")
+        editor_header = PlanEditorSectionCard(ui_scale=self._ui_scale, radius=16)
         editor_header_layout = QHBoxLayout(editor_header)
-        editor_header_layout.setContentsMargins(0, 0, 0, 0)
+        editor_header_layout.setContentsMargins(
+            scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
+            scale_px(14, self._ui_scale),
+            scale_px(12, self._ui_scale),
+        )
         editor_header_layout.setSpacing(scale_px(10, self._ui_scale))
         name_col = QVBoxLayout()
         name_col.setContentsMargins(0, 0, 0, 0)
         name_col.setSpacing(scale_px(2, self._ui_scale))
-        self._plan_name = QLabel("Select a student")
+        self._plan_name = QLabel("학생을 선택하세요")
         self._plan_name.setObjectName("detailName")
         name_col.addWidget(self._plan_name)
         self._plan_current = QLabel("")
@@ -9505,19 +10594,31 @@ class StudentViewerWindow(QMainWindow):
         name_col.addWidget(self._plan_current)
         editor_header_layout.addLayout(name_col, 1)
 
-        plan_editor_tabs = QTabBar()
-        plan_editor_tabs.setObjectName("planEditorTabs")
-        plan_editor_tabs.setExpanding(False)
-        plan_editor_tabs.setUsesScrollButtons(False)
-        plan_editor_tabs.addTab("Edit")
-        plan_editor_tabs.addTab("Resources")
-        editor_header_layout.addWidget(plan_editor_tabs, 0, Qt.AlignRight | Qt.AlignVCenter)
-        editor_layout.addWidget(editor_header)
-
         plan_editor_stack = QStackedWidget()
         plan_editor_stack.setObjectName("planEditorStack")
         plan_editor_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        plan_editor_tabs.currentChanged.connect(plan_editor_stack.setCurrentIndex)
+
+        plan_editor_mode_buttons = QHBoxLayout()
+        plan_editor_mode_buttons.setContentsMargins(0, 0, 0, 0)
+        plan_editor_mode_buttons.setSpacing(scale_px(8, self._ui_scale))
+        plan_editor_buttons: dict[int, QPushButton] = {}
+
+        def sync_plan_editor_buttons(index: int) -> None:
+            for button_index, button in plan_editor_buttons.items():
+                button.setChecked(button_index == index)
+
+        for index, label in ((0, "목표 타겟"), (1, "필요 재화")):
+            button = QPushButton(label)
+            button.setObjectName("inventoryModeButton")
+            button.setCheckable(True)
+            button.clicked.connect(lambda _checked=False, value=index: plan_editor_stack.setCurrentIndex(value))
+            plan_editor_mode_buttons.addWidget(button, 0)
+            plan_editor_buttons[index] = button
+        plan_editor_mode_buttons.addStretch(1)
+        plan_editor_stack.currentChanged.connect(sync_plan_editor_buttons)
+        editor_header_layout.addLayout(plan_editor_mode_buttons, 0)
+        editor_layout.addWidget(editor_header)
+
         edit_tab = QWidget()
         edit_tab.setObjectName("planTransparent")
         edit_tab_layout = QVBoxLayout(edit_tab)
@@ -9529,10 +10630,10 @@ class StudentViewerWindow(QMainWindow):
         resources_tab_layout.setContentsMargins(0, 0, 0, 0)
         resources_tab_layout.setSpacing(0)
 
-        controls_wrap = QWidget()
+        controls_wrap = PlanEditorContentPanel(ui_scale=self._ui_scale)
         controls_layout = QVBoxLayout(controls_wrap)
-        controls_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(6, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
-        controls_layout.setSpacing(scale_px(16, self._ui_scale))
+        controls_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale), scale_px(10, self._ui_scale))
+        controls_layout.setSpacing(scale_px(10, self._ui_scale))
 
         def add_plan_level_row(
             parent_layout: QVBoxLayout,
@@ -9543,7 +10644,7 @@ class StudentViewerWindow(QMainWindow):
             label_width: int = 62,
         ) -> QFrame:
             row = QFrame()
-            row.setObjectName("planBand")
+            row.setObjectName("inventoryPressureRow")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
             row_layout.setSpacing(scale_px(8, self._ui_scale))
@@ -9560,20 +10661,19 @@ class StudentViewerWindow(QMainWindow):
             parent_layout.addWidget(row)
             return row
 
-        progression_panel = QFrame()
-        progression_panel.setObjectName("planSectionPanel")
+        progression_panel = PlanEditorSectionCard(ui_scale=self._ui_scale)
         progression_layout = QVBoxLayout(progression_panel)
-        progression_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(16, self._ui_scale), scale_px(18, self._ui_scale), scale_px(16, self._ui_scale))
-        progression_layout.setSpacing(scale_px(12, self._ui_scale))
-        progression_title = QLabel("Growth Target")
+        progression_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(8, self._ui_scale), scale_px(10, self._ui_scale), scale_px(8, self._ui_scale))
+        progression_layout.setSpacing(scale_px(8, self._ui_scale))
+        progression_title = QLabel("목표 타겟")
         progression_title.setObjectName("sectionTitle")
         progression_layout.addWidget(progression_title)
         progression_row = QFrame()
-        progression_row.setObjectName("planBand")
+        progression_row.setObjectName("inventoryPressureRow")
         progression_row_layout = QHBoxLayout(progression_row)
         progression_row_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(10, self._ui_scale), scale_px(14, self._ui_scale), scale_px(10, self._ui_scale))
         progression_row_layout.setSpacing(scale_px(12, self._ui_scale))
-        progression_label = QLabel("Star / Weapon Star")
+        progression_label = QLabel("성작 상태")
         progression_label.setObjectName("detailSectionTitle")
         progression_label.setMinimumWidth(scale_px(118, self._ui_scale))
         progression_row_layout.addWidget(progression_label, 0, Qt.AlignTop)
@@ -9583,8 +10683,8 @@ class StudentViewerWindow(QMainWindow):
         progression_row_layout.addWidget(star_selector, 1)
         progression_layout.addWidget(progression_row)
 
-        add_plan_level_row(progression_layout, "target_level", "Student", 90, label_width=118)
-        add_plan_level_row(progression_layout, "target_weapon_level", "Weapon", MAX_TARGET_WEAPON_LEVEL, label_width=118)
+        add_plan_level_row(progression_layout, "target_level", "학생 레벨", 90, label_width=118)
+        add_plan_level_row(progression_layout, "target_weapon_level", "전용무기 레벨", MAX_TARGET_WEAPON_LEVEL, label_width=118)
 
         stat_toggle = QPushButton()
         stat_toggle.setObjectName("planDisclosureButton")
@@ -9603,15 +10703,14 @@ class StudentViewerWindow(QMainWindow):
 
         controls_layout.addWidget(progression_panel)
 
-        requirement_panel = QFrame()
-        requirement_panel.setObjectName("planSectionPanel")
+        requirement_panel = PlanEditorSectionCard(ui_scale=self._ui_scale)
         requirement_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         requirement_layout = QVBoxLayout(requirement_panel)
         requirement_layout.setContentsMargins(
-            scale_px(14, self._ui_scale),
-            scale_px(12, self._ui_scale),
-            scale_px(14, self._ui_scale),
-            scale_px(12, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
+            scale_px(10, self._ui_scale),
+            scale_px(8, self._ui_scale),
         )
         requirement_layout.setSpacing(scale_px(8, self._ui_scale))
         requirement_header = QHBoxLayout()
@@ -9633,12 +10732,13 @@ class StudentViewerWindow(QMainWindow):
         requirement_layout.addWidget(self._plan_requirement_empty)
 
         self._plan_requirement_scroll = QScrollArea()
+        self._plan_requirement_scroll.setObjectName("sectionScrollArea")
         self._plan_requirement_scroll.setFrameShape(QFrame.NoFrame)
         self._plan_requirement_scroll.setWidgetResizable(True)
         self._plan_requirement_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._plan_requirement_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._plan_requirement_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._plan_requirement_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        _install_planner_scroll_handle(self._plan_requirement_scroll, ui_scale=self._ui_scale)
 
         self._plan_requirement_grid_host = QWidget()
         self._plan_requirement_grid_host.setObjectName("planTransparent")
@@ -9658,22 +10758,21 @@ class StudentViewerWindow(QMainWindow):
         self._plan_requirement_scroll.setWidget(self._plan_requirement_grid_host)
         requirement_layout.addWidget(self._plan_requirement_scroll, 1)
 
-        skill_panel = QFrame()
-        skill_panel.setObjectName("planSectionPanel")
+        skill_panel = PlanEditorSectionCard(ui_scale=self._ui_scale)
         skill_layout = QVBoxLayout(skill_panel)
-        skill_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(18, self._ui_scale), scale_px(18, self._ui_scale), scale_px(18, self._ui_scale))
-        skill_layout.setSpacing(scale_px(12, self._ui_scale))
+        skill_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(8, self._ui_scale), scale_px(10, self._ui_scale), scale_px(8, self._ui_scale))
+        skill_layout.setSpacing(scale_px(8, self._ui_scale))
         skill_title = QLabel("스킬")
         skill_title.setObjectName("sectionTitle")
         skill_layout.addWidget(skill_title)
         for field_name, label, count in (
             ("target_ex_skill", "EX", MAX_TARGET_EX_SKILL),
-            ("target_skill1", "일반", MAX_TARGET_SKILL),
-            ("target_skill2", "패시브", MAX_TARGET_SKILL),
-            ("target_skill3", "서브", MAX_TARGET_SKILL),
+            ("target_skill1", "Skill1", MAX_TARGET_SKILL),
+            ("target_skill2", "Skill2", MAX_TARGET_SKILL),
+            ("target_skill3", "Skill3", MAX_TARGET_SKILL),
         ):
             row = QFrame()
-            row.setObjectName("planBand")
+            row.setObjectName("inventoryPressureRow")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(scale_px(14, self._ui_scale), scale_px(10, self._ui_scale), scale_px(14, self._ui_scale), scale_px(10, self._ui_scale))
             row_layout.setSpacing(scale_px(12, self._ui_scale))
@@ -9688,11 +10787,10 @@ class StudentViewerWindow(QMainWindow):
             skill_layout.addWidget(row)
         controls_layout.addWidget(skill_panel, 0)
 
-        equipment_panel = QFrame()
-        equipment_panel.setObjectName("planSectionPanel")
+        equipment_panel = PlanEditorSectionCard(ui_scale=self._ui_scale)
         equipment_layout = QVBoxLayout(equipment_panel)
-        equipment_layout.setContentsMargins(scale_px(18, self._ui_scale), scale_px(16, self._ui_scale), scale_px(18, self._ui_scale), scale_px(16, self._ui_scale))
-        equipment_layout.setSpacing(scale_px(12, self._ui_scale))
+        equipment_layout.setContentsMargins(scale_px(10, self._ui_scale), scale_px(8, self._ui_scale), scale_px(10, self._ui_scale), scale_px(8, self._ui_scale))
+        equipment_layout.setSpacing(scale_px(8, self._ui_scale))
         equipment_title = QLabel("장비 티어")
         equipment_title.setObjectName("sectionTitle")
         equipment_layout.addWidget(equipment_title)
@@ -9708,11 +10806,11 @@ class StudentViewerWindow(QMainWindow):
         equipment_body_layout.addLayout(equipment_main, 9)
 
         self._plan_unique_item_panel = QFrame()
-        self._plan_unique_item_panel.setObjectName("planBand")
+        self._plan_unique_item_panel.setObjectName("inventoryPressureRow")
         unique_layout = QVBoxLayout(self._plan_unique_item_panel)
         unique_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
         unique_layout.setSpacing(scale_px(8, self._ui_scale))
-        unique_title = QLabel("Unique Item")
+        unique_title = QLabel("애용품")
         unique_title.setObjectName("detailSectionTitle")
         unique_layout.addWidget(unique_title)
         self._plan_unique_item_selector = PlanSegmentSelector(2, active_fill=PALETTE_SOFT, active_border="#ffffff", inactive_fill=_mix_hex(SURFACE_ALT, BG, 0.14), ui_scale=self._ui_scale)
@@ -9728,7 +10826,7 @@ class StudentViewerWindow(QMainWindow):
             ("target_equip3_tier", 3),
         ):
             row = QFrame()
-            row.setObjectName("planBand")
+            row.setObjectName("inventoryPressureRow")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(scale_px(12, self._ui_scale), scale_px(8, self._ui_scale), scale_px(12, self._ui_scale), scale_px(8, self._ui_scale))
             row_layout.setSpacing(scale_px(10, self._ui_scale))
@@ -9751,7 +10849,7 @@ class StudentViewerWindow(QMainWindow):
             level_layout = QHBoxLayout(level_row)
             level_layout.setContentsMargins(0, 0, 0, 0)
             level_layout.setSpacing(scale_px(8, self._ui_scale))
-            level_title = QLabel("Level")
+            level_title = QLabel("레벨")
             level_title.setObjectName("detailSectionTitle")
             level_title.setMinimumWidth(scale_px(54, self._ui_scale))
             self._plan_level_row_labels[level_field_name] = row_title
@@ -9776,7 +10874,8 @@ class StudentViewerWindow(QMainWindow):
         resources_tab_layout.addWidget(requirement_panel, 1)
         plan_editor_stack.addWidget(edit_tab)
         plan_editor_stack.addWidget(resources_tab)
-        plan_editor_tabs.setCurrentIndex(0)
+        plan_editor_stack.setCurrentIndex(0)
+        sync_plan_editor_buttons(0)
         editor_layout.addWidget(plan_editor_stack, 1)
         splitter.addWidget(editor_panel)
 
@@ -9871,7 +10970,13 @@ class StudentViewerWindow(QMainWindow):
         )
         card.setToolTip(record.student_id)
 
-    def _build_student_card(self, record) -> StudentCardWidget:
+    def _build_student_card(
+        self,
+        record,
+        *,
+        show_name_panel: bool = True,
+        show_unowned_badge: bool = True,
+    ) -> StudentCardWidget:
         divider_primary, divider_secondary = _student_divider_colors(record)
         card = StudentCardWidget(
             card_asset=self._student_card_asset,
@@ -9880,6 +10985,8 @@ class StudentViewerWindow(QMainWindow):
             owned=record.owned,
             divider_left=QColor(divider_primary),
             divider_right=QColor(divider_secondary),
+            show_name_panel=show_name_panel,
+            show_unowned_badge=show_unowned_badge,
         )
         card.setToolTip(record.student_id)
         self._apply_cached_thumb_to_card(card)
@@ -9891,21 +10998,14 @@ class StudentViewerWindow(QMainWindow):
         return self._plan_grid.current_card_id()
 
     def _set_plan_search_selection(self, student_id: str | None) -> None:
-        if not hasattr(self, "_plan_all_list"):
+        if not hasattr(self, "_plan_search_grid"):
             return
-        previous = self._plan_all_list.blockSignals(True)
+        target_id = student_id if student_id in self._plan_search_card_by_id else None
+        previous = self._plan_search_grid.blockSignals(True)
         try:
-            self._plan_all_list.clearSelection()
-            self._plan_all_list.setCurrentRow(-1)
-            if not student_id:
-                return
-            for index in range(self._plan_all_list.count()):
-                item = self._plan_all_list.item(index)
-                if item.data(Qt.UserRole) == student_id:
-                    self._plan_all_list.setCurrentItem(item)
-                    break
+            self._plan_search_grid.set_current_card(target_id)
         finally:
-            self._plan_all_list.blockSignals(previous)
+            self._plan_search_grid.blockSignals(previous)
 
     def _set_plan_grid_selection(self, student_id: str | None) -> None:
         if not hasattr(self, "_plan_grid"):
@@ -10089,7 +11189,7 @@ class StudentViewerWindow(QMainWindow):
                 label = str(labels[index] or fallback[index]).strip()
             except Exception:
                 label = fallback[index]
-            normalized.append(label.title())
+            normalized.append(_equipment_series_label(label.title()))
         return normalized
 
     def _plan_supports_field(self, goal: StudentGoal | None, field_name: str) -> bool:
@@ -10445,30 +11545,39 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_selected_plan_requirements(student_id)
 
     def _refresh_plan_lists(self) -> None:
-        if not hasattr(self, "_plan_all_list"):
+        if not hasattr(self, "_plan_search_grid"):
             return
         query = _live_line_edit_text(self._plan_search).strip().casefold()
         current_all = self._plan_current_all_student_id()
         current_plan = self._current_plan_grid_student_id() or self._selected_plan_student_id
         goal_map = self._plan_goal_map()
 
-        self._plan_all_list.clear()
+        self._plan_search_grid.clear_cards()
+        self._plan_search_card_by_id.clear()
+        search_cards: list[StudentCardWidget] = []
         match_count = 0
         if query:
             for record in sorted(self._all_students, key=lambda item: item.title.lower()):
                 if query not in student_meta.search_blob(record.student_id, record.title):
                     continue
-                status = "계획됨" if record.student_id in goal_map else ("보유" if record.owned else "미보유")
-                item = QListWidgetItem(f"{record.title}\n{status}")
-                item.setData(Qt.UserRole, record.student_id)
-                if record.student_id in goal_map:
-                    item.setForeground(QColor("#84d0ff"))
-                self._plan_all_list.addItem(item)
+                card = self._build_student_card(
+                    record,
+                    show_name_panel=False,
+                    show_unowned_badge=False,
+                )
+                search_cards.append(card)
+                self._plan_search_card_by_id[record.student_id] = card
                 match_count += 1
 
-        self._plan_all_list.setVisible(bool(query))
+        if search_cards:
+            self._plan_search_grid.add_cards(search_cards)
+            for student_id in self._plan_search_card_by_id:
+                self._enqueue_thumb(student_id)
+        self._plan_search_grid.setVisible(bool(query))
+        if hasattr(self, "_plan_search_grid_panel"):
+            self._plan_search_grid_panel.setVisible(bool(query))
         if not query:
-            self._plan_search_state.setText("Type a student name, id, or tag to search.")
+            self._plan_search_state.setText("학생 순서를 드래그해서 변경할 수 있으며, 학생 순서대로 인벤토리 탭에서 재화 우선 목표를 보여줍니다.")
         elif match_count:
             self._plan_search_state.setText(f"{match_count}명 찾음. 학생을 선택해 계획에 추가하세요.")
         else:
@@ -10499,6 +11608,8 @@ class StudentViewerWindow(QMainWindow):
         self._plan_count_label.setText(f"{len(planned_cards)}명")
         self._plan_empty_label.setVisible(not planned_cards)
         self._plan_grid.setVisible(bool(planned_cards))
+        if hasattr(self, "_plan_grid_panel"):
+            self._plan_grid_panel.setVisible(bool(planned_cards))
 
         self._set_plan_search_selection(current_all)
         self._set_plan_grid_selection(current_plan)
@@ -10512,17 +11623,17 @@ class StudentViewerWindow(QMainWindow):
         self._update_plan_actions()
 
     def _plan_current_all_student_id(self) -> str | None:
-        item = self._plan_all_list.currentItem() if hasattr(self, "_plan_all_list") else None
-        return item.data(Qt.UserRole) if item else None
+        if not hasattr(self, "_plan_search_grid"):
+            return None
+        return self._plan_search_grid.current_card_id()
 
-    def _on_plan_all_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+    def _on_plan_search_card_changed(self, current: str | None, _previous: str | None) -> None:
         if current is None:
             self._update_plan_actions()
             return
-        student_id = str(current.data(Qt.UserRole))
-        self._selected_plan_student_id = student_id if student_id in self._plan_goal_map() else None
-        self._set_plan_grid_selection(student_id if student_id in self._plan_goal_map() else None)
-        self._load_plan_student(student_id)
+        self._selected_plan_student_id = current if current in self._plan_goal_map() else None
+        self._set_plan_grid_selection(current if current in self._plan_goal_map() else None)
+        self._load_plan_student(current)
         self._update_plan_actions()
 
     def _on_plan_card_changed(self, current: str | None, _previous: str | None) -> None:
@@ -10550,11 +11661,52 @@ class StudentViewerWindow(QMainWindow):
         self._save_plan()
         self._refresh_plan_totals()
 
-    def _add_selected_student_to_plan(self) -> None:
-        student_id = self._plan_current_all_student_id() or self._selected_plan_student_id
+    @staticmethod
+    def _global_pos_in_widget(widget: QWidget | None, global_pos: QPoint) -> bool:
+        if widget is None or not widget.isVisible():
+            return False
+        top_left = widget.mapToGlobal(QPoint(0, 0))
+        return QRect(top_left, widget.size()).contains(global_pos)
+
+    def _is_plan_drop_target(self, global_pos: QPoint) -> bool:
+        if self._global_pos_in_widget(getattr(self, "_plan_quick_add_panel", None), global_pos):
+            return False
+        if self._global_pos_in_widget(getattr(self, "_plan_grid_panel", None), global_pos):
+            return True
+        if self._global_pos_in_widget(getattr(self, "_plan_empty_label", None), global_pos):
+            return True
+        plan_panel = getattr(self, "_plan_panel", None)
+        if not self._global_pos_in_widget(plan_panel, global_pos):
+            return False
+        quick_add_panel = getattr(self, "_plan_quick_add_panel", None)
+        if quick_add_panel is None:
+            return True
+        quick_add_top = quick_add_panel.mapToGlobal(QPoint(0, 0)).y()
+        return global_pos.y() < quick_add_top
+
+    def _plan_drop_insert_index(self, global_pos: QPoint) -> int | None:
+        if (
+            hasattr(self, "_plan_grid")
+            and self._plan_grid.isVisible()
+            and self._global_pos_in_widget(getattr(self, "_plan_grid_panel", None), global_pos)
+        ):
+            return self._plan_grid.drop_index_for_global_pos(
+                global_pos,
+                stable_index=getattr(self._plan_grid, "_drop_placeholder_index", None),
+            )
+        return None
+
+    def _add_student_to_plan(self, student_id: str, *, insert_index: int | None = None) -> None:
         if not student_id:
             return
-        self._get_or_create_goal(student_id)
+        goal = self._get_or_create_goal(student_id)
+        if insert_index is not None:
+            next_goals = [candidate for candidate in self._plan.goals if candidate.student_id != student_id]
+            clamped_index = max(0, min(insert_index, len(next_goals)))
+            next_goals.insert(clamped_index, goal)
+            if [candidate.student_id for candidate in next_goals] != [candidate.student_id for candidate in self._plan.goals]:
+                self._plan.goals = next_goals
+                self._invalidate_plan_caches()
         self._add_plan_student_to_resource_scope(student_id)
         self._selected_plan_student_id = student_id
         self._save_plan()
@@ -10563,6 +11715,38 @@ class StudentViewerWindow(QMainWindow):
         self._update_plan_student_summary(student_id)
         self._refresh_plan_totals()
         self._update_plan_actions()
+
+    def _on_plan_search_card_drag_moved(self, _student_id: str, global_pos: object) -> None:
+        if not isinstance(global_pos, QPoint) or not hasattr(self, "_plan_grid"):
+            return
+        if (
+            self._plan_grid.isVisible()
+            and self._global_pos_in_widget(getattr(self, "_plan_grid_panel", None), global_pos)
+        ):
+            index = self._plan_grid.drop_index_for_global_pos(
+                global_pos,
+                stable_index=getattr(self._plan_grid, "_drop_placeholder_index", None),
+            )
+            self._plan_grid.set_external_drop_placeholder(index)
+            return
+        self._plan_grid.clear_external_drop_placeholder()
+
+    def _on_plan_search_card_drag_finished(self, student_id: str, global_pos: object) -> None:
+        if not isinstance(global_pos, QPoint):
+            return
+        try:
+            if not self._is_plan_drop_target(global_pos):
+                return
+            self._add_student_to_plan(student_id, insert_index=self._plan_drop_insert_index(global_pos))
+        finally:
+            if hasattr(self, "_plan_grid"):
+                self._plan_grid.clear_external_drop_placeholder()
+
+    def _add_selected_student_to_plan(self) -> None:
+        student_id = self._plan_current_all_student_id() or self._selected_plan_student_id
+        if not student_id:
+            return
+        self._add_student_to_plan(student_id)
 
     def _remove_selected_plan_student(self) -> None:
         student_id = self._current_plan_grid_student_id() or self._selected_plan_student_id
@@ -10581,6 +11765,8 @@ class StudentViewerWindow(QMainWindow):
             return
         if self._selected_plan_student_id in self._item_by_id:
             self._student_grid.set_current_card(self._selected_plan_student_id)
+            if self._main_tabs is not None:
+                self._main_tabs.setCurrentIndex(0)
 
     def _load_plan_student(self, student_id: str) -> None:
         record = self._records_by_id.get(student_id)
@@ -10606,7 +11792,7 @@ class StudentViewerWindow(QMainWindow):
     def _clear_plan_editor(self) -> None:
         self._plan_editor_guard = True
         try:
-            self._plan_name.setText("Select a student")
+            self._plan_name.setText("학생을 선택하세요")
             self._plan_current.setText("")
             for selector in self._plan_segment_inputs.values():
                 selector.setEnabled(False)
@@ -10833,33 +12019,681 @@ class StudentViewerWindow(QMainWindow):
         finally:
             self._plan_requirement_grid_host.setUpdatesEnabled(True)
 
+    def _stats_set_mode(self, attr_name: str, value: str) -> None:
+        if getattr(self, attr_name, None) == value:
+            return
+        setattr(self, attr_name, value)
+        self._refresh_stats_tab()
+
+    def _stats_refresh_sunburst_mode(self) -> None:
+        self._stats_update_sunburst_value_options()
+        self._stats_sunburst_selected_path = ()
+        self._stats_sunburst_breadcrumb_path = ()
+        self._stats_sunburst_selected_context = {}
+        self._stats_sunburst_selected_node = None
+        self._stats_sunburst_drill_stack.clear()
+        self._refresh_stats_tab()
+
+    def _stats_reset_sunburst_root(self) -> None:
+        self._stats_sunburst_selected_path = ()
+        self._stats_sunburst_breadcrumb_path = ()
+        self._stats_sunburst_selected_context = {}
+        self._stats_sunburst_selected_node = None
+        self._stats_sunburst_drill_stack.clear()
+        self._refresh_stats_tab()
+
+    def _stats_clear_sunburst_selection(self) -> None:
+        current_path = self._stats_sunburst_breadcrumb_path
+        self._stats_sunburst_selected_path = ()
+        self._stats_sunburst_selected_context = {}
+        self._stats_sunburst_selected_node = None
+        if current_path:
+            self._stats_sunburst_breadcrumb_path = current_path
+        self._refresh_stats_tab()
+
+    def _stats_sunburst_back(self) -> None:
+        if not self._stats_sunburst_drill_stack:
+            self._stats_reset_sunburst_root()
+            return
+        previous_path = self._stats_sunburst_drill_stack.pop()
+        self._stats_apply_sunburst_path(previous_path, push_current=False)
+
+    def _on_stats_sunburst_segment_selected(self, payload: object) -> None:
+        if not isinstance(payload, dict) or not payload:
+            self._stats_clear_sunburst_selection()
+            return
+        path = tuple(str(part) for part in payload.get("path", ()) if str(part))
+        self._stats_apply_sunburst_path(path, push_current=True)
+
+    def _stats_current_sunburst_mode(self) -> str:
+        value = self._stats_sunburst_mode.currentData() if self._stats_sunburst_mode is not None else None
+        return str(value or "collection_school_role_attack")
+
+    def _stats_update_sunburst_value_options(self) -> None:
+        if self._stats_sunburst_value_mode is None:
+            return
+        mode = self._stats_current_sunburst_mode()
+        if mode.startswith("collection_") or mode == "skill_function":
+            options = (("학생 수", "student_count"), ("보유 학생", "owned_count"), ("계획 학생", "planned_count"))
+            default = "student_count"
+        elif mode == "plan_required":
+            options = (("필요량", "required"), ("충족률", "coverage"), ("부족량", "shortage"))
+            default = "required"
+        else:
+            options = (("부족량", "shortage"), ("필요량", "required"), ("충족률", "coverage"))
+            default = "shortage"
+        current = self._stats_sunburst_value_key()
+        if current not in {value for _label, value in options}:
+            current = default
+        self._stats_sunburst_value_mode.blockSignals(True)
+        self._stats_sunburst_value_mode.clear()
+        for label, value in options:
+            self._stats_sunburst_value_mode.addItem(label, value)
+        selected_index = next((index for index, (_label, value) in enumerate(options) if value == current), 0)
+        self._stats_sunburst_value_mode.setCurrentIndex(selected_index)
+        self._stats_sunburst_value_mode.blockSignals(False)
+
+    def _stats_node_for_path(self, root: SunburstNode, path: tuple[str, ...]) -> SunburstNode | None:
+        if not path:
+            return root
+        parts = list(path)
+        if parts and parts[0] == root.label:
+            parts = parts[1:]
+        node = root
+        for part in parts:
+            found = next((child for child in node.children if child.label == part), None)
+            if found is None and self._stats_sunburst is not None:
+                display_nodes = self._stats_sunburst._display_nodes(node.children)
+                found = next((child for child in display_nodes if child.label == part), None)
+            if found is None:
+                return None
+            node = found
+        return node
+
+    def _stats_apply_sunburst_path(self, path: tuple[str, ...], *, push_current: bool) -> None:
+        root = self._stats_sunburst_root()
+        if not path or path == (root.label,):
+            self._stats_reset_sunburst_root()
+            return
+        node = self._stats_node_for_path(root, path)
+        if node is None:
+            self._stats_reset_sunburst_root()
+            return
+        if push_current and self._stats_sunburst_selected_path != path:
+            self._stats_sunburst_drill_stack.append(self._stats_sunburst_selected_path)
+        self._stats_sunburst_selected_path = path
+        self._stats_sunburst_breadcrumb_path = path
+        context = dict(node.context or {})
+        context["node"] = node
+        self._stats_sunburst_selected_context = context
+        self._stats_sunburst_selected_node = node
+        self._refresh_stats_tab()
+
+    def _stats_sunburst_value_key(self) -> str:
+        value = self._stats_sunburst_value_mode.currentData() if self._stats_sunburst_value_mode is not None else None
+        return str(value or "student_count")
+
+    def _stats_scope_student_ids(self) -> set[str] | None:
+        value = self._stats_sunburst_selected_context.get("student_ids")
+        if isinstance(value, set):
+            return {str(item) for item in value}
+        if isinstance(value, (list, tuple)):
+            return {str(item) for item in value}
+        return None
+
+    def _stats_scope_records(self) -> list[StudentRecord]:
+        student_ids = self._stats_scope_student_ids()
+        if not student_ids:
+            return list(self._filtered_students)
+        return [record for record in self._filtered_students if record.student_id in student_ids]
+
+    def _stats_option_combo(
+        self,
+        layout: QHBoxLayout,
+        options: tuple[tuple[str, str], ...],
+        current_value: str,
+        attr_name: str,
+    ) -> QComboBox:
+        combo = QComboBox()
+        for label, value in options:
+            combo.addItem(label, value)
+        selected_index = next((index for index, (_label, value) in enumerate(options) if value == current_value), 0)
+        combo.setCurrentIndex(selected_index)
+        combo.currentIndexChanged.connect(lambda *_args, combo=combo, attr_name=attr_name: self._stats_set_mode(attr_name, str(combo.currentData())))
+        layout.addWidget(combo, 0, Qt.AlignRight)
+        return combo
+
+    def _stats_make_rows(self, counts: Counter[str], *, denominator: int | None = None) -> list[DistributionRow]:
+        if not counts:
+            return []
+        total = denominator if denominator is not None else sum(counts.values())
+        if total <= 0:
+            total = sum(counts.values())
+        rows: list[DistributionRow] = []
+        ordered = [(label, count) for label, count in counts.items() if count > 0]
+        for index, (label, count) in enumerate(sorted(ordered, key=lambda item: (-item[1], item[0].casefold()))):
+            percent = (count / total * 100.0) if total else 0.0
+            rows.append(DistributionRow(label=label, count=int(count), percent=percent, color=PALETTE[index % len(PALETTE)]))
+        return rows
+
+    def _stats_field_rows(self, field_name: str, *, records: list[StudentRecord] | None = None, multi: bool = False) -> list[DistributionRow]:
+        records = list(self._stats_scope_records() if records is None else records)
+        if field_name == "owned":
+            return build_distribution(records, field_name)
+        counts: Counter[str] = Counter()
+        for record in records:
+            values = get_student_values(record, field_name)
+            if not values:
+                counts["(없음)"] += 1
+                continue
+            selected_values = values if multi else values[:1]
+            for value in selected_values:
+                counts[format_filter_value(field_name, value)] += 1
+        return self._stats_make_rows(counts, denominator=len(records))
+
+    @staticmethod
+    def _stats_bucket(number: int, buckets: tuple[tuple[int, int, str], ...], empty_label: str = "미확인") -> str:
+        if number <= 0:
+            return empty_label
+        for low, high, label in buckets:
+            if low <= number <= high:
+                return label
+        return str(number)
+
+    @staticmethod
+    def _stats_summary_has_requirement(summary: PlanCostSummary | None) -> bool:
+        if summary is None:
+            return False
+        if any((summary.credits, summary.level_exp, summary.equipment_exp, summary.weapon_exp)):
+            return True
+        return any(
+            bool(mapping)
+            for mapping in (
+                summary.star_materials,
+                summary.equipment_materials,
+                summary.level_exp_items,
+                summary.equipment_exp_items,
+                summary.weapon_exp_items,
+                summary.skill_books,
+                summary.ex_ooparts,
+                summary.skill_ooparts,
+                summary.favorite_item_materials,
+                summary.stat_materials,
+                summary.stat_levels,
+            )
+        )
+
+    def _stats_equipment_tier(self, record: StudentRecord, slot_index: int) -> int:
+        return _tier_from_item_id_or_name(None, getattr(record, f"equip{slot_index}", None))
+
+    def _stats_growth_score(self, record: StudentRecord) -> float:
+        pieces: list[float] = []
+        pieces.append(min(1.0, max(0.0, (_int_or_none(record.level) or 0) / MAX_TARGET_LEVEL)))
+        pieces.append(min(1.0, max(0.0, record.star / MAX_TARGET_STAR)))
+        skills = [
+            min(1.0, max(0.0, (_int_or_none(record.ex_skill) or 0) / MAX_TARGET_EX_SKILL)),
+            min(1.0, max(0.0, (_int_or_none(record.skill1) or 0) / MAX_TARGET_SKILL)),
+            min(1.0, max(0.0, (_int_or_none(record.skill2) or 0) / MAX_TARGET_SKILL)),
+            min(1.0, max(0.0, (_int_or_none(record.skill3) or 0) / MAX_TARGET_SKILL)),
+        ]
+        pieces.append(sum(skills) / len(skills))
+        equipment_tiers = [self._stats_equipment_tier(record, index) for index in (1, 2, 3)]
+        if any(equipment_tiers):
+            pieces.append(sum(min(1.0, max(0.0, tier / MAX_TARGET_EQUIP_TIER)) for tier in equipment_tiers) / 3)
+        stat_values = [_int_or_none(record.stat_hp) or 0, _int_or_none(record.stat_atk) or 0, _int_or_none(record.stat_heal) or 0]
+        if any(stat_values):
+            pieces.append(sum(min(1.0, max(0.0, value / MAX_TARGET_STAT)) for value in stat_values) / 3)
+        if record.weapon_state in {"weapon_equipped", "weapon_unlocked_not_equipped"}:
+            weapon_level = min(1.0, max(0.0, (_int_or_none(record.weapon_level) or 0) / MAX_TARGET_WEAPON_LEVEL))
+            weapon_star = min(1.0, max(0.0, (_int_or_none(record.weapon_star) or 0) / MAX_TARGET_WEAPON_STAR))
+            pieces.append((weapon_level + weapon_star) / 2)
+        return (sum(pieces) / len(pieces) * 100.0) if pieces else 0.0
+
+    def _stats_growth_rows(self, mode: str) -> list[DistributionRow]:
+        records = [record for record in self._stats_scope_records() if record.owned]
+        counts: Counter[str] = Counter()
+        if not records:
+            return []
+        if mode == "level_bucket":
+            buckets = ((1, 34, "Lv 1-34"), (35, 49, "Lv 35-49"), (50, 69, "Lv 50-69"), (70, 84, "Lv 70-84"), (85, 90, "Lv 85-90"))
+            for record in records:
+                counts[self._stats_bucket(_int_or_none(record.level) or 0, buckets)] += 1
+        elif mode == "star":
+            for record in records:
+                counts[f"{record.star or 0}성"] += 1
+        elif mode == "weapon_state":
+            return self._stats_field_rows("weapon_state", records=records)
+        elif mode == "weapon_star":
+            for record in records:
+                value = _int_or_none(record.weapon_star) or 0
+                counts[f"전무 {value}성" if value else "전무 없음"] += 1
+        elif mode == "weapon_level":
+            buckets = ((1, 20, "Lv 1-20"), (21, 40, "Lv 21-40"), (41, 50, "Lv 41-50"), (51, 60, "Lv 51-60"))
+            for record in records:
+                counts[self._stats_bucket(_int_or_none(record.weapon_level) or 0, buckets, "전무 없음")] += 1
+        elif mode == "ex_skill":
+            for record in records:
+                counts[f"EX Lv {(_int_or_none(record.ex_skill) or 0)}"] += 1
+        elif mode in {"skill1", "skill2", "skill3"}:
+            label_map = {"skill1": "기본", "skill2": "강화", "skill3": "서브"}
+            for record in records:
+                counts[f"{label_map[mode]} Lv {(_int_or_none(getattr(record, mode)) or 0)}"] += 1
+        elif mode == "normal_skill_avg":
+            buckets = ((1, 3, "평균 1-3"), (4, 6, "평균 4-6"), (7, 9, "평균 7-9"), (10, 10, "평균 10"))
+            for record in records:
+                values = [_int_or_none(record.skill1) or 0, _int_or_none(record.skill2) or 0, _int_or_none(record.skill3) or 0]
+                counts[self._stats_bucket(round(sum(values) / 3), buckets)] += 1
+        elif mode == "equipment_avg":
+            buckets = ((1, 3, "평균 T1-T3"), (4, 6, "평균 T4-T6"), (7, 9, "평균 T7-T9"), (10, 10, "평균 T10"))
+            for record in records:
+                tiers = [self._stats_equipment_tier(record, index) for index in (1, 2, 3)]
+                counts[self._stats_bucket(round(sum(tiers) / 3), buckets)] += 1
+        elif mode in {"equip1", "equip2", "equip3"}:
+            slot_index = int(mode[-1])
+            for record in records:
+                tier = self._stats_equipment_tier(record, slot_index)
+                counts[f"T{tier}" if tier else "미장착"] += 1
+        elif mode == "equip4":
+            for record in records:
+                tier = _tier_from_item_id_or_name(None, record.equip4)
+                counts[f"T{tier}" if tier else "없음"] += 1
+        elif mode == "equipment_slot_status":
+            for record in records:
+                for slot_index in (1, 2, 3):
+                    tier = self._stats_equipment_tier(record, slot_index)
+                    if tier >= MAX_TARGET_EQUIP_TIER:
+                        counts["최대 티어"] += 1
+                    elif tier > 0:
+                        counts["장착"] += 1
+                    else:
+                        counts["미장착/잠김"] += 1
+            return self._stats_make_rows(counts, denominator=len(records) * 3)
+        elif mode in {"ability_hp", "ability_atk", "ability_heal"}:
+            field_name = {"ability_hp": "stat_hp", "ability_atk": "stat_atk", "ability_heal": "stat_heal"}[mode]
+            buckets = ((1, 5, "1-5"), (6, 10, "6-10"), (11, 15, "11-15"), (16, 20, "16-20"), (21, 24, "21-24"), (25, 25, "25"))
+            for record in records:
+                counts[self._stats_bucket(_int_or_none(getattr(record, field_name)) or 0, buckets, "0")] += 1
+        else:
+            buckets = ((1, 39, "0-39%"), (40, 59, "40-59%"), (60, 79, "60-79%"), (80, 94, "80-94%"), (95, 100, "95-100%"))
+            for record in records:
+                counts[self._stats_bucket(round(self._stats_growth_score(record)), buckets, "0%")] += 1
+        return self._stats_make_rows(counts, denominator=len(records))
+
+    def _stats_plan_rows(self, mode: str) -> list[DistributionRow]:
+        goal_map = self._plan_goal_map()
+        records = self._stats_scope_records()
+        planned_records = [record for record in records if record.student_id in goal_map]
+        if mode == "plan_membership":
+            counts = Counter(
+                "계획 있음" if record.student_id in goal_map else "계획 없음"
+                for record in records
+            )
+            return self._stats_make_rows(counts, denominator=len(records))
+
+        if mode == "planned_owned_ratio":
+            counts = Counter("보유" if record.owned else "미보유" for record in planned_records)
+            return self._stats_make_rows(counts, denominator=len(planned_records))
+
+        if mode == "plan_completion":
+            counts: Counter[str] = Counter()
+            for record in planned_records:
+                summary = self._cached_goal_cost(record.student_id, record=record, goal=goal_map.get(record.student_id), goal_map=goal_map)
+                counts["목표 달성"] += int(not self._stats_summary_has_requirement(summary))
+                counts["남은 목표 있음"] += int(self._stats_summary_has_requirement(summary))
+            return self._stats_make_rows(counts, denominator=max(1, len(planned_records)))
+
+        if mode in {"planned_school", "planned_role", "planned_attack"}:
+            field_name = {"planned_school": "school", "planned_role": "role", "planned_attack": "attack_type"}[mode]
+            return self._stats_field_rows(field_name, records=planned_records)
+
+        if mode.startswith("target_") or mode == "before_after_change":
+            counts: Counter[str] = Counter()
+            deltas: Counter[str] = Counter()
+            for record in planned_records:
+                goal = goal_map.get(record.student_id)
+                if goal is None:
+                    continue
+                target_level = max(_int_or_none(record.level) or 0, int(getattr(goal, "target_level", 0) or 0))
+                target_star = self._current_or_target_star(record, goal)
+                target_weapon = self._current_or_target_weapon_star(record, goal)
+                target_ex = max(_int_or_none(record.ex_skill) or 0, int(getattr(goal, "target_ex_skill", 0) or 0))
+                target_skills = [
+                    max(_int_or_none(getattr(record, field_name)) or 0, int(getattr(goal, f"target_{field_name}", 0) or 0))
+                    for field_name in ("skill1", "skill2", "skill3")
+                ]
+                target_equips = [
+                    max(self._stats_equipment_tier(record, slot_index), int(getattr(goal, f"target_equip{slot_index}_tier", 0) or 0))
+                    for slot_index in (1, 2, 3)
+                ]
+                target_stats = [
+                    max(_int_or_none(getattr(record, field_name)) or 0, int(getattr(goal, f"target_{field_name}", 0) or 0))
+                    for field_name in ("stat_hp", "stat_atk", "stat_heal")
+                ]
+                if mode == "target_level":
+                    counts[self._stats_bucket(target_level, ((1, 34, "Lv 1-34"), (35, 49, "Lv 35-49"), (50, 69, "Lv 50-69"), (70, 84, "Lv 70-84"), (85, 90, "Lv 85-90")))] += 1
+                elif mode == "target_star":
+                    counts[f"{target_star}성"] += 1
+                elif mode == "target_weapon":
+                    counts[f"전무 {target_weapon}성" if target_weapon else "전무 없음"] += 1
+                elif mode == "target_ex":
+                    counts[f"EX Lv {target_ex}"] += 1
+                elif mode == "target_normal_skill":
+                    counts[f"평균 Lv {round(sum(target_skills) / 3)}"] += 1
+                elif mode == "target_equipment":
+                    counts[f"평균 T{round(sum(target_equips) / 3)}"] += 1
+                elif mode == "target_ability":
+                    counts[f"평균 {round(sum(target_stats) / 3)}"] += 1
+                else:
+                    deltas["레벨"] += max(0, target_level - (_int_or_none(record.level) or 0))
+                    deltas["성급"] += max(0, target_star - self._record_current_star(record))
+                    deltas["전무"] += max(0, target_weapon - (int(record.weapon_star or 0)))
+                    deltas["EX"] += max(0, target_ex - (_int_or_none(record.ex_skill) or 0))
+                    deltas["일반 스킬"] += sum(max(0, target - (_int_or_none(getattr(record, field_name)) or 0)) for target, field_name in zip(target_skills, ("skill1", "skill2", "skill3")))
+                    deltas["장비"] += sum(max(0, target - self._stats_equipment_tier(record, slot_index)) for target, slot_index in zip(target_equips, (1, 2, 3)))
+                    deltas["능력개방"] += sum(max(0, target - (_int_or_none(getattr(record, field_name)) or 0)) for target, field_name in zip(target_stats, ("stat_hp", "stat_atk", "stat_heal")))
+            if mode == "before_after_change":
+                return self._stats_make_rows(deltas)
+            return self._stats_make_rows(counts, denominator=len(planned_records))
+
+        student_ids = [record.student_id for record in planned_records]
+        summary, _selected_count, contributing_count = self._resource_total_for_ids(student_ids, goal_map)
+        entries = self._plan_requirement_entries(summary)
+        if contributing_count == 0:
+            return []
+
+        if mode in {"required_categories", "shortage_categories"}:
+            counts: Counter[str] = Counter()
+            for entry in entries:
+                value = max(0, entry.required - entry.owned) if mode == "shortage_categories" else entry.required
+                if value > 0:
+                    counts[_plan_resource_category_label(entry.category)] += value
+            return self._stats_make_rows(counts)
+
+        if mode == "expensive_students":
+            counts = Counter()
+            for record in planned_records:
+                summary = self._cached_goal_cost(record.student_id, record=record, goal=goal_map.get(record.student_id), goal_map=goal_map)
+                if summary is None:
+                    continue
+                requirement_count = len(self._plan_requirement_entries(summary, record=record))
+                if requirement_count:
+                    counts[record.title] = requirement_count
+            return self._stats_make_rows(counts)
+
+        if mode == "remaining_growth":
+            counts = Counter()
+            for record in planned_records:
+                summary = self._cached_goal_cost(record.student_id, record=record, goal=goal_map.get(record.student_id), goal_map=goal_map)
+                if summary is None:
+                    continue
+                shortage_total = sum(max(0, entry.required - entry.owned) for entry in self._plan_requirement_entries(summary, record=record))
+                if shortage_total:
+                    counts[record.title] = shortage_total
+            return self._stats_make_rows(counts)
+
+        counts = Counter()
+        for entry in entries:
+            shortage = max(0, entry.required - entry.owned)
+            if shortage > 0:
+                counts[entry.name] += shortage
+        return self._stats_make_rows(counts)
+
+    def _stats_resource_rows(self, mode: str) -> list[DistributionRow]:
+        goal_map = self._plan_goal_map()
+        planned_records = [record for record in self._stats_scope_records() if record.student_id in goal_map]
+        summary, _selected_count, contributing_count = self._resource_total_for_ids([record.student_id for record in planned_records], goal_map)
+        if contributing_count == 0:
+            return []
+        entries = self._plan_requirement_entries(summary)
+        counts: Counter[str] = Counter()
+
+        if mode == "required_totals":
+            counts["크레딧"] = summary.credits
+            counts["활동 보고서 EXP"] = summary.level_exp
+            counts["장비 EXP"] = summary.equipment_exp
+            counts["무기 EXP"] = summary.weapon_exp
+            return self._stats_make_rows(counts)
+        if mode == "shortage_categories":
+            for entry in entries:
+                shortage = max(0, entry.required - entry.owned)
+                if shortage:
+                    counts[_plan_resource_category_label(entry.category)] += shortage
+            return self._stats_make_rows(counts)
+        if mode == "required_categories":
+            for entry in entries:
+                if entry.required:
+                    counts[_plan_resource_category_label(entry.category)] += entry.required
+            return self._stats_make_rows(counts)
+        if mode == "shortage_rate":
+            rows: list[DistributionRow] = []
+            shortage_rows = [
+                (entry.name, max(0, entry.required - entry.owned), entry.required)
+                for entry in entries
+                if entry.required > 0 and max(0, entry.required - entry.owned) > 0
+            ]
+            shortage_rows.sort(key=lambda item: (-(item[1] / max(1, item[2])), -item[1], item[0]))
+            for index, (name, shortage, required) in enumerate(shortage_rows):
+                rows.append(DistributionRow(name, shortage, shortage / max(1, required) * 100.0, PALETTE[index % len(PALETTE)]))
+            return rows
+        if mode == "school_demand":
+            for entry in entries:
+                for pattern in (r"Item_Icon_Material_ExSkill_([^_]+)_", r"Item_Icon_SkillBook_([^_]+)_"):
+                    match = re.match(pattern, entry.key)
+                    if match:
+                        counts[match.group(1)] += entry.required
+                        break
+            return self._stats_make_rows(counts)
+        if mode == "oopart_family":
+            for entry in entries:
+                if entry.category not in {"ex_ooparts", "skill_ooparts"}:
+                    continue
+                family = re.sub(r"\s+T\d+$", "", entry.name).strip() or entry.name
+                counts[family] += entry.required
+            return self._stats_make_rows(counts)
+        if mode == "equipment_type":
+            for entry in entries:
+                if entry.category != "equipment_materials":
+                    continue
+                series = _equipment_series_key_from_item(entry.key, entry.name) or re.sub(r"\s+T\d+$", "", entry.name).strip() or entry.name
+                counts[_equipment_series_label(series)] += entry.required
+            return self._stats_make_rows(counts)
+        if mode == "equipment_tier":
+            for entry in entries:
+                if entry.category != "equipment_materials":
+                    continue
+                tier = _tier_from_item_id_or_name(entry.key, entry.name)
+                counts[f"T{tier}" if tier else "티어 미상"] += entry.required
+            return self._stats_make_rows(counts)
+
+        for entry in entries:
+            shortage = max(0, entry.required - entry.owned)
+            if shortage:
+                counts[entry.name] += shortage
+        return self._stats_make_rows(counts)
+
+    def _stats_skill_rows(self, mode: str) -> list[DistributionRow]:
+        records = [record for record in self._stats_scope_records() if record.owned]
+        if mode == "skill_is_area_damage":
+            return self._stats_field_rows("skill_is_area_damage", records=records)
+        if mode in {"skill_ignore_cover", "skill_knockback"}:
+            return self._stats_field_rows(mode, records=records)
+        return self._stats_field_rows(mode, records=records, multi=True)
+
+    def _stats_show_chart_row_detail(self, row: DistributionRow) -> None:
+        if self._stats_sunburst_detail is None:
+            return
+        self._stats_sunburst_detail.setText(
+            "\n".join(
+                (
+                    "Chart selection",
+                    f"Label: {row.label}",
+                    f"Value: {_format_count(row.count, compact=True)}",
+                    f"Share: {row.percent:.1f}%",
+                )
+            )
+        )
+
+    def _stats_add_bar_rows(self, layout: QVBoxLayout, rows: list[DistributionRow], *, limit: int = 8, compact_count: bool = False) -> None:
+        if not rows:
+            empty = QLabel("현재 조건에 맞는 데이터가 없습니다.")
+            empty.setObjectName("detailSub")
+            layout.addWidget(empty)
+            return
+        for row in rows[:limit]:
+            wrap = QWidget()
+            row_layout = QHBoxLayout(wrap)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(scale_px(8, self._ui_scale))
+            label = QLabel(row.label)
+            label.setObjectName("detailSub")
+            label.setFixedWidth(scale_px(132, self._ui_scale))
+            label.setToolTip(row.label)
+            row_layout.addWidget(label, 0, Qt.AlignVCenter)
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(scale_px(8, self._ui_scale))
+            bar.setValue(max(0, min(100, int(round(row.percent)))))
+            row_layout.addWidget(bar, 1, Qt.AlignVCenter)
+            count_text = _format_count(row.count, compact=compact_count)
+            value = QLabel(f"{count_text} · {row.percent:.1f}%")
+            value.setObjectName("detailSub")
+            value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            value.setFixedWidth(scale_px(92, self._ui_scale))
+            row_layout.addWidget(value, 0, Qt.AlignVCenter)
+            wrap.setCursor(Qt.PointingHandCursor)
+            wrap.mousePressEvent = lambda event, row=row: self._stats_show_chart_row_detail(row)
+            layout.addWidget(wrap)
+
+    def _stats_add_distribution_rows(self, layout: QVBoxLayout, rows: list[DistributionRow]) -> None:
+        if not rows:
+            empty = QLabel("현재 조건에 맞는 데이터가 없습니다.")
+            empty.setObjectName("detailSub")
+            layout.addWidget(empty)
+            return
+        top = rows[0]
+        top_wrap = QHBoxLayout()
+        donut = DonutWidget(top.percent, top.color, f"{top.percent:.0f}%", self._ui_scale)
+        top_wrap.addWidget(donut, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        top_text = QVBoxLayout()
+        main_label = QLabel(top.label)
+        main_label.setObjectName("metricValue")
+        count_label = QLabel(f"{_format_count(top.count, compact=True)}")
+        count_label.setObjectName("detailSub")
+        top_text.addWidget(main_label)
+        top_text.addWidget(count_label)
+        top_wrap.addLayout(top_text, 1)
+        layout.addLayout(top_wrap)
+        self._stats_add_bar_rows(layout, rows, limit=5)
+
+    def _stats_add_chart_card(
+        self,
+        *,
+        grid: QGridLayout,
+        index: int,
+        title: str,
+        subtitle: str,
+        options: tuple[tuple[str, str], ...],
+        current_value: str,
+        attr_name: str,
+        rows: list[DistributionRow],
+        chart_kind: str,
+        compact_count: bool = False,
+    ) -> None:
+        card = QFrame()
+        card.setObjectName("statPanel")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale))
+        card_layout.setSpacing(scale_px(10, self._ui_scale))
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        title_wrap = QVBoxLayout()
+        title_label = QLabel(title)
+        title_label.setObjectName("sectionTitle")
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("detailSub")
+        subtitle_label.setWordWrap(True)
+        title_wrap.addWidget(title_label)
+        title_wrap.addWidget(subtitle_label)
+        header.addLayout(title_wrap, 1)
+        self._stats_option_combo(header, options, current_value, attr_name)
+        card_layout.addLayout(header)
+        if chart_kind == "distribution":
+            self._stats_add_distribution_rows(card_layout, rows)
+        else:
+            self._stats_add_bar_rows(card_layout, rows, compact_count=compact_count)
+        grid.addWidget(card, index // 2, index % 2)
+
     def _stats_value_label(self, record: StudentRecord, field_name: str) -> str:
         if field_name == "owned":
             return "보유" if record.owned else "미보유"
         value = get_student_value(record, field_name)
         return format_filter_value(field_name, value) if value else "(누락)"
 
-    def _sunburst_tree_from_paths(self, title: str, paths: list[tuple[tuple[str, ...], float]]) -> SunburstNode:
+    def _sunburst_context_merge(self, current: dict[str, object], incoming: dict[str, object]) -> None:
+        for key in ("student_ids", "resource_keys", "categories"):
+            value = incoming.get(key)
+            if value is None:
+                continue
+            target = current.setdefault(key, set())
+            if isinstance(target, set):
+                if isinstance(value, (set, list, tuple)):
+                    target.update(str(item) for item in value)
+                else:
+                    target.add(str(value))
+        for key in ("required", "owned", "shortage"):
+            value = incoming.get(key)
+            if value is None:
+                continue
+            try:
+                current[key] = float(current.get(key, 0.0) or 0.0) + float(value)
+            except (TypeError, ValueError):
+                pass
+        impacts = incoming.get("impacts")
+        if isinstance(impacts, list):
+            current.setdefault("impacts", [])
+            if isinstance(current["impacts"], list):
+                current["impacts"].extend(impacts)
+
+    def _sunburst_tree_from_paths(self, title: str, paths: list[tuple], *, value_mode: str | None = None) -> SunburstNode:
         tree: dict[str, dict] = {}
 
-        for raw_path, raw_value in paths:
+        for item in paths:
+            if len(item) == 2:
+                raw_path, raw_value = item
+                context = {}
+            else:
+                raw_path, raw_value, context = item
             value = float(raw_value or 0)
             if value <= 0:
                 continue
             cursor = tree
+            if isinstance(context, dict):
+                self._sunburst_context_merge(cursor.setdefault("_context", {}), context)
             for part in raw_path:
                 label = str(part or "(누락)")
                 cursor = cursor.setdefault(label, {})
+                if isinstance(context, dict):
+                    self._sunburst_context_merge(cursor.setdefault("_context", {}), context)
             cursor["_value"] = float(cursor.get("_value", 0.0)) + value
 
         def build(label: str, branch: dict) -> SunburstNode:
             children = [
                 build(child_label, child_branch)
                 for child_label, child_branch in branch.items()
-                if child_label != "_value"
+                if child_label not in {"_value", "_context"}
             ]
             children.sort(key=lambda child: (-child.total(), child.label.casefold()))
-            return SunburstNode(label=label, value=float(branch.get("_value", 0.0)), children=children)
+            context = dict(branch.get("_context", {}) or {})
+            node_value = float(branch.get("_value", 0.0))
+            if value_mode == "coverage":
+                required = float(context.get("required", 0.0) or 0.0)
+                owned = float(context.get("owned", 0.0) or 0.0)
+                node_value = 100.0 if required <= 0 and owned > 0 else max(0.0, min(100.0, owned / required * 100.0)) if required > 0 else 0.0
+                context["value_mode"] = "coverage"
+            node = SunburstNode(label=label, value=node_value, children=children, context=context)
+            node.context = context | {"node": node}
+            return node
 
         root = build(title, tree)
         return root
@@ -10868,12 +12702,25 @@ class StudentViewerWindow(QMainWindow):
         if mode == "collection_class_role_position":
             fields = ("combat_class", "role", "position")
             title = "Visible Students"
+        elif mode == "collection_attack_defense_role":
+            fields = ("attack_type", "defense_type", "role")
+            title = "Visible Students"
         else:
             fields = ("school", "role", "attack_type")
             title = "Visible Students"
+        value_key = self._stats_sunburst_value_key()
+        goal_map = self._plan_goal_map()
+        records = list(self._filtered_students)
         paths = [
-            (tuple(self._stats_value_label(record, field_name) for field_name in fields), 1.0)
-            for record in self._filtered_students
+            (
+                tuple(self._stats_value_label(record, field_name) for field_name in fields),
+                1.0,
+                {"student_ids": {record.student_id}},
+            )
+            for record in records
+            if value_key == "student_count"
+            or (value_key == "owned_count" and record.owned)
+            or (value_key == "planned_count" and record.student_id in goal_map)
         ]
         return self._sunburst_tree_from_paths(title, paths)
 
@@ -10885,12 +12732,12 @@ class StudentViewerWindow(QMainWindow):
             return ("Skills", "Tactical BD", match.group(1), f"T{int(match.group(2)) + 1}")
         match = re.match(r"Item_Icon_SkillBook_([^_]+)_(\d+)", item_id)
         if match:
-            return ("Skills", "Tech Notes", match.group(1), f"T{int(match.group(2)) + 1}")
+            return ("스킬", "기술 노트", match.group(1), f"T{int(match.group(2)) + 1}")
         base, tier = _plan_resource_split_tier(name)
         school, _, kind = base.partition(" ")
         if school and kind:
-            return ("Skills", kind, school, f"T{tier}" if tier else name)
-        return ("Skills", "Other", name)
+            return ("스킬", kind, school, f"T{tier}" if tier else name)
+        return ("스킬", "기타", name)
 
     def _oopart_sunburst_path(self, group: str, item_id: str, name: str) -> tuple[str, ...]:
         tier = _tier_from_item_id_or_name(item_id, name)
@@ -10903,51 +12750,105 @@ class StudentViewerWindow(QMainWindow):
         tier = _tier_from_item_id_or_name(item_id, name)
         series_key = _equipment_series_key_from_item(item_id, name)
         series = series_key or re.sub(r"\s+T\d+$", "", name).strip() or name
-        return ("Equipment", "Blueprints", series, f"T{tier}" if tier else name)
+        return ("장비", "설계도", series, f"T{tier}" if tier else name)
 
     def _resource_sunburst_root(self, *, shortage_only: bool) -> SunburstNode:
         goal_map = self._plan_goal_map()
-        student_ids = [record.student_id for record in self._filtered_students if record.student_id in goal_map]
-        summary, _selected_count, contributing_count = self._resource_total_for_ids(student_ids, goal_map)
-        entries = self._plan_requirement_entries(summary)
-        paths: list[tuple[tuple[str, ...], float]] = []
+        records = [record for record in self._filtered_students if record.student_id in goal_map]
+        value_key = self._stats_sunburst_value_key()
+        paths: list[tuple] = []
 
-        for entry in entries:
-            value = max(0, entry.required - entry.owned) if shortage_only else entry.required
-            if value <= 0:
-                continue
+        def resource_path(entry: PlanResourceRequirement) -> tuple[str, ...]:
             item_id = entry.key
             if entry.category == "credits":
-                path = ("Currency", entry.name)
-            elif entry.category == "level_exp":
-                path = ("Level", "Activity Reports", entry.name)
-            elif entry.category == "equipment_exp":
-                path = ("Equipment", "EXP", entry.name)
-            elif entry.category == "weapon_exp":
-                path = ("Weapon", "EXP", entry.name)
-            elif entry.category == "skill_books":
-                path = self._skill_book_sunburst_path(item_id, entry.name)
-            elif entry.category == "ex_ooparts":
-                path = self._oopart_sunburst_path("EX Skills", item_id, entry.name)
-            elif entry.category == "skill_ooparts":
-                path = self._oopart_sunburst_path("Basic Skills", item_id, entry.name)
-            elif entry.category == "stat_materials":
-                path = ("능력개방", entry.name)
-            elif entry.category == "favorite_item_materials":
-                path = ("Favorite Item", entry.name)
-            elif entry.category == "equipment_materials":
-                path = self._equipment_sunburst_path(item_id, entry.name)
-            elif entry.category == "star_materials":
-                path = ("Stars / Weapon", "Eleph", entry.name)
-            else:
-                path = ("Other", entry.category, entry.name)
-            paths.append((path, value))
+                return ("재화", entry.name)
+            if entry.category == "level_exp":
+                return ("레벨", "활동 보고서", entry.name)
+            if entry.category == "equipment_exp":
+                return ("장비", "경험치", entry.name)
+            if entry.category == "weapon_exp":
+                return ("전용무기", "경험치", entry.name)
+            if entry.category == "skill_books":
+                return self._skill_book_sunburst_path(item_id, entry.name)
+            if entry.category == "ex_ooparts":
+                return self._oopart_sunburst_path("EX 스킬", item_id, entry.name)
+            if entry.category == "skill_ooparts":
+                return self._oopart_sunburst_path("일반 스킬", item_id, entry.name)
+            if entry.category == "stat_materials":
+                return ("능력개방", entry.name)
+            if entry.category == "favorite_item_materials":
+                return ("애용품", entry.name)
+            if entry.category == "equipment_materials":
+                return self._equipment_sunburst_path(item_id, entry.name)
+            if entry.category == "star_materials":
+                return ("성작 / 전용무기", "엘레프", entry.name)
+            return ("기타", entry.category, entry.name)
+
+        for record in records:
+            summary = self._cached_goal_cost(record.student_id, record=record, goal=goal_map.get(record.student_id), goal_map=goal_map)
+            if summary is None:
+                continue
+            for entry in self._plan_requirement_entries(summary, record=record):
+                shortage = max(0, entry.required - entry.owned)
+                if value_key == "coverage":
+                    value = 100.0 if entry.required <= 0 else max(0.0, min(100.0, (entry.owned / entry.required) * 100.0))
+                elif shortage_only or value_key == "shortage":
+                    value = shortage
+                else:
+                    value = entry.required
+                if value <= 0:
+                    continue
+                base_path = resource_path(entry)
+                path = (*base_path, record.title) if shortage_only else base_path
+                paths.append(
+                    (
+                        path,
+                        value,
+                        {
+                            "student_ids": {record.student_id},
+                            "resource_keys": {entry.key},
+                            "categories": {entry.category},
+                            "required": entry.required,
+                            "owned": entry.owned,
+                            "shortage": shortage,
+                            "impacts": [(record.student_id, record.title, entry.name, int(entry.required), int(shortage))],
+                        },
+                    )
+                )
 
         title = "계획 부족" if shortage_only else "계획 필요"
-        root = self._sunburst_tree_from_paths(title, paths)
-        if contributing_count == 0:
-            return SunburstNode(label=title)
-        return root
+        return self._sunburst_tree_from_paths(title, paths, value_mode="coverage" if value_key == "coverage" else None)
+
+    def _skill_function_sunburst_root(self) -> SunburstNode:
+        records = [record for record in self._filtered_students if record.owned]
+        groups = (
+            ("버프", "skill_buff"),
+            ("디버프", "skill_debuff"),
+            ("CC", "skill_cc"),
+            ("특수 효과", "skill_special"),
+            ("회복", "skill_heal_targets"),
+            ("해제", "skill_dispel_targets"),
+            ("이동", "skill_reposition_targets"),
+            ("소환", "skill_summon_types"),
+            ("패시브", "passive_stat"),
+            ("전무 패시브", "weapon_passive_stat"),
+            ("추가 패시브", "extra_passive_stat"),
+        )
+        paths: list[tuple] = []
+        for record in records:
+            for group_label, field_name in groups:
+                for value in get_student_values(record, field_name):
+                    label = format_filter_value(field_name, value)
+                    paths.append(((group_label, label, record.title), 1.0, {"student_ids": {record.student_id}}))
+            for field_name, label in (
+                ("skill_is_area_damage", "EX 범위 공격"),
+                ("skill_ignore_cover", "엄폐 무시"),
+                ("skill_knockback", "넉백"),
+            ):
+                value = get_student_value(record, field_name)
+                if value:
+                    paths.append(((label, format_filter_value(field_name, value), record.title), 1.0, {"student_ids": {record.student_id}}))
+        return self._sunburst_tree_from_paths("기능 맵", paths)
 
     def _stats_sunburst_root(self) -> SunburstNode:
         mode = self._stats_sunburst_mode.currentData() if self._stats_sunburst_mode is not None else None
@@ -10955,22 +12856,87 @@ class StudentViewerWindow(QMainWindow):
             return self._resource_sunburst_root(shortage_only=False)
         if mode == "plan_shortage":
             return self._resource_sunburst_root(shortage_only=True)
+        if mode == "skill_function":
+            return self._skill_function_sunburst_root()
         return self._collection_sunburst_root(str(mode or "collection_school_role_attack"))
 
+    def _stats_rebuild_sunburst_breadcrumb(self, breadcrumb: tuple[str, ...]) -> None:
+        layout = self._stats_sunburst_breadcrumb_layout
+        if layout is None:
+            return
+        self._clear_layout_widgets(layout)
+        if not breadcrumb:
+            button = QPushButton("전체")
+            button.clicked.connect(self._stats_reset_sunburst_root)
+            layout.addWidget(button, 0, Qt.AlignLeft)
+            layout.addStretch(1)
+            return
+        for index, part in enumerate(breadcrumb):
+            if index:
+                separator = QLabel(">")
+                separator.setObjectName("filterSummary")
+                layout.addWidget(separator, 0, Qt.AlignLeft)
+            button = QPushButton(part)
+            if index == 0:
+                button.clicked.connect(self._stats_reset_sunburst_root)
+            else:
+                target_path = tuple(breadcrumb[: index + 1])
+                button.clicked.connect(lambda _checked=False, path=target_path: self._stats_apply_sunburst_path(path, push_current=True))
+            layout.addWidget(button, 0, Qt.AlignLeft)
+        layout.addStretch(1)
+
     def _refresh_stats_sunburst(self) -> None:
-        if self._stats_sunburst is None or self._stats_sunburst_detail is None:
+        if self._stats_sunburst is None or self._stats_sunburst_detail is None or self._stats_sunburst_top_detail is None:
             return
         root = self._stats_sunburst_root()
-        self._stats_sunburst.setRoot(root)
-        if not root.children:
-            self._stats_sunburst_detail.setText("현재 모드와 필터에 맞는 데이터가 없습니다.")
+        breadcrumb = self._stats_sunburst_breadcrumb_path or (root.label,)
+        display_root = self._stats_node_for_path(root, breadcrumb) or root
+        if display_root is root:
+            breadcrumb = (root.label,)
+        self._stats_sunburst.setRoot(display_root, selected_path=(), breadcrumb=breadcrumb)
+        self._stats_rebuild_sunburst_breadcrumb(breadcrumb)
+        if self._stats_sunburst_root_button is not None:
+            self._stats_sunburst_root_button.setEnabled(display_root is not root or bool(self._stats_sunburst_selected_path))
+        if self._stats_sunburst_back_button is not None:
+            self._stats_sunburst_back_button.setEnabled(bool(self._stats_sunburst_drill_stack))
+        if self._stats_sunburst_clear_button is not None:
+            self._stats_sunburst_clear_button.setEnabled(bool(self._stats_sunburst_selected_context))
+        if not display_root.children:
+            self._stats_sunburst_top_detail.setText("현재 모드와 필터에 맞는 데이터가 없습니다.")
+            self._stats_sunburst_detail.setText("선택된 segment가 없습니다.")
             return
-        total = root.total()
-        lines = [f"Total: {total:,.0f}"]
-        for child in sorted(root.children, key=lambda node: (-node.total(), node.label.casefold()))[:8]:
+        total = display_root.total()
+        top_lines = [f"Root: {' > '.join(breadcrumb)}", f"Total: {total:,.0f}"]
+        for child in sorted(display_root.children, key=lambda node: (-node.total(), node.label.casefold()))[:8]:
             percent = (child.total() / total * 100.0) if total else 0.0
-            lines.append(f"{child.label}: {child.total():,.0f} ({percent:.1f}%)")
-        self._stats_sunburst_detail.setText("\n".join(lines))
+            top_lines.append(f"{child.label}: {child.total():,.0f} ({percent:.1f}%)")
+        self._stats_sunburst_top_detail.setText("\n".join(top_lines))
+
+        context = self._stats_sunburst_selected_context
+        lines: list[str] = []
+        if context:
+            required = float(context.get("required", 0.0) or 0.0)
+            owned = float(context.get("owned", 0.0) or 0.0)
+            shortage = float(context.get("shortage", 0.0) or 0.0)
+            student_ids = context.get("student_ids")
+            student_count = len(student_ids) if isinstance(student_ids, set) else 0
+            if self._stats_sunburst_selected_path:
+                lines.append("Path: " + " > ".join(self._stats_sunburst_selected_path))
+            if student_count:
+                lines.append(f"Students: {student_count:,}")
+            if required or owned or shortage:
+                coverage = 100.0 if required <= 0 else max(0.0, min(100.0, owned / required * 100.0))
+                lines.append(f"Required: {_format_count(required, compact=True)}")
+                lines.append(f"Owned: {_format_count(owned, compact=True)}")
+                lines.append(f"Shortage: {_format_count(shortage, compact=True)}")
+                lines.append(f"Coverage: {coverage:.1f}%")
+            impacts = context.get("impacts")
+            if isinstance(impacts, list) and impacts:
+                lines.append("Impact TOP")
+                for impact in sorted(impacts, key=lambda item: (-(item[4] if len(item) > 4 else 0), str(item[1])))[:6]:
+                    if len(impact) >= 5:
+                        lines.append(f"- {impact[1]}: {impact[2]} {_format_count(impact[3], compact=True)} / 부족 {_format_count(impact[4], compact=True)}")
+        self._stats_sunburst_detail.setText("\n".join(lines) if lines else "선택된 segment가 없습니다.")
 
     def _refresh_stats_tab(self) -> None:
         if self._stats_cards_layout is None or self._stats_summary_host is None:
@@ -10988,19 +12954,56 @@ class StudentViewerWindow(QMainWindow):
             if widget is not None:
                 widget.deleteLater()
 
-        total = len(self._filtered_students)
-        owned = sum(1 for record in self._filtered_students if record.owned)
+        records = self._stats_scope_records()
+        total = len(records)
+        owned = sum(1 for record in records if record.owned)
+        unowned = max(0, total - owned)
         goal_map = self._plan_goal_map()
-        planned = sum(1 for record in self._filtered_students if record.student_id in goal_map)
-        avg_level = round(sum((record.level or 0) for record in self._filtered_students if record.owned) / max(1, owned), 1) if owned else 0
-        avg_star = round(sum(record.star for record in self._filtered_students if record.owned) / max(1, owned), 1) if owned else 0
+        planned = sum(1 for record in records if record.student_id in goal_map)
+        owned_records = [record for record in records if record.owned]
+        planned_records = [record for record in records if record.student_id in goal_map]
+        avg_level = round(sum((_int_or_none(record.level) or 0) for record in owned_records) / max(1, owned), 1) if owned else 0
+        avg_star = round(sum(record.star for record in owned_records) / max(1, owned), 1) if owned else 0
+        weapon_records = [record for record in owned_records if record.weapon_state in {"weapon_equipped", "weapon_unlocked_not_equipped"}]
+        avg_weapon = round(sum((_int_or_none(record.weapon_level) or 0) for record in weapon_records) / max(1, len(weapon_records)), 1) if weapon_records else 0
+        avg_ex = round(sum((_int_or_none(record.ex_skill) or 0) for record in owned_records) / max(1, owned), 1) if owned else 0
+        normal_skill_values = [
+            (_int_or_none(record.skill1) or 0) + (_int_or_none(record.skill2) or 0) + (_int_or_none(record.skill3) or 0)
+            for record in owned_records
+        ]
+        avg_normal_skill = round(sum(normal_skill_values) / max(1, owned * 3), 1) if owned else 0
+        avg_equip = round(
+            sum(sum(self._stats_equipment_tier(record, index) for index in (1, 2, 3)) for record in owned_records) / max(1, owned * 3),
+            1,
+        ) if owned else 0
+        avg_ability = round(
+            sum((_int_or_none(record.stat_hp) or 0) + (_int_or_none(record.stat_atk) or 0) + (_int_or_none(record.stat_heal) or 0) for record in owned_records) / max(1, owned * 3),
+            1,
+        ) if owned else 0
+        avg_score = round(sum(self._stats_growth_score(record) for record in owned_records) / max(1, owned), 1) if owned else 0
+        complete_count = 0
+        for record in planned_records:
+            summary = self._cached_goal_cost(record.student_id, record=record, goal=goal_map.get(record.student_id), goal_map=goal_map)
+            if not self._stats_summary_has_requirement(summary):
+                complete_count += 1
+        completion = round(complete_count / max(1, len(planned_records)) * 100.0, 1) if planned_records else 0
+        planned_summary, _selected_count, contributing_count = self._resource_total_for_ids([record.student_id for record in planned_records], goal_map)
+        shortage_count = 0
+        if contributing_count:
+            shortage_count = sum(1 for entry in self._plan_requirement_entries(planned_summary) if entry.required > entry.owned)
 
         summary_cards = (
-            ("Visible Students", str(total), "Current filtered collection"),
-            ("보유 학생", str(owned), "현재 표시된 학생 중 보유"),
-            ("계획 학생", str(planned), "플래너에 추가된 학생"),
-            ("평균 레벨", f"{avg_level}", "보유 학생 기준"),
-            ("평균 성급", f"{avg_star}", "보유 학생 기준"),
+            ("표시 학생", str(total), "현재 필터 기준"),
+            ("보유/미보유", f"{owned}/{unowned}", f"보유율 {(owned / max(1, total) * 100.0):.1f}%"),
+            ("계획 편입률", f"{(planned / max(1, total) * 100.0):.1f}%", f"{planned}명 계획"),
+            ("평균 레벨/성급", f"{avg_level} / {avg_star}", "보유 학생 기준"),
+            ("평균 전무/EX", f"{avg_weapon} / {avg_ex}", "전무 레벨 / EX"),
+            ("평균 일반 스킬", f"{avg_normal_skill}", "기본/강화/서브 평균"),
+            ("평균 장비", f"T{avg_equip}", "1-3번 장비 평균"),
+            ("능력개방 평균", f"{avg_ability}", "HP/ATK/HEAL 평균"),
+            ("육성 완성도", f"{avg_score:.1f}%", "레벨/성급/스킬/장비/전무/능력개방"),
+            ("계획 완료율", f"{completion:.1f}%", f"{complete_count}/{len(planned_records)}명 목표 달성"),
+            ("부족 재화", str(shortage_count), "계획 기준 부족 항목"),
         )
         for index, (label, value, sub) in enumerate(summary_cards):
             card = QFrame()
@@ -11016,52 +13019,170 @@ class StudentViewerWindow(QMainWindow):
             card_layout.addWidget(text_label)
             card_layout.addWidget(value_label)
             card_layout.addWidget(sub_label)
-            self._stats_summary_cards.addWidget(card, 0, index)
+            self._stats_summary_cards.addWidget(card, index // 4, index % 4)
 
-        self._stats_summary_line.setText(f"통계는 학생 탭에 현재 표시된 {len(self._filtered_students)}명을 기준으로 합니다.")
+        if self._stats_scope_student_ids():
+            self._stats_summary_line.setText(
+                f"통계는 학생 탭에 현재 표시된 {len(self._filtered_students)}명 중 선버스트 선택 범위 {len(records)}명을 기준으로 합니다."
+            )
+        else:
+            self._stats_summary_line.setText(f"통계는 학생 탭에 현재 표시된 {len(self._filtered_students)}명을 기준으로 합니다.")
         self._refresh_stats_sunburst()
 
-        chart_specs = (
-            ("Ownership", "owned"),
-            ("School Distribution", "school"),
-            ("Combat Class", "combat_class"),
-            ("Attack Type", "attack_type"),
-            ("Defense Type", "defense_type"),
-            ("Role Distribution", "role"),
+        collection_options = (
+            ("보유 여부", "owned"),
+            ("학교", "school"),
+            ("초기 성급", "rarity"),
+            ("파밍", "farmable"),
+            ("공격 타입", "attack_type"),
+            ("방어 타입", "defense_type"),
+            ("클래스", "combat_class"),
+            ("역할", "role"),
+            ("포지션", "position"),
+            ("무기 타입", "weapon_type"),
+            ("엄폐", "cover_type"),
+            ("사거리", "range_type"),
+            ("메인 오파츠", "growth_material_main"),
+            ("서브 오파츠", "growth_material_sub"),
         )
-        for index, (title, field_name) in enumerate(chart_specs):
-            rows = build_distribution(self._filtered_students, field_name)
-            card = QFrame()
-            card.setObjectName("statPanel")
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale), scale_px(16, self._ui_scale))
-            card_layout.setSpacing(scale_px(10, self._ui_scale))
-            title_label = QLabel(title)
-            title_label.setObjectName("sectionTitle")
-            card_layout.addWidget(title_label)
-            if rows:
-                top = rows[0]
-                top_wrap = QHBoxLayout()
-                donut = DonutWidget(top.percent, top.color, f"{top.percent:.0f}%", self._ui_scale)
-                top_wrap.addWidget(donut, 0, Qt.AlignLeft | Qt.AlignVCenter)
-                top_text = QVBoxLayout()
-                main_label = QLabel(top.label)
-                main_label.setObjectName("metricValue")
-                count_label = QLabel(f"{top.count}명")
-                count_label.setObjectName("detailSub")
-                top_text.addWidget(main_label)
-                top_text.addWidget(count_label)
-                top_wrap.addLayout(top_text, 1)
-                card_layout.addLayout(top_wrap)
-                for row in rows[:4]:
-                    row_label = QLabel(f"{row.label}  ·  {row.count}  ·  {row.percent:.1f}%")
-                    row_label.setObjectName("detailSub")
-                    card_layout.addWidget(row_label)
-            else:
-                empty = QLabel("No data available for this distribution.")
-                empty.setObjectName("detailSub")
-                card_layout.addWidget(empty)
-            self._stats_cards_layout.addWidget(card, index // 2, index % 2)
+        growth_options = (
+            ("레벨 구간", "level_bucket"),
+            ("성급", "star"),
+            ("전용무기 상태", "weapon_state"),
+            ("전용무기 성급", "weapon_star"),
+            ("전용무기 레벨", "weapon_level"),
+            ("EX 스킬", "ex_skill"),
+            ("기본 스킬", "skill1"),
+            ("강화 스킬", "skill2"),
+            ("서브 스킬", "skill3"),
+            ("일반 스킬 평균", "normal_skill_avg"),
+            ("장비 평균 티어", "equipment_avg"),
+            ("1번 장비", "equip1"),
+            ("2번 장비", "equip2"),
+            ("3번 장비", "equip3"),
+            ("장비 슬롯 상태", "equipment_slot_status"),
+            ("애용품", "equip4"),
+            ("능력개방 HP", "ability_hp"),
+            ("능력개방 ATK", "ability_atk"),
+            ("능력개방 HEAL", "ability_heal"),
+            ("종합 완성도", "growth_score"),
+        )
+        plan_options = (
+            ("계획 포함 여부", "plan_membership"),
+            ("계획 대상 보유율", "planned_owned_ratio"),
+            ("목표 완료 여부", "plan_completion"),
+            ("학생별 남은 성장량", "remaining_growth"),
+            ("남은 재화 종류 많은 학생", "expensive_students"),
+            ("목표 레벨", "target_level"),
+            ("목표 성급", "target_star"),
+            ("목표 전무", "target_weapon"),
+            ("목표 EX", "target_ex"),
+            ("목표 일반 스킬", "target_normal_skill"),
+            ("목표 장비", "target_equipment"),
+            ("목표 능력개방", "target_ability"),
+            ("계획 전후 변화", "before_after_change"),
+            ("계획 학교 구성", "planned_school"),
+            ("계획 역할 구성", "planned_role"),
+            ("계획 공격 타입", "planned_attack"),
+            ("필요 재화 카테고리", "required_categories"),
+            ("부족 재화 TOP", "shortage_items"),
+        )
+        resource_options = (
+            ("총 필요량", "required_totals"),
+            ("부족 재화 TOP", "shortage_items"),
+            ("부족률 TOP", "shortage_rate"),
+            ("필요 카테고리", "required_categories"),
+            ("부족 카테고리", "shortage_categories"),
+            ("학교별 BD/노트", "school_demand"),
+            ("오파츠 계열", "oopart_family"),
+            ("장비 종류", "equipment_type"),
+            ("장비 티어", "equipment_tier"),
+        )
+        skill_options = (
+            ("버프", "skill_buff"),
+            ("디버프", "skill_debuff"),
+            ("CC", "skill_cc"),
+            ("특수 효과", "skill_special"),
+            ("회복 대상", "skill_heal_targets"),
+            ("해제 대상", "skill_dispel_targets"),
+            ("이동 대상", "skill_reposition_targets"),
+            ("소환", "skill_summon_types"),
+            ("패시브 스탯", "passive_stat"),
+            ("전무 패시브", "weapon_passive_stat"),
+            ("추가 패시브", "extra_passive_stat"),
+            ("EX 범위 공격", "skill_is_area_damage"),
+            ("엄폐 무시", "skill_ignore_cover"),
+            ("넉백", "skill_knockback"),
+        )
+
+        if self._stats_collection_mode not in {value for _label, value in collection_options}:
+            self._stats_collection_mode = "school"
+        if self._stats_growth_mode not in {value for _label, value in growth_options}:
+            self._stats_growth_mode = "level_bucket"
+        if self._stats_plan_mode not in {value for _label, value in plan_options}:
+            self._stats_plan_mode = "shortage_items"
+        if self._stats_resource_mode not in {value for _label, value in resource_options}:
+            self._stats_resource_mode = "shortage_items"
+        if self._stats_skill_mode not in {value for _label, value in skill_options}:
+            self._stats_skill_mode = "skill_buff"
+
+        self._stats_add_chart_card(
+            grid=self._stats_cards_layout,
+            index=0,
+            title="컬렉션 구성",
+            subtitle="비교 기준이 명확한 분포는 도넛과 상위 목록으로 보여줍니다.",
+            options=collection_options,
+            current_value=self._stats_collection_mode,
+            attr_name="_stats_collection_mode",
+            rows=self._stats_field_rows(self._stats_collection_mode),
+            chart_kind="distribution",
+        )
+        self._stats_add_chart_card(
+            grid=self._stats_cards_layout,
+            index=1,
+            title="육성 상태",
+            subtitle="레벨, 성급, 장비, 스킬처럼 순서가 있는 값은 구간 막대로 봅니다.",
+            options=growth_options,
+            current_value=self._stats_growth_mode,
+            attr_name="_stats_growth_mode",
+            rows=self._stats_growth_rows(self._stats_growth_mode),
+            chart_kind="bar",
+        )
+        self._stats_add_chart_card(
+            grid=self._stats_cards_layout,
+            index=2,
+            title="계획 / 재화",
+            subtitle="목표 완료 여부와 필요·부족 재화를 랭킹 형태로 봅니다.",
+            options=plan_options,
+            current_value=self._stats_plan_mode,
+            attr_name="_stats_plan_mode",
+            rows=self._stats_plan_rows(self._stats_plan_mode),
+            chart_kind="bar",
+            compact_count=True,
+        )
+        self._stats_add_chart_card(
+            grid=self._stats_cards_layout,
+            index=3,
+            title="재화 / 인벤토리",
+            subtitle="필요량, 부족량, 부족률, 학교·오파츠·장비 병목을 따로 확인합니다.",
+            options=resource_options,
+            current_value=self._stats_resource_mode,
+            attr_name="_stats_resource_mode",
+            rows=self._stats_resource_rows(self._stats_resource_mode),
+            chart_kind="bar",
+            compact_count=True,
+        )
+        self._stats_add_chart_card(
+            grid=self._stats_cards_layout,
+            index=4,
+            title="스킬 태그",
+            subtitle="버프, 디버프, CC, 회복, 특수 효과 보유 현황을 학생 비율로 봅니다.",
+            options=skill_options,
+            current_value=self._stats_skill_mode,
+            attr_name="_stats_skill_mode",
+            rows=self._stats_skill_rows(self._stats_skill_mode),
+            chart_kind="bar",
+        )
 
     def _format_cost_summary(self, summary: PlanCostSummary) -> str:
         lines = [
@@ -11128,10 +13249,12 @@ class StudentViewerWindow(QMainWindow):
         self._inventory_quantity_index_cache = _inventory_quantity_index(self._inventory_snapshot or {})
         self._plan = load_plan(self._plan_path)
         self._tactical_data = load_tactical_challenge(self._tactical_path, load_matches=False)
+        self._raid_guide_data = load_raid_guides(self._raid_guide_path)
         self._invalidate_plan_caches()
         self._storage_mtimes = self._snapshot_storage_mtimes()
         self._records_by_id = {record.student_id: record for record in self._all_students}
         self._tactical_student_lookup_index = None
+        self._raid_student_lookup_index = None
         self._filter_options = build_filter_options(self._all_students)
         self._unowned_icon_cache.clear()
         self._apply_filters()
@@ -11140,6 +13263,8 @@ class StudentViewerWindow(QMainWindow):
         self._refresh_stats_tab()
         self._refresh_inventory_tab()
         self._refresh_tactical_tab()
+        self._refresh_raid_guide_list()
+        self._load_selected_raid_guide()
 
     def _schedule_filter_refresh(self, *_args) -> None:
         self._filter_refresh_timer.start()
@@ -11354,7 +13479,7 @@ class StudentViewerWindow(QMainWindow):
         self._detail_badges.clear()
         self._subtitle.setVisible(False)
         self._detail_badges.setVisible(False)
-        self._detail_plan_button.setText("Open In Plan" if record.student_id in self._plan_goal_map() else "Add To Plan")
+        self._detail_plan_button.setText("플랜에서 보기" if record.student_id in self._plan_goal_map() else "플랜에 추가")
         self._detail_attack_bar.setColors(_mix_hex(attack_color, SURFACE_ALT, 0.12), attack_color)
         self._detail_defense_bar.setColors(_mix_hex(defense_color, SURFACE_ALT, 0.12), defense_color)
         has_weapon_progress = record.owned and record.star >= 5 and (record.weapon_state or "") != "no_weapon_system"
@@ -11432,7 +13557,7 @@ class StudentViewerWindow(QMainWindow):
             self._hero.setPixmap(self._unowned_icon(record.student_id).pixmap(self._hero.size()), owned=False)
 
     def _clear_detail(self) -> None:
-        self._name.setText("Select a student")
+        self._name.setText("학생을 선택하세요")
         self._subtitle.clear()
         self._detail_badges.clear()
         self._subtitle.setVisible(False)
@@ -11440,7 +13565,7 @@ class StudentViewerWindow(QMainWindow):
         self._detail_attack_chip.setVisible(False)
         self._detail_defense_chip.setVisible(False)
         self._detail_school_icon.setPixmap(QPixmap())
-        self._detail_plan_button.setText("Add To Plan")
+        self._detail_plan_button.setText("플랜에 추가")
         self._detail_progress_strip.setProgress(0, 0, False)
         self._detail_level_value.setText("-")
         self._detail_position_value.setText("-")

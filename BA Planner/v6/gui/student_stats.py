@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import math
 from typing import Any, Sequence
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -69,8 +69,13 @@ class SunburstNode:
     value: float = 0.0
     children: list["SunburstNode"] = field(default_factory=list)
     color: str | None = None
+    context: dict[str, object] | None = None
 
     def total(self) -> float:
+        if self.context and self.context.get("value_mode") == "coverage":
+            value = float(self.value or 0.0)
+            if value > 0:
+                return value
         child_total = sum(child.total() for child in self.children)
         return max(float(self.value or 0.0), child_total)
 
@@ -78,14 +83,19 @@ class SunburstNode:
 @dataclass(frozen=True, slots=True)
 class _SunburstSegment:
     label: str
-    path: str
+    path: tuple[str, ...]
     value: float
+    percent: float
     depth: int
     start_angle: float
     span_angle: float
     inner_radius: float
     outer_radius: float
     color: str
+    context: dict[str, object] | None = None
+
+    def path_text(self) -> str:
+        return " > ".join(self.path)
 
 
 def build_distribution(students: Sequence[Any], field_name: str) -> list[DistributionRow]:
@@ -160,17 +170,28 @@ def _mix_color(color: QColor, target: QColor, amount: float) -> QColor:
 
 
 class SunburstWidget(QWidget):
+    segmentSelected = Signal(object)
+
     def __init__(self, ui_scale: float, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._ui_scale = ui_scale
         self._root = SunburstNode("No data")
         self._segments: list[_SunburstSegment] = []
         self._hover_segment: _SunburstSegment | None = None
+        self._selected_path: tuple[str, ...] = ()
+        self._breadcrumb: tuple[str, ...] = ()
         self.setMouseTracking(True)
         self.setMinimumSize(int(520 * ui_scale), int(430 * ui_scale))
 
-    def setRoot(self, root: SunburstNode) -> None:
+    def setRoot(
+        self,
+        root: SunburstNode,
+        selected_path: Sequence[str] = (),
+        breadcrumb: Sequence[str] = (),
+    ) -> None:
         self._root = root
+        self._selected_path = tuple(selected_path)
+        self._breadcrumb = tuple(breadcrumb)
         self._hover_segment = None
         self.update()
 
@@ -198,6 +219,7 @@ class SunburstWidget(QWidget):
         center_radius = max(42.0 * self._ui_scale, max_radius * 0.17)
         ring_width = max(34.0 * self._ui_scale, (max_radius - center_radius) / max(1, max_depth))
 
+        parent_path = self._breadcrumb if self._breadcrumb else (self._root.label,)
         self._draw_children(
             painter,
             self._root.children,
@@ -207,7 +229,7 @@ class SunburstWidget(QWidget):
             -360.0,
             center_radius,
             ring_width,
-            self._root.label,
+            parent_path,
         )
         self._draw_center(painter, center, center_radius, root_total)
 
@@ -221,13 +243,91 @@ class SunburstWidget(QWidget):
             return
         QToolTip.showText(
             event.globalPosition().toPoint(),
-            f"{segment.path}\n{segment.value:,.0f}",
+            f"{segment.path_text()}\n{segment.value:,.0f} ({segment.percent:.1f}%)",
             self,
         )
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() != Qt.LeftButton:
+            super().mousePressEvent(event)
+            return
+        segment = self._segment_at(event.position())
+        if segment is None:
+            self.segmentSelected.emit({})
+            return
+        self._selected_path = segment.path
+        self.segmentSelected.emit(
+            {
+                "label": segment.label,
+                "path": segment.path,
+                "value": segment.value,
+                "percent": segment.percent,
+                "context": segment.context or {},
+            }
+        )
+        self.update()
 
     def leaveEvent(self, _event) -> None:
         self._hover_segment = None
         QToolTip.hideText()
+
+    @staticmethod
+    def _merged_context(nodes: Sequence[SunburstNode]) -> dict[str, object]:
+        merged: dict[str, object] = {}
+        for node in nodes:
+            context = node.context or {}
+            for key in ("student_ids", "resource_keys", "categories"):
+                value = context.get(key)
+                if value is None:
+                    continue
+                target = merged.setdefault(key, set())
+                if isinstance(target, set):
+                    if isinstance(value, (set, list, tuple)):
+                        target.update(str(item) for item in value)
+                    else:
+                        target.add(str(value))
+            for key in ("required", "owned", "shortage"):
+                value = context.get(key)
+                if value is None:
+                    continue
+                try:
+                    merged[key] = float(merged.get(key, 0.0) or 0.0) + float(value)
+                except (TypeError, ValueError):
+                    pass
+            impacts = context.get("impacts")
+            if isinstance(impacts, list):
+                merged.setdefault("impacts", [])
+                if isinstance(merged["impacts"], list):
+                    merged["impacts"].extend(impacts)
+        return merged
+
+    def _display_nodes(self, nodes: Sequence[SunburstNode]) -> list[SunburstNode]:
+        siblings = [node for node in nodes if node.total() > 0]
+        siblings.sort(key=lambda node: (-node.total(), node.label.casefold()))
+        total = sum(node.total() for node in siblings)
+        if total <= 0:
+            return siblings
+
+        kept: list[SunburstNode] = []
+        grouped: list[SunburstNode] = []
+        for index, node in enumerate(siblings):
+            if index < 9 and (node.total() / total) >= 0.02:
+                kept.append(node)
+            else:
+                grouped.append(node)
+        if not grouped:
+            return kept
+        grouped_total = sum(node.total() for node in grouped)
+        kept.append(
+            SunburstNode(
+                "Other",
+                value=grouped_total,
+                children=grouped,
+                color="#6f7f8f",
+                context=self._merged_context(grouped) | {"other": True, "children": grouped},
+            )
+        )
+        return kept
 
     def _draw_children(
         self,
@@ -239,14 +339,14 @@ class SunburstWidget(QWidget):
         span_angle: float,
         center_radius: float,
         ring_width: float,
-        parent_path: str,
+        parent_path: tuple[str, ...],
     ) -> None:
         total = sum(node.total() for node in nodes)
         if total <= 0:
             return
 
         cursor = start_angle
-        siblings = [node for node in nodes if node.total() > 0]
+        siblings = self._display_nodes(nodes)
         for index, node in enumerate(siblings):
             node_total = node.total()
             node_span = span_angle * (node_total / total)
@@ -254,23 +354,30 @@ class SunburstWidget(QWidget):
             inner_radius = center_radius + (depth - 1) * ring_width
             outer_radius = inner_radius + ring_width - max(2.0, 2.0 * self._ui_scale)
             path = _sector_path(center, inner_radius, outer_radius, cursor, node_span)
+            segment_path = (*parent_path, node.label)
+            selected = bool(self._selected_path) and segment_path == self._selected_path
 
-            painter.setPen(QPen(QColor("#101a24"), max(1, int(1.2 * self._ui_scale))))
-            painter.setBrush(QColor(color))
+            if selected:
+                painter.setPen(QPen(QColor("#f4fbff"), max(2, int(2.6 * self._ui_scale))))
+                painter.setBrush(_mix_color(QColor(color), QColor("#ffffff"), 0.18))
+            else:
+                painter.setPen(QPen(QColor("#101a24"), max(1, int(1.2 * self._ui_scale))))
+                painter.setBrush(QColor(color))
             painter.drawPath(path)
 
-            segment_path = f"{parent_path} > {node.label}"
             self._segments.append(
                 _SunburstSegment(
                     label=node.label,
                     path=segment_path,
                     value=node_total,
+                    percent=(node_total / total * 100.0) if total else 0.0,
                     depth=depth,
                     start_angle=cursor,
                     span_angle=node_span,
                     inner_radius=inner_radius,
                     outer_radius=outer_radius,
                     color=color,
+                    context=node.context,
                 )
             )
             self._draw_label(painter, center, inner_radius, outer_radius, cursor, node_span, node.label)
@@ -303,7 +410,8 @@ class SunburstWidget(QWidget):
         text_rect = QRectF(center.x() - radius * 0.86, center.y() - radius * 0.52, radius * 1.72, radius * 1.04)
         painter.setPen(QColor("#7b95aa"))
         painter.setFont(title_font)
-        painter.drawText(text_rect.adjusted(0, -8 * self._ui_scale, 0, 0), Qt.AlignCenter, self._root.label)
+        root_label = self._breadcrumb[-1] if self._breadcrumb else self._root.label
+        painter.drawText(text_rect.adjusted(0, -8 * self._ui_scale, 0, 0), Qt.AlignCenter, root_label)
         painter.setPen(QColor("#d8e7f3"))
         painter.setFont(value_font)
         painter.drawText(text_rect.adjusted(0, 14 * self._ui_scale, 0, 0), Qt.AlignCenter, f"{root_total:,.0f}")

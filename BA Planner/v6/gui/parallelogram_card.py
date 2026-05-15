@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QScrollArea, QSizePolicy, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QSizePolicy, QWidget
 
 
 @dataclass(slots=True)
@@ -267,6 +267,8 @@ class StudentCardWidget(QWidget):
         owned: bool,
         divider_left: QColor,
         divider_right: QColor,
+        show_name_panel: bool = True,
+        show_unowned_badge: bool = True,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -276,9 +278,12 @@ class StudentCardWidget(QWidget):
         self._owned = owned
         self._divider_left = divider_left
         self._divider_right = divider_right
+        self._show_name_panel = show_name_panel
+        self._show_unowned_badge = show_unowned_badge
         self._selected = False
         self._hovered = False
         self._pressed = False
+        self._drag_hidden = False
         self._pixmap = QPixmap()
         self._scaled_portrait = QPixmap()
         self._scaled_portrait_key: tuple[int, int, int] | None = None
@@ -301,6 +306,17 @@ class StudentCardWidget(QWidget):
         self._divider_right = divider_right
         self.update()
 
+    def setDisplayOptions(self, *, show_name_panel: bool | None = None, show_unowned_badge: bool | None = None) -> None:
+        changed = False
+        if show_name_panel is not None and self._show_name_panel != show_name_panel:
+            self._show_name_panel = show_name_panel
+            changed = True
+        if show_unowned_badge is not None and self._show_unowned_badge != show_unowned_badge:
+            self._show_unowned_badge = show_unowned_badge
+            changed = True
+        if changed:
+            self.update()
+
     def setPixmap(self, pixmap: QPixmap) -> None:
         self._pixmap = pixmap
         self._scaled_portrait = QPixmap()
@@ -311,6 +327,12 @@ class StudentCardWidget(QWidget):
         if self._selected == selected:
             return
         self._selected = selected
+        self.update()
+
+    def setDragHidden(self, hidden: bool) -> None:
+        if self._drag_hidden == hidden:
+            return
+        self._drag_hidden = hidden
         self.update()
 
     def sizeHint(self) -> QSize:
@@ -369,6 +391,8 @@ class StudentCardWidget(QWidget):
         self.setMask(QPixmap.fromImage(mask).mask())
 
     def paintEvent(self, event) -> None:
+        if self._drag_hidden:
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
@@ -391,7 +415,8 @@ class StudentCardWidget(QWidget):
         card_painter.drawImage(0, 0, self._card_asset.background(size, hovered=self._hovered, selected=self._selected))
         self._paint_portrait(card_painter)
         card_painter.drawImage(0, 0, self._card_asset.outline(size))
-        self._paint_name_panel(card_painter)
+        if self._show_name_panel:
+            self._paint_name_panel(card_painter)
         if self._selected:
             sheen = QLinearGradient(0, 0, 0, size.height())
             sheen.setColorAt(0.0, QColor(255, 255, 255, 54))
@@ -404,7 +429,7 @@ class StudentCardWidget(QWidget):
         card_painter.end()
 
         painter.drawImage(self.rect(), self._card_asset.apply_alpha_mask(card_image))
-        if not self._owned:
+        if not self._owned and self._show_unowned_badge:
             self._paint_unowned_badge(painter)
         painter.end()
 
@@ -626,6 +651,8 @@ class ParallelogramCardGrid(QScrollArea):
     card_double_clicked = Signal(str)
     layout_changed = Signal(int, int)
     order_changed = Signal(object)
+    card_drag_moved = Signal(str, object)
+    card_drag_finished = Signal(str, object)
 
     def __init__(
         self,
@@ -635,12 +662,15 @@ class ParallelogramCardGrid(QScrollArea):
         *,
         multi_select: bool = False,
         reorder_enabled: bool = False,
+        drag_enabled: bool = False,
+        min_card_width: int | None = None,
     ) -> None:
         super().__init__(parent)
         self._card_asset = card_asset
         self._ui_scale = ui_scale
         self._multi_select = multi_select
         self._reorder_enabled = reorder_enabled
+        self._drag_enabled = drag_enabled
         self._content = QWidget()
         self._content.setAttribute(Qt.WA_StyledBackground, True)
         self.setWidget(self._content)
@@ -653,13 +683,25 @@ class ParallelogramCardGrid(QScrollArea):
         self._selected_ids: set[str] = set()
         self._drag_candidate_id: str | None = None
         self._drag_start_global = QPoint()
+        self._drag_start_card_pos = QPoint()
+        self._drag_preview: QLabel | None = None
+        self._drag_preview_offset = QPoint()
+        self._drag_hidden_card: StudentCardWidget | None = None
+        self._drop_placeholder_index: int | None = None
+        self._external_drop_placeholder_active = False
+        self._app_drag_filter_installed = False
         self._dragging_reorder = False
         self._drag_threshold = max(8, int(round(8 * max(0.8, ui_scale))))
         self._base_size = card_asset.base_size
-        self._min_card_width = max(160, int(round(self._base_size.width() * max(0.72, min(1.0, ui_scale)))))
+        self._min_card_width = (
+            max(1, int(min_card_width))
+            if min_card_width is not None
+            else max(160, int(round(self._base_size.width() * max(0.72, min(1.0, ui_scale)))))
+        )
         self._current_card_size = QSize(self._base_size)
 
     def clear_cards(self) -> None:
+        self._clear_drag_preview()
         self._current_id = None
         self._selected_ids.clear()
         self._card_by_id.clear()
@@ -674,7 +716,7 @@ class ParallelogramCardGrid(QScrollArea):
         card.setParent(self._content)
         card.clicked.connect(self._on_card_clicked)
         card.double_clicked.connect(self.card_double_clicked)
-        if self._reorder_enabled:
+        if self._reorder_enabled or self._drag_enabled:
             card.installEventFilter(self)
         card.show()
 
@@ -683,7 +725,17 @@ class ParallelogramCardGrid(QScrollArea):
             return
         self._reorder_enabled = enabled
         for card in self._cards:
-            if enabled:
+            if enabled or self._drag_enabled:
+                card.installEventFilter(self)
+            else:
+                card.removeEventFilter(self)
+
+    def set_drag_enabled(self, enabled: bool) -> None:
+        if self._drag_enabled == enabled:
+            return
+        self._drag_enabled = enabled
+        for card in self._cards:
+            if enabled or self._reorder_enabled:
                 card.installEventFilter(self)
             else:
                 card.removeEventFilter(self)
@@ -801,23 +853,212 @@ class ParallelogramCardGrid(QScrollArea):
         if card is not None:
             card.setPixmap(pixmap)
 
-    def _index_at_content_pos(self, pos: QPoint) -> int:
-        if not self._cards:
+    def _index_at_content_pos(self, pos: QPoint, cards: list[StudentCardWidget] | None = None) -> int:
+        target_cards = self._cards if cards is None else cards
+        if not target_cards:
             return -1
         margin = max(12, self._card_asset.style.grid_gap_y)
-        for index, card in enumerate(self._cards):
+        for index, card in enumerate(target_cards):
             if card.geometry().adjusted(-margin, -margin, margin, margin).contains(pos):
                 return index
         return min(
-            range(len(self._cards)),
+            range(len(target_cards)),
             key=lambda index: (
-                (self._cards[index].geometry().center().x() - pos.x()) ** 2
-                + (self._cards[index].geometry().center().y() - pos.y()) ** 2
+                (target_cards[index].geometry().center().x() - pos.x()) ** 2
+                + (target_cards[index].geometry().center().y() - pos.y()) ** 2
             ),
         )
 
+    def _start_drag_preview(self, card: StudentCardWidget, global_pos: QPoint, card_pos: QPoint) -> None:
+        if self._drag_preview is not None:
+            return
+        pixmap = QPixmap(card.size())
+        pixmap.fill(Qt.transparent)
+        card.render(pixmap)
+        preview = QLabel(None, Qt.ToolTip | Qt.FramelessWindowHint)
+        preview.setAttribute(Qt.WA_TranslucentBackground, True)
+        preview.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        preview.setPixmap(pixmap)
+        preview.resize(card.size())
+        preview.setWindowOpacity(0.94)
+        self._drag_preview = preview
+        self._drag_preview_offset = QPoint(card_pos)
+        self._drag_hidden_card = card
+        self._drop_placeholder_index = None
+        card.setDragHidden(True)
+        self._relayout()
+        self._update_drag_preview(global_pos)
+        preview.show()
+
+    def _update_drag_preview(self, global_pos: QPoint) -> None:
+        if self._drag_preview is None:
+            return
+        self._drag_preview.move(global_pos - self._drag_preview_offset)
+
+    @staticmethod
+    def _retire_drag_preview(preview: QLabel) -> None:
+        preview.hide()
+        preview.deleteLater()
+
+    def _finish_drag_visuals(self, *, defer_preview: bool = False) -> bool:
+        needs_relayout = (
+            self._drag_hidden_card is not None
+            or self._drop_placeholder_index is not None
+            or self._external_drop_placeholder_active
+        )
+        hidden_card = self._drag_hidden_card
+        self._drag_hidden_card = None
+        if hidden_card is not None:
+            hidden_card.setDragHidden(False)
+        preview = self._drag_preview
+        self._drag_preview = None
+        if preview is not None:
+            if defer_preview:
+                QTimer.singleShot(16, lambda preview=preview: self._retire_drag_preview(preview))
+            else:
+                self._retire_drag_preview(preview)
+        self._drop_placeholder_index = None
+        self._external_drop_placeholder_active = False
+        return needs_relayout
+
+    def _clear_drag_preview(self) -> None:
+        if self._finish_drag_visuals():
+            self._relayout()
+
+    def _update_drop_placeholder(self, global_pos: QPoint, *, dragged_card: StudentCardWidget) -> None:
+        if not self._reorder_enabled:
+            return
+        next_index = self.drop_index_for_global_pos(
+            global_pos,
+            exclude_student_id=dragged_card.student_id,
+            stable_index=self._drop_placeholder_index,
+        )
+        if next_index == self._drop_placeholder_index:
+            return
+        self._drop_placeholder_index = next_index
+        self._relayout()
+
+    def set_external_drop_placeholder(self, index: int | None) -> None:
+        if index is None:
+            self.clear_external_drop_placeholder()
+            return
+        next_index = max(0, min(int(index), len(self._cards)))
+        if self._external_drop_placeholder_active and self._drop_placeholder_index == next_index:
+            return
+        self._external_drop_placeholder_active = True
+        self._drop_placeholder_index = next_index
+        self._relayout()
+
+    def clear_external_drop_placeholder(self) -> None:
+        if not self._external_drop_placeholder_active and self._drop_placeholder_index is None:
+            return
+        self._external_drop_placeholder_active = False
+        self._drop_placeholder_index = None
+        self._relayout()
+
+    def _install_app_drag_filter(self) -> None:
+        if self._app_drag_filter_installed:
+            return
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.installEventFilter(self)
+        self._app_drag_filter_installed = True
+
+    def _remove_app_drag_filter(self) -> None:
+        if not self._app_drag_filter_installed:
+            return
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        self._app_drag_filter_installed = False
+
+    def _cancel_card_drag(self, card: StudentCardWidget | None) -> None:
+        if card is not None and QWidget.mouseGrabber() is card:
+            card.releaseMouse()
+        self._drag_candidate_id = None
+        self._dragging_reorder = False
+        self._remove_app_drag_filter()
+        self._clear_drag_preview()
+
+    def _handle_card_drag_move(self, card: StudentCardWidget, global_pos: QPoint, buttons: Qt.MouseButtons) -> bool:
+        if not (buttons & Qt.LeftButton):
+            self._cancel_card_drag(card)
+            return True
+        distance = (global_pos - self._drag_start_global).manhattanLength()
+        if not self._dragging_reorder and distance < self._drag_threshold:
+            return False
+        self._dragging_reorder = True
+        self._start_drag_preview(card, global_pos, self._drag_start_card_pos)
+        self._update_drag_preview(global_pos)
+        self._update_drop_placeholder(global_pos, dragged_card=card)
+        if self._drag_enabled:
+            self.card_drag_moved.emit(card.student_id, global_pos)
+        return True
+
+    def _finish_card_drag(self, card: StudentCardWidget, global_pos: QPoint) -> bool:
+        was_dragging = self._dragging_reorder
+        drop_index = (
+            self._drop_placeholder_index
+            if self._drop_placeholder_index is not None
+            else self.drop_index_for_global_pos(global_pos, exclude_student_id=card.student_id)
+            if was_dragging and self._reorder_enabled
+            else None
+        )
+        self._drag_candidate_id = None
+        self._dragging_reorder = False
+        if QWidget.mouseGrabber() is card:
+            card.releaseMouse()
+        self._remove_app_drag_filter()
+        if not was_dragging:
+            self._clear_drag_preview()
+            return False
+        if hasattr(card, "_pressed"):
+            card._pressed = False
+            card.update()
+        needs_relayout = self._finish_drag_visuals(defer_preview=True)
+        if self._reorder_enabled and drop_index is not None:
+            remaining_cards = [candidate for candidate in self._cards if candidate is not card]
+            clamped_index = max(0, min(drop_index, len(remaining_cards)))
+            next_cards = list(remaining_cards)
+            next_cards.insert(clamped_index, card)
+            if next_cards != self._cards:
+                self._cards = next_cards
+                needs_relayout = True
+        if needs_relayout:
+            self._relayout()
+        self.set_current_card(card.student_id)
+        card.repaint()
+        self._content.repaint()
+        self.viewport().repaint()
+        if self._reorder_enabled:
+            self.order_changed.emit(self.card_ids())
+        if self._drag_enabled:
+            self.card_drag_finished.emit(card.student_id, global_pos)
+        return True
+
     def eventFilter(self, watched, event) -> bool:
-        if not getattr(self, "_reorder_enabled", False) or not hasattr(self, "_cards") or watched not in self._cards:
+        if (
+            getattr(self, "_app_drag_filter_installed", False)
+            and getattr(self, "_drag_candidate_id", None)
+            and watched not in getattr(self, "_cards", ())
+        ):
+            card = self._card_by_id.get(self._drag_candidate_id)
+            if card is None:
+                self._cancel_card_drag(None)
+                return False
+            event_type = event.type()
+            if event_type == QEvent.MouseMove:
+                return self._handle_card_drag_move(card, event.globalPosition().toPoint(), event.buttons())
+            if event_type == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                return self._finish_card_drag(card, event.globalPosition().toPoint())
+            return False
+
+        if (
+            not (getattr(self, "_reorder_enabled", False) or getattr(self, "_drag_enabled", False))
+            or not hasattr(self, "_cards")
+            or watched not in self._cards
+        ):
             return super().eventFilter(watched, event)
 
         card = watched
@@ -826,36 +1067,21 @@ class ParallelogramCardGrid(QScrollArea):
             if self._card_asset.contains(card.size(), event.position().toPoint()):
                 self._drag_candidate_id = card.student_id
                 self._drag_start_global = event.globalPosition().toPoint()
+                self._drag_start_card_pos = event.position().toPoint()
                 self._dragging_reorder = False
+                card.grabMouse()
+                self._install_app_drag_filter()
             return False
 
         if event_type == QEvent.MouseMove and self._drag_candidate_id == card.student_id:
-            if not (event.buttons() & Qt.LeftButton):
-                return False
-            distance = (event.globalPosition().toPoint() - self._drag_start_global).manhattanLength()
-            if not self._dragging_reorder and distance < self._drag_threshold:
-                return False
-            self._dragging_reorder = True
-            target_index = self._index_at_content_pos(card.mapTo(self._content, event.position().toPoint()))
-            current_index = self._cards.index(card)
-            if target_index >= 0 and target_index != current_index:
-                moved = self._cards.pop(current_index)
-                self._cards.insert(target_index, moved)
-                self._relayout()
-                moved.raise_()
-            event.accept()
-            return True
+            handled = self._handle_card_drag_move(card, event.globalPosition().toPoint(), event.buttons())
+            if handled:
+                event.accept()
+                return True
+            return False
 
         if event_type == QEvent.MouseButtonRelease and self._drag_candidate_id == card.student_id:
-            was_dragging = self._dragging_reorder
-            self._drag_candidate_id = None
-            self._dragging_reorder = False
-            if was_dragging:
-                if hasattr(card, "_pressed"):
-                    card._pressed = False
-                    card.update()
-                self.set_current_card(card.student_id)
-                self.order_changed.emit(self.card_ids())
+            if self._finish_card_drag(card, event.globalPosition().toPoint()):
                 event.accept()
                 return True
             return False
@@ -864,6 +1090,61 @@ class ParallelogramCardGrid(QScrollArea):
 
     def current_card_size(self) -> QSize:
         return QSize(self._current_card_size)
+
+    def set_min_card_width(self, width: int) -> None:
+        next_width = max(1, int(width))
+        if next_width == self._min_card_width:
+            return
+        self._min_card_width = next_width
+        self._relayout()
+
+    def drop_index_for_global_pos(
+        self,
+        global_pos: QPoint,
+        *,
+        exclude_student_id: str | None = None,
+        stable_index: int | None = None,
+    ) -> int:
+        target_cards = [
+            card
+            for card in self._cards
+            if exclude_student_id is None or card.student_id != exclude_student_id
+        ]
+        if not target_cards:
+            return 0
+        content_pos = self._content.mapFromGlobal(global_pos)
+        edge, columns, card_width, card_height, advance_x, row_advance = self._grid_metrics()
+        if columns <= 0:
+            return 0
+
+        total_rows = max(1, (len(target_cards) + columns - 1) // columns)
+        row_margin = max(8, int(round(card_height * 0.18)))
+        if content_pos.y() < edge - row_margin:
+            candidate = 0
+        elif content_pos.y() >= edge + total_rows * row_advance - row_advance + card_height + row_margin:
+            candidate = len(target_cards)
+        else:
+            row = max(0, min(total_rows - 1, (content_pos.y() - edge) // max(1, row_advance)))
+            row_start = row * columns
+            row_count = max(0, min(columns, len(target_cards) - row_start))
+            if row_count <= 0:
+                candidate = len(target_cards)
+            else:
+                col = max(0, min(columns - 1, (content_pos.x() - edge) // max(1, advance_x)))
+                col = min(col, row_count - 1)
+                slot_left = edge + col * advance_x
+                slot_mid = slot_left + card_width // 2
+                hysteresis = max(6, int(round(card_width * 0.08)))
+                if stable_index is not None:
+                    stable_row = max(0, min(total_rows - 1, stable_index // max(1, columns)))
+                    stable_col = max(0, min(columns - 1, stable_index % max(1, columns)))
+                    if stable_row == row and abs(stable_col - col) <= 1 and abs(content_pos.x() - slot_mid) <= hysteresis:
+                        return max(0, min(len(target_cards), stable_index))
+                insert_after = content_pos.x() > slot_mid + hysteresis
+                if abs(content_pos.x() - slot_mid) <= hysteresis and stable_index is not None:
+                    return max(0, min(len(target_cards), stable_index))
+                candidate = row_start + col + (1 if insert_after else 0)
+        return max(0, min(len(target_cards), candidate))
 
     def visible_card_ids(self) -> set[str]:
         viewport_rect = self.viewport().rect()
@@ -879,9 +1160,7 @@ class ParallelogramCardGrid(QScrollArea):
         super().resizeEvent(event)
         self._relayout()
 
-    def _relayout(self) -> None:
-        if not self._cards:
-            return
+    def _grid_metrics(self) -> tuple[int, int, int, int, int, int]:
         edge = self._card_asset.style.grid_edge_padding
         available_width = max(1, self.viewport().width() - edge * 2)
         overlap_x = self._card_asset.style.grid_overlap_x
@@ -900,16 +1179,40 @@ class ParallelogramCardGrid(QScrollArea):
         card_width = max(self._min_card_width, (available_width + shared_overlap * (columns - 1)) // columns)
         card_height = max(1, int(round(card_width / self._card_asset.aspect_ratio)))
         advance_x = max(1, card_width - shared_overlap)
+        row_advance = card_height + gap_y
+        return edge, columns, card_width, card_height, advance_x, row_advance
+
+    def _relayout(self) -> None:
+        if not self._cards:
+            return
+        edge, columns, card_width, card_height, advance_x, row_advance = self._grid_metrics()
 
         if card_width != self._current_card_size.width() or card_height != self._current_card_size.height():
             self._current_card_size = QSize(card_width, card_height)
             self.layout_changed.emit(card_width, card_height)
 
-        for index, card in enumerate(self._cards):
+        dragged_card = self._drag_hidden_card
+        layout_cards = [card for card in self._cards if card is not dragged_card]
+        slots: list[StudentCardWidget | None] = list(layout_cards)
+        if (
+            (dragged_card is not None or self._external_drop_placeholder_active)
+            and self._reorder_enabled
+            and self._drop_placeholder_index is not None
+        ):
+            placeholder_index = max(0, min(self._drop_placeholder_index, len(slots)))
+            slots.insert(placeholder_index, None)
+
+        if not slots:
+            self._content.resize(edge * 2, edge * 2)
+            return
+
+        for index, card in enumerate(slots):
+            if card is None:
+                continue
             row = index // columns
             col = index % columns
             x = edge + col * advance_x
-            y = edge + row * (card_height + gap_y)
+            y = edge + row * row_advance
             if card.student_id == self._current_id or card.student_id in self._selected_ids:
                 expand = self._card_asset.style.selected_expand
                 lift = self._card_asset.style.selected_lift_y
@@ -923,8 +1226,8 @@ class ParallelogramCardGrid(QScrollArea):
                 card.setGeometry(x, y, card_width, card_height)
             card.raise_()
 
-        rows = (len(self._cards) + columns - 1) // columns
+        rows = (len(slots) + columns - 1) // columns
         selected_extra = self._card_asset.style.selected_expand
         content_width = edge * 2 + card_width + max(0, columns - 1) * advance_x + selected_extra
-        content_height = edge * 2 + rows * card_height + max(0, rows - 1) * gap_y + selected_extra + self._card_asset.style.selected_lift_y
+        content_height = edge * 2 + rows * card_height + max(0, rows - 1) * (row_advance - card_height) + selected_extra + self._card_asset.style.selected_lift_y
         self._content.resize(content_width, content_height)
